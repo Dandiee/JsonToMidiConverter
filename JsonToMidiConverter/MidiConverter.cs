@@ -77,7 +77,7 @@ internal static class MidiConverter
                         nextBeat = nextMeasure.voices.Single().beats[0];
                     }
 
-                    
+
 
                     foreach (var note in beat.notes)
                     {
@@ -87,7 +87,7 @@ internal static class MidiConverter
                         var rawDuration = (MusicalTimeSpan)fullBeatDuration.Clone();
                         if (note.staccato)
                         {
-                            rawDuration/= 2;
+                            rawDuration /= 2;
                         }
 
                         var actualDuration = prevBeat?.graceNote == "onBeat"
@@ -95,7 +95,7 @@ internal static class MidiConverter
                                 TimeSpanMode.LengthLength)
                             : rawDuration;
 
-                        
+
 
 
                         if (!beat.rest)
@@ -135,32 +135,26 @@ internal static class MidiConverter
                                 currentCursor = currentCursor.Add(actualDuration, TimeSpanMode.TimeLength);
                                 actualDuration = shiftOffsetDuration;
 
-                                timedEvents.Add(new PitchBendEvent(8192), currentCursor, ctx);
-                                var targetNoteObj = nextBeat?.notes.FirstOrDefault(n => n.StringNumber == note.StringNumber);
-                                int direction = 1; // Default to UP
+                                
+                                
+                                
 
-                                if (targetNoteObj != null)
+                                var targetNote = nextBeat!.notes.First(n => (int)n.StringNumber == (int)note.StringNumber);
+                                var targetPitch = GetNoteNumber(part, targetNote);
+                                var direction = targetPitch < noteNumber ? -1 : 1;
+                                var semitoneDistance = Math.Abs(targetPitch - noteNumber);
+
+                                if (semitoneDistance == 1)
                                 {
-                                    var targetPitch = part.tuning.Length == 0
-                                        ? targetNoteObj.StringNumber
-                                        : part.tuning[(int)targetNoteObj.StringNumber] + targetNoteObj.fret;
-
-                                    // If target is lower than current, direction is -1. Otherwise 1.
-                                    if (targetPitch < noteNumber)
-                                    {
-                                        direction = -1;
-                                    }
+                                    AddLegatoPitchBends(currentCursor, ctx, timedEvents, tempoMap, actualDuration);
                                 }
-
-                                // 3. CALCULATE BRIDGE NOTE (Current + Direction)
-                                bridgeNoteNumberForSliding = (SevenBitNumber)(noteNumber + direction);
-
-                                // 4. INSERT EVENTS
-                                // Use a lower velocity (95) for the bridge note to match the reference
-                                var bridgeVelocity = (SevenBitNumber)95;
-
-                                timedEvents.Add(new NoteOnEvent(bridgeNoteNumberForSliding.Value, bridgeVelocity), currentCursor, ctx);
-                                timedEvents.Add(new NoteOffEvent(noteNumber, velocity), currentCursor, ctx);
+                                else
+                                {
+                                    timedEvents.Add(new PitchBendEvent(8192), currentCursor, ctx);
+                                    bridgeNoteNumberForSliding = (SevenBitNumber)(noteNumber + direction);
+                                    timedEvents.Add(new NoteOnEvent(bridgeNoteNumberForSliding.Value, (SevenBitNumber)95), currentCursor, ctx);
+                                    timedEvents.Add(new NoteOffEvent(noteNumber, velocity), currentCursor, ctx);
+                                }
                             }
                         }
 
@@ -170,28 +164,7 @@ internal static class MidiConverter
                             actualDuration = (MusicalTimeSpan)actualDuration.Divide(2);
                             currentCursor = currentCursor.Add(actualDuration, TimeSpanMode.TimeLength);
 
-                            timedEvents.Add(new PitchBendEvent(8195), currentCursor, ctx);
-
-                            for (var l = 0; l < 99; l++)
-                            {
-                                if (l == 98)
-                                {
-                                    var fillerTime = actualDuration - TimeConverter.ConvertTo<MusicalTimeSpan>(11, tempoMap);
-                                    actualDuration -= fillerTime;
-                                    currentCursor = currentCursor.Add(fillerTime, TimeSpanMode.TimeLength);
-
-                                    timedEvents.Add(new PitchBendEvent(8888), currentCursor, ctx);
-
-                                }
-                                else
-                                {
-                                    var legatoTime = TimeConverter.ConvertTo<MusicalTimeSpan>(8, tempoMap);
-                                    actualDuration -= legatoTime;
-                                    currentCursor = currentCursor.Add(legatoTime, TimeSpanMode.TimeLength);
-
-                                    timedEvents.Add(new PitchBendEvent(8888), currentCursor, ctx);
-                                }
-                            }
+                            AddLegatoPitchBends(currentCursor, ctx, timedEvents, tempoMap, actualDuration);
                         }
 
                         var nextIdenticalNote = nextBeat?.notes.SingleOrDefault(e => (int)e.StringNumber == (int)note.StringNumber && e.fret == note.fret);
@@ -222,6 +195,33 @@ internal static class MidiConverter
         }
         midiFile.ReplaceTempoMap(tempoMap);
         return midiFile;
+    }
+
+
+    public static void AddLegatoPitchBends(ITimeSpan currentCursor, NoteContext ctx, IList<TimedEvent> timedEvents, TempoMap tempoMap, MusicalTimeSpan actualDuration)
+    {
+        timedEvents.Add(new PitchBendEvent(8195), currentCursor, ctx);
+
+        for (var l = 0; l < 99; l++)
+        {
+            if (l == 98)
+            {
+                var fillerTime = actualDuration - TimeConverter.ConvertTo<MusicalTimeSpan>(11, tempoMap);
+                actualDuration -= fillerTime;
+                currentCursor = currentCursor.Add(fillerTime, TimeSpanMode.TimeLength);
+
+                timedEvents.Add(new PitchBendEvent(8888), currentCursor, ctx);
+
+            }
+            else
+            {
+                var legatoTime = TimeConverter.ConvertTo<MusicalTimeSpan>(8, tempoMap);
+                actualDuration -= legatoTime;
+                currentCursor = currentCursor.Add(legatoTime, TimeSpanMode.TimeLength);
+
+                timedEvents.Add(new PitchBendEvent(8888), currentCursor, ctx);
+            }
+        }
     }
 
     public static SevenBitNumber GetNoteNumber(Part part, Nóta note)
@@ -273,6 +273,7 @@ internal static class MidiConverter
                     {
                         if (!(propName == "PitchValue" && actualValue.ToString() == "8888"))
                         {
+                            var EVENTS = events.Count;
                             Debug.Assert(referenceValue.ToString() == actualValue.ToString(), propName);
                         }
 
@@ -349,7 +350,7 @@ internal static class MidiConverter
 
                 time += midiEvent.DeltaTime;
                 results[i].Add(new(time, midiEvent));
-                
+
             }
         }
 
@@ -395,7 +396,7 @@ internal static class MidiConverter
     {
         if (part.instrumentId == 1024) return (FourBitNumber)9;
         return (FourBitNumber)((int)note.StringNumber);
-        
+
         // TODO: yeah the string number wont hold up for long i guess
         if (InstrumentChannels.TryGetValue(part.instrumentId, out int baseChannel)) return (FourBitNumber)baseChannel;
         return (FourBitNumber)0;
