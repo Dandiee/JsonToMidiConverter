@@ -298,8 +298,7 @@ internal static class MidiConverter
                                     currentCursor = currentCursor.Add(oneTickTime, TimeSpanMode.TimeLength);
                                 }
 
-                                timedEvents.Add(
-                                    new PitchBendEvent(8192), currentCursor, ctx);
+                                timedEvents.Add(new PitchBendEvent(8192), currentCursor, ctx);
                             }
                         }
 
@@ -353,8 +352,7 @@ internal static class MidiConverter
                                     actualDuration -= fillerTime;
                                     currentCursor = currentCursor.Add(fillerTime, TimeSpanMode.TimeLength);
 
-                                    timedEvents.Add(
-                                        new PitchBendEvent(8888), currentCursor, ctx);
+                                    timedEvents.Add(new PitchBendEvent(8888), currentCursor, ctx);
 
                                 }
                                 else
@@ -378,10 +376,7 @@ internal static class MidiConverter
 
                             var shiftedNoteNumber = note.slide == "shift" ? noteNumber + 1 : noteNumber;
 
-                            timedEvents.Add(
-                                new NoteOffEvent((SevenBitNumber)shiftedNoteNumber, velocity)
-                               ,
-                                currentCursor, ctx);
+                            timedEvents.Add(new NoteOffEvent((SevenBitNumber)shiftedNoteNumber, velocity), currentCursor, ctx);
                         }
                     }
 
@@ -402,15 +397,41 @@ internal static class MidiConverter
 
     public static void AddEvent(this IList<TimedEvent> events, MidiEvent midiEvent, long time, Part part, int channel)
     {
+        if (midiEvent is ChannelEvent channelEvent)
+        {
+            channelEvent.Channel = (FourBitNumber)channel;
+        }
+
+
         if (part.partId < 10)
         {
             var referenceChunk = ReferenceData[part.partId];
             var referenceEvent = referenceChunk[events.Count];
-        }
 
-        if (midiEvent is ChannelEvent channelEvent)
-        {
-            channelEvent.Channel = (FourBitNumber)channel;
+            var areTheSameType = referenceEvent.Event.GetType() == midiEvent.GetType();
+            Debug.Assert(areTheSameType);
+            
+            if (areTheSameType)
+            {
+                var props = referenceEvent.Event.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance);
+                foreach (var prop in props)
+                {
+                    var propName = prop.Name;
+                    var referenceValue = prop.GetValue(referenceEvent.Event);
+                    var actualValue = prop.GetValue(midiEvent);
+
+                    if (propName != "DeltaTime" && propName != "Velocity")
+                    {
+                        if (!(propName == "PitchValue" && actualValue.ToString() == "8888"))
+                        {
+                            Debug.Assert(referenceValue.ToString() == actualValue.ToString(), propName);
+                        }
+                        
+                    }
+                }
+            }
+
+            Debug.Assert(referenceEvent.AbsoluteTime == time);
         }
 
         events.Add(new TimedEvent(midiEvent, time));
@@ -437,7 +458,7 @@ internal static class MidiConverter
             var time = 0l;
             foreach (var midiEvent in (referenceMidi.Chunks[i] as TrackChunk).Events)
             {
-                if (time == 0 && midiEvent is TimeSignatureEvent)
+                if (time == 0 && (midiEvent is TimeSignatureEvent || midiEvent is SetTempoEvent))
                 {
                     continue;
                 }
