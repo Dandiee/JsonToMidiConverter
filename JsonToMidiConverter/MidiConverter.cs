@@ -153,25 +153,31 @@ internal static class MidiConverter
 
                                 for (var i = 0; i < totalSteps; i++)
                                 {
-                                    // Housekeeping
                                     timedEvents.Add(new PitchBendEvent(8192), currentCursor, ctx);
-
+                                    
                                     var nextNote = (SevenBitNumber)(runningNoteNumber + direction);
-
                                     if (i == 0)
                                     {
-                                        // OVERLAP (Start -> Bridge 1)
                                         timedEvents.Add(new NoteOnEvent(nextNote, (SevenBitNumber)95), currentCursor, ctx);
-                                        timedEvents.Add(new NoteOffEvent(runningNoteNumber, velocity), currentCursor, ctx);
+                                        if (!note.tie)
+                                        {
+                                            timedEvents.Add(new NoteOffEvent(runningNoteNumber, velocity), currentCursor, ctx);
+                                        }
                                     }
                                     else
                                     {
-                                        // SWITCH (Bridge X -> Bridge Y)
                                         timedEvents.Add(new NoteOffEvent(runningNoteNumber, velocity), currentCursor, ctx);
                                         timedEvents.Add(new NoteOnEvent(nextNote, (SevenBitNumber)95), currentCursor, ctx);
                                     }
 
                                     currentCursor = currentCursor.Add(singleStepDuration, TimeSpanMode.TimeLength);
+
+                                    if (i == 0 && note.tie)
+                                    {
+                                        var noteOffCursor = currentCursor.Subtract(TimeConverter.ConvertTo<MusicalTimeSpan>(1, tempoMap), TimeSpanMode.LengthLength);
+                                        timedEvents.Add(new NoteOffEvent(runningNoteNumber, velocity), noteOffCursor, ctx);
+                                    }
+
                                     runningNoteNumber = nextNote;
                                 }
 
@@ -189,6 +195,8 @@ internal static class MidiConverter
                             AddLegatoPitchBends(currentCursor, ctx, timedEvents, tempoMap, actualDuration);
                         }
 
+
+                        // NoteOff
                         var nextIdenticalNote = nextBeat?.notes.SingleOrDefault(e => (int)e.StringNumber == (int)note.StringNumber && e.fret == note.fret);
                         if (nextIdenticalNote == null || !nextIdenticalNote.tie)
                         {
