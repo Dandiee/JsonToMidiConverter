@@ -1,8 +1,11 @@
-using System.Diagnostics;
-using System.Reflection;
 using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
+using Melanchall.DryWetMidi.MusicTheory;
+using System.Diagnostics;
+using System.Reflection;
+using System.Reflection.Metadata.Ecma335;
+using Note = Melanchall.DryWetMidi.Interaction.Note;
 
 namespace JsonToMidiConverter;
 
@@ -128,6 +131,7 @@ internal static class MidiConverter
 
                         if (note.slide == "shift")
                         {
+                            
                             var targetNote = nextBeat!.notes.First(n => (int)n.StringNumber == (int)note.StringNumber);
                             var targetPitch = GetNoteNumber(part, targetNote);
                             var direction = targetPitch < noteNumber ? -1 : 1;
@@ -143,9 +147,39 @@ internal static class MidiConverter
                             }
                             else
                             {
+                                // --- MULTI-SEMITONE LOGIC (ADAPTIVE) ---
+
                                 var totalSteps = semitoneDistance - 1;
-                                var singleStepDuration = TimeConverter.ConvertTo<MusicalTimeSpan>(960, tempoMap);
-                                var totalBridgeDuration = (MusicalTimeSpan)singleStepDuration.Multiply(totalSteps);
+
+                                // A. Calculate Standard Cost
+                                var standardStepTicks = 960;
+                                var totalBridgeTicks = totalSteps * standardStepTicks;
+
+                                // B. Calculate the "50% Limit" of the current note
+                                // (Assuming 15360 TPQ, TimeConverter logic handles the math)
+                                // We need the current note's total duration in ticks to check the limit.
+                                long currentTotalTicks = TimeConverter.ConvertFrom(actualDuration, tempoMap);
+                                long maxBridgeTicks = currentTotalTicks / 2;
+
+                                MusicalTimeSpan singleStepDuration;
+                                MusicalTimeSpan totalBridgeDuration;
+
+                                // C. Determine Strategy
+                                if (totalBridgeTicks > maxBridgeTicks)
+                                {
+                                    // COMPRESSION STRATEGY (Measure 58)
+                                    // Clamp total bridge to 50% of the note
+                                    var compressedStepTicks = maxBridgeTicks / totalSteps;
+
+                                    totalBridgeDuration = TimeConverter.ConvertTo<MusicalTimeSpan>(maxBridgeTicks, tempoMap);
+                                    singleStepDuration = TimeConverter.ConvertTo<MusicalTimeSpan>(compressedStepTicks, tempoMap);
+                                }
+                                else
+                                {
+                                    // STANDARD STRATEGY (Measure 26, 31)
+                                    totalBridgeDuration = TimeConverter.ConvertTo<MusicalTimeSpan>(totalBridgeTicks, tempoMap);
+                                    singleStepDuration = TimeConverter.ConvertTo<MusicalTimeSpan>(standardStepTicks, tempoMap);
+                                }
 
                                 actualDuration = (MusicalTimeSpan)actualDuration.Subtract(totalBridgeDuration, TimeSpanMode.LengthLength);
                                 currentCursor = currentCursor.Add(actualDuration, TimeSpanMode.TimeLength);
@@ -154,8 +188,9 @@ internal static class MidiConverter
                                 for (var i = 0; i < totalSteps; i++)
                                 {
                                     timedEvents.Add(new PitchBendEvent(8192), currentCursor, ctx);
-                                    
+
                                     var nextNote = (SevenBitNumber)(runningNoteNumber + direction);
+
                                     if (i == 0)
                                     {
                                         timedEvents.Add(new NoteOnEvent(nextNote, (SevenBitNumber)95), currentCursor, ctx);
@@ -227,6 +262,30 @@ internal static class MidiConverter
         return midiFile;
     }
 
+    private static Nóta GetDestinationNote(int beatIndex, Part part, Nóta note, int measureIndex)
+    {
+        for (var m = measureIndex; m < part.measures.Length; m++)
+        {
+            var beats = part.measures[m].voices.Single().beats;
+            var fromBeat = m == measureIndex ? beatIndex + 1 : 0;
+
+            for (var b = fromBeat; b < beats.Length; b++)
+            {
+                var beat = beats[b];
+                foreach (var candidateNote in beat.notes)
+                {
+                    if ((int)note.StringNumber == candidateNote.StringNumber && !candidateNote.rest && candidateNote.fret > 0
+                        )
+                    {
+                        return candidateNote;
+                    }
+                }
+                
+            }
+        }
+
+        throw new Exception("wtf");
+    }
 
     public static void AddLegatoPitchBends(ITimeSpan currentCursor, NoteContext ctx, IList<TimedEvent> timedEvents, TempoMap tempoMap, MusicalTimeSpan actualDuration)
     {
@@ -283,7 +342,10 @@ internal static class MidiConverter
 
                 var warning = $"Time mismatch at Index {events.Count} of {eventType.Name}, Expected = {referenceEvent.AbsoluteTime} vs Actual = {tickTime}";
                 var diff = referenceEvent.AbsoluteTime - tickTime;
-                if (diff != -1) Debug.Assert(referenceEvent.AbsoluteTime == tickTime, warning);
+                if (diff != -1)
+                {
+                     Debug.Assert(referenceEvent.AbsoluteTime == tickTime, warning);
+                }
             }
 
             var areTheSameType = referenceEvent.Event.GetType() == eventType;
