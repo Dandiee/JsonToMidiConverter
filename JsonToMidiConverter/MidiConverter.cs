@@ -87,12 +87,20 @@ internal static class MidiConverter
                         nextBeat = nextMeasure.voices.Single().beats[0];
                     }
 
+                    var beatStartCursor = currentCursor;
 
-                    foreach(var note in beat.notes.OrderByDescending(e =>e.StringNumber))
-                    //for (var noteIndex = 0; noteIndex < beat.notes.Length; noteIndex++)
+                    for (var noteIndex = 0; noteIndex < beat.notes.Length; noteIndex++)
                     {
-                        //var note = beat.notes[noteIndex];
-                        
+                        var note = beat.notes[noteIndex];
+
+                        if (part.partId == 3)
+                        {
+
+                        }
+
+                        currentCursor = beatStartCursor;
+                        var currentCursorAbsoluteTick = TimeConverter.ConvertFrom(currentCursor, tempoMap);
+
                         var ctx = new NoteContext(tempoMap, part, note, measureIndex);
 
                         var fullBeatDuration = new MusicalTimeSpan(beat.duration[0], beat.duration[1]);
@@ -140,7 +148,7 @@ internal static class MidiConverter
 
                         if (note.slide == "shift")
                         {
-                            
+
                             var targetNote = nextBeat!.notes.First(n => (int)n.StringNumber == (int)note.StringNumber);
                             var targetPitch = GetNoteNumber(part, targetNote);
                             var direction = targetPitch < noteNumber ? -1 : 1;
@@ -269,8 +277,6 @@ internal static class MidiConverter
                         if (nextIdenticalNote == null || !nextIdenticalNote.tie)
                         {
                             // Tie ended (or never existed). Fire NoteOff.
-                            
-
                             var shiftedNoteNumber = bridgeNoteNumberForSliding ?? noteNumber;
 
                             timedEvents.Add(new NoteOffEvent(shiftedNoteNumber, velocity), currentCursor, ctx);
@@ -425,6 +431,7 @@ internal static class MidiConverter
                 var expected = referenceEvent.Event;
                 var actual = midiEvent;
                 var _events = events;
+                var partId = ctx.Part.partId;
 
                 var warning = $"Time mismatch at Index {events.Count} of {eventType.Name}, Expected = {referenceEvent.AbsoluteTime} vs Actual = {tickTime}";
                 var diff = referenceEvent.AbsoluteTime - tickTime;
