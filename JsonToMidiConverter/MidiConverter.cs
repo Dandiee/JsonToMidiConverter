@@ -297,7 +297,7 @@ internal static class MidiConverter
                         }
                         else if (orderedNotes.Count > 1) // its an accord/chord
                         {
-                            if (noteIndex == orderedNotes.Count - 1)
+                            if (noteIndex == orderedNotes.Count - 1 && (nextBeat != null && !nextBeat.notes[0].tie))
                             {
                                 if (part.partId == 3)
                                 {
