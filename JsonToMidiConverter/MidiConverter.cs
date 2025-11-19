@@ -252,13 +252,15 @@ internal static class MidiConverter
                         }
 
 
+                        currentCursor = currentCursor.Add(actualDuration, TimeSpanMode.TimeLength);
+                        currentCursor = currentCursor.Subtract(TimeConverter.ConvertTo<MusicalTimeSpan>(1, tempoMap), TimeSpanMode.LengthLength);
+
                         // NoteOff
                         var nextIdenticalNote = nextBeat?.notes.SingleOrDefault(e => (int)e.StringNumber == (int)note.StringNumber && e.fret == note.fret);
                         if (nextIdenticalNote == null || !nextIdenticalNote.tie)
                         {
                             // Tie ended (or never existed). Fire NoteOff.
-                            currentCursor = currentCursor.Add(actualDuration, TimeSpanMode.TimeLength);
-                            currentCursor = currentCursor.Subtract(TimeConverter.ConvertTo<MusicalTimeSpan>(1, tempoMap), TimeSpanMode.LengthLength);
+                            
 
                             var shiftedNoteNumber = bridgeNoteNumberForSliding ?? noteNumber;
 
