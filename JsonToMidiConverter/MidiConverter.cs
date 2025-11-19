@@ -13,6 +13,8 @@ internal static class MidiConverter
 
     public static MidiFile Convert(Song song)
     {
+        DebugShit.CheckConsistency();
+
         var midiFile = new MidiFile { TimeDivision = new TicksPerQuarterNoteTimeDivision(TicksPerQuarterNote) };
         var tempoMap = GetTempo(midiFile, song.parts[0]);
 
@@ -75,17 +77,26 @@ internal static class MidiConverter
                         nextBeat = nextMeasure.voices.Single().beats[0];
                     }
 
-                    var rawDuration = new MusicalTimeSpan(beat.duration[0], beat.duration[1]);
-
-                    var actualDuration = prevBeat?.graceNote == "onBeat"
-                        ? (MusicalTimeSpan)rawDuration.Subtract(new MusicalTimeSpan(prevBeat.numerator, prevBeat.denominator),
-                            TimeSpanMode.LengthLength)
-                        : rawDuration;
-
+                    
 
                     foreach (var note in beat.notes)
                     {
                         var ctx = new NoteContext(tempoMap, part, note);
+
+                        var fullBeatDuration = new MusicalTimeSpan(beat.duration[0], beat.duration[1]);
+                        var rawDuration = (MusicalTimeSpan)fullBeatDuration.Clone();
+                        if (note.staccato)
+                        {
+                            rawDuration/= 2;
+                        }
+
+                        var actualDuration = prevBeat?.graceNote == "onBeat"
+                            ? (MusicalTimeSpan)rawDuration.Subtract(new MusicalTimeSpan(prevBeat.numerator, prevBeat.denominator),
+                                TimeSpanMode.LengthLength)
+                            : rawDuration;
+
+                        
+
 
                         if (!beat.rest)
                         {
@@ -103,7 +114,7 @@ internal static class MidiConverter
 
                         if (note.rest)
                         {
-                            currentCursor = currentCursor.Add(actualDuration, TimeSpanMode.TimeLength);
+                            currentCursor = currentCursor.Add(fullBeatDuration, TimeSpanMode.TimeLength);
                             continue;
                         }
 
@@ -172,6 +183,16 @@ internal static class MidiConverter
                             var shiftedNoteNumber = note.slide == "shift" ? noteNumber + 1 : noteNumber;
 
                             timedEvents.Add(new NoteOffEvent((SevenBitNumber)shiftedNoteNumber, velocity), currentCursor, ctx);
+
+                            if (note.staccato)
+                            {
+                                // Calculate the gap (Full Beat - The Audible 1/2 Beat)
+                                // We use rawDuration here because actualDuration might have been chopped up by shift/legato logic
+                                var staccatoSilence = (MusicalTimeSpan)fullBeatDuration.Subtract(rawDuration, TimeSpanMode.LengthLength);
+
+                                // Add the silence to the cursor
+                                currentCursor = currentCursor.Add(staccatoSilence, TimeSpanMode.TimeLength);
+                            }
                         }
                     }
 
@@ -194,6 +215,7 @@ internal static class MidiConverter
         }
 
         var tickTime = TimeConverter.ConvertFrom(time, ctx.TempoMap);
+        var eventType = midiEvent.GetType();
 
         if (ctx.Part.partId < 10)
         {
@@ -202,16 +224,23 @@ internal static class MidiConverter
 
             if (!(midiEvent is PitchBendEvent pitch && pitch.PitchValue == 8888))
             {
-                Debug.Assert(referenceEvent.AbsoluteTime == tickTime);
+                var index = events.Count + 2;
+                var expected = referenceEvent.Event;
+                var actual = midiEvent;
+                var _events = events;
+
+                var warning = $"Time mismatch at Index {events.Count} of {eventType.Name}, Expected = {referenceEvent.AbsoluteTime} vs Actual = {tickTime}";
+                var diff = referenceEvent.AbsoluteTime - tickTime;
+                Debug.Assert(referenceEvent.AbsoluteTime == tickTime, warning);
             }
 
-            var areTheSameType = referenceEvent.Event.GetType() == midiEvent.GetType();
+            var areTheSameType = referenceEvent.Event.GetType() == eventType;
 
             Debug.Assert(areTheSameType);
 
             if (areTheSameType)
             {
-                var props = referenceEvent.Event.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance);
+                var props = eventType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
                 foreach (var prop in props)
                 {
                     var propName = prop.Name;
