@@ -3,6 +3,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using JsonToMidiConverter;
 using Melanchall.DryWetMidi.Core;
 
 const string inputFile = "Input.json";

@@ -105,7 +105,7 @@ public class Nóta
 {
     public int fret { get; set; }
     [JsonPropertyName("string")]
-    public double? StringNumber { get; set; }
+    public double StringNumber { get; set; }
     public string? slide { get; set; }
     public bool vibrato { get; set; }
     public bool hp { get; set; }
