@@ -1,5 +1,6 @@
 ﻿using Melanchall.DryWetMidi.Core;
 using System.Diagnostics;
+using System.Net.WebSockets;
 using System.Reflection;
 using System.Runtime;
 using System.Text;
@@ -92,9 +93,10 @@ public static class DebugShit
             Debug.Assert(mid.Chunks.OfType<TrackChunk>().Count() == mid.Chunks.Count, "All Chunk is TrackChunk");
 
             sb.AppendLine($"Chunk count: {mid.Chunks.Count}");
+            var chunkind = 0;
             foreach (var chunk in mid.Chunks.OfType<TrackChunk>())
             {
-                sb.AppendLine($"ChunkId: {chunk.ChunkId}; EventCount: {chunk.Events.Count}");
+                sb.AppendLine($"ChunkInd: {chunkind++}; EventCount: {chunk.Events.Count}");
 
                 long currentTime = 0;
                 var ind = 0;

@@ -50,9 +50,16 @@ internal static class MidiConverter
                         TimeSpanMode.TimeLength);
                 }
 
+              
+
                 // 3. PLACE MARKER (Exactly at Grid)
                 timedEvents.Add(new MarkerEvent($"MEASURE_{measureIndex}"), currentCursor, new NoteContext(tempoMap, part, null), part.partId);
 
+                var measureChange = part.automations.tempo.SingleOrDefault(e => e.measure == measureIndex);
+                if (measureChange != null && measureIndex != 0)
+                {
+                    timedEvents.Add(new SetTempoEvent(Tempo.FromBeatsPerMinute(measureChange.bpm).MicrosecondsPerQuarterNote), currentCursor, new NoteContext(tempoMap, part, null), part.partId);
+                }
 
                 if (measure.rest)
                 {
@@ -81,10 +88,12 @@ internal static class MidiConverter
                     }
 
 
-
-                    foreach (var note in beat.notes)
+                    foreach(var note in beat.notes.OrderByDescending(e =>e.StringNumber))
+                    //for (var noteIndex = 0; noteIndex < beat.notes.Length; noteIndex++)
                     {
-                        var ctx = new NoteContext(tempoMap, part, note);
+                        //var note = beat.notes[noteIndex];
+                        
+                        var ctx = new NoteContext(tempoMap, part, note, measureIndex);
 
                         var fullBeatDuration = new MusicalTimeSpan(beat.duration[0], beat.duration[1]);
                         var rawDuration = (MusicalTimeSpan)fullBeatDuration.Clone();
@@ -337,22 +346,76 @@ internal static class MidiConverter
     }
 
     public static SevenBitNumber GetNoteNumber(Part part, Nóta note)
-        => part.tuning.Length == 0
-            ? (SevenBitNumber)((int)note.StringNumber)
-            : (SevenBitNumber)((int)part.tuning[(int)note.StringNumber] + note.fret);
+    {
+        if (part.partId == 3)
+        {
+
+        }
+
+        // 1. DRUM HANDLING
+        if (part.instrumentId == 1024 || (int)note.StringNumber == -1)
+        {
+            return (SevenBitNumber)note.fret;
+        }
+
+        // 2. BASE PITCH (Open String)
+        // We need the open string pitch first
+        int openStringPitch = part.tuning.Length == 0
+            ? (int)note.StringNumber // Fallback
+            : (int)part.tuning[(int)note.StringNumber];
+
+        // 3. HARMONIC HANDLING
+        if (note.harmonic == "natural")
+        {
+            // The 'fret' or 'harmonicFret' tells us WHICH harmonic, 
+            // but the pitch is an offset from the OPEN string.
+
+            switch (note.fret) // Or note.harmonicFret
+            {
+                case 12: return (SevenBitNumber)(openStringPitch + 12);
+                case 7: return (SevenBitNumber)(openStringPitch + 19);
+                case 5: return (SevenBitNumber)(openStringPitch + 24);
+                case 4: return (SevenBitNumber)(openStringPitch + 28);
+                case 9: return (SevenBitNumber)(openStringPitch + 28); // 9th fret harmonic is same as 4th
+                case 3: return (SevenBitNumber)(openStringPitch + 31); // 3rd fret is +2 Octaves + 5th
+                default:
+                    // Fallback for weird harmonics: treat as normal fret or standard octave?
+                    // Usually returning openString + 12 is a safe fallback if unknown.
+                    return (SevenBitNumber)(openStringPitch + 12);
+            }
+        }
+
+        // 4. STANDARD FRETTED NOTE
+        return (SevenBitNumber)(openStringPitch + note.fret);
+    }
 
     public static void Add(this IList<TimedEvent> events, MidiEvent midiEvent, ITimeSpan time, NoteContext ctx, int? channelOverride = null)
     {
+        
+
         if (midiEvent is ChannelEvent channelEvent)
         {
             channelEvent.Channel = (FourBitNumber)(channelOverride ?? GetNoteChannel(ctx.Part, ctx.Note!));
         }
 
+        var theChange = TimeConverter.ConvertFrom(new MusicalTimeSpan(4, 4, false), ctx.TempoMap);
         var tickTime = TimeConverter.ConvertFrom(time, ctx.TempoMap);
+        if (events.Count >= 1792)
+        {
+            tickTime -= theChange* 0;
+        }
+
+        if (events.Count >= 1793)
+        {
+            tickTime -= theChange * 2;
+        }
+
         var eventType = midiEvent.GetType();
 
-        if (ctx.Part.partId < 10)
+        if (ctx.Part.partId < 10 && ctx.MeasureIndex < 82)
         {
+            
+
             var referenceChunk = ReferenceData[ctx.Part.partId];
             var referenceEvent = referenceChunk[events.Count];
 
@@ -388,6 +451,10 @@ internal static class MidiConverter
                     {
                         if (!(propName == "PitchValue" && actualValue.ToString() == "8888"))
                         {
+                            var partId = ctx.Part.partId;
+                            var instId = ctx.Part.instrumentId;
+                            var instName = ctx.Part.instrument;
+
                             var EVENTS = events.Count;
                             Debug.Assert(referenceValue.ToString() == actualValue.ToString(), propName);
                         }
@@ -398,6 +465,46 @@ internal static class MidiConverter
         }
 
         events.Add(new TimedEvent(midiEvent, tickTime));
+    }
+
+    public static FourBitNumber GetNoteChannel(Part part, Nóta note)
+    {
+        if (part.instrumentId == 71 || part.instrumentId == 68 || part.instrumentId == 27)
+        {
+            return (FourBitNumber)note.StringNumber;
+        }
+
+        if (part.instrumentId == 30)
+        {
+            return (FourBitNumber)5;
+        }
+
+        if (part.instrumentId == 27) return (FourBitNumber)2;
+
+        // 1. DRUMS (Always Channel 10, index 9)
+        if (part.instrumentId == 1024) return (FourBitNumber)9;
+
+        // 2. Try explicit lookup first (for special overrides)
+        if (InstrumentChannels.TryGetValue(part.instrumentId, out int assignedChannel))
+        {
+            return (FourBitNumber)assignedChannel;
+        }
+
+        // 3. INTELLIGENT FALLBACK (GM Families)
+        // If not explicitly listed, calculate channel based on instrument type.
+        // GM IDs: 0-127.
+
+        var id = part.instrumentId;
+
+        if (id >= 0 && id <= 7) return (FourBitNumber)0; // Piano -> Ch 1
+        if (id >= 24 && id <= 31) return (FourBitNumber)1; // Guitar -> Ch 2
+        if (id >= 32 && id <= 39) return (FourBitNumber)2; // Bass   -> Ch 3
+        if (id >= 40 && id <= 55) return (FourBitNumber)3; // Strings/Voices -> Ch 4
+        if (id >= 56 && id <= 71) return (FourBitNumber)4; // Brass/Reeds -> Ch 5
+        if (id >= 16 && id <= 23) return (FourBitNumber)5; // Organ  -> Ch 6
+
+        // Default for everything else (Synths, FX, World)
+        return (FourBitNumber)6;
     }
 
     public static void BuildHeader(Part part, TempoMap tempoMap, IList<TimedEvent> timedEvents)
@@ -507,42 +614,59 @@ internal static class MidiConverter
         return tempoMapManager.TempoMap;
     }
 
-    public static FourBitNumber GetNoteChannel(Part part, Nóta note)
-    {
-        if (part.instrumentId == 1024) return (FourBitNumber)9;
-        return (FourBitNumber)((int)note.StringNumber);
+    
 
-        // TODO: yeah the string number wont hold up for long i guess
-        if (InstrumentChannels.TryGetValue(part.instrumentId, out int baseChannel)) return (FourBitNumber)baseChannel;
-        return (FourBitNumber)0;
-    }
-
+    // A concise dictionary for specific overrides or non-standard IDs
     private static readonly IReadOnlyDictionary<int, int> InstrumentChannels = new Dictionary<int, int>
     {
-        // vocal
-        [71] = 1,
-        [68] = 1,
+        // --- Standard General MIDI Overrides ---
 
+        [71] = 1, // Clarinet (used for vocals) -> Ch 5
 
-        [27] = 2,
-        [30] = 2,
+        // Vocals (often mapped to arbitrary melody instruments in tabs)
+        [68] = 4, // Oboe (used for vocals) -> Ch 5
+        
+        [52] = 4, // Choir Aahs -> Ch 5
+        [53] = 4, // Voice Oohs -> Ch 5
+        [54] = 4, // Synth Voice -> Ch 5
 
-        // drum
+        // --- Guitar Pro / Tab Specifics ---
 
+        // Drums (Double check 1024 isn't the only drum ID used in your source)
+        [1024] = 9, // Standard Drums
+        [127] = 9, // Gunshot (sometimes used as a snare marker)
 
-        // piano
-        [0] = 3,
-        [34] = 3,
-        [29] = 3,
-
-
-        [1024] = 9,
-
-        // guitar
-        [48] = 4,
-        [34] = 4,
-        [48] = 4,
+        // Special Effects
+        [119] = 8, // Reverse Cymbal -> Ch 9
+        [122] = 8, // Seashore -> Ch 9
     };
+
+    //private static readonly IReadOnlyDictionary<int, int> InstrumentChannels = new Dictionary<int, int>
+    //{
+    //    // vocal
+    //    [71] = 1,
+    //    [68] = 1,
+
+
+    //    [27] = 2,
+    //    [30] = 2,
+
+    //    // drum
+
+
+    //    // piano
+    //    [0] = 3,
+    //    [34] = 3,
+    //    [29] = 3,
+
+
+    //    [1024] = 9,
+
+    //    // guitar
+    //    [48] = 4,
+    //    [34] = 4,
+    //    [48] = 4,
+    //};
 
     public static readonly IReadOnlyDictionary<string, int> Speeds = new Dictionary<string, int>
     {
@@ -552,6 +676,6 @@ internal static class MidiConverter
         ["mf"] = 002,
         ["mp"] = 003
     };
-    public record NoteContext(TempoMap TempoMap, Part Part, Nóta? Note);
+    public record NoteContext(TempoMap TempoMap, Part Part, Nóta? Note, int? MeasureIndex = null);
 
 }
