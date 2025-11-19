@@ -124,59 +124,59 @@ internal static class MidiConverter
                         if (!note.tie)
                         {
                             timedEvents.Add(new NoteOnEvent(noteNumber, velocity), currentCursor, ctx);
+                        }
 
-                            if (note.slide == "shift")
+                        if (note.slide == "shift")
+                        {
+                            var targetNote = nextBeat!.notes.First(n => (int)n.StringNumber == (int)note.StringNumber);
+                            var targetPitch = GetNoteNumber(part, targetNote);
+                            var direction = targetPitch < noteNumber ? -1 : 1;
+                            var semitoneDistance = Math.Abs(targetPitch - noteNumber);
+
+                            if (semitoneDistance <= 1)
                             {
-                                var targetNote = nextBeat!.notes.First(n => (int)n.StringNumber == (int)note.StringNumber);
-                                var targetPitch = GetNoteNumber(part, targetNote);
-                                var direction = targetPitch < noteNumber ? -1 : 1;
-                                var semitoneDistance = Math.Abs(targetPitch - noteNumber);
+                                var shiftOffsetDuration = TimeConverter.ConvertTo<MusicalTimeSpan>(960, tempoMap);
+                                actualDuration = (MusicalTimeSpan)actualDuration.Subtract(shiftOffsetDuration, TimeSpanMode.LengthLength);
+                                currentCursor = currentCursor.Add(actualDuration, TimeSpanMode.TimeLength);
+                                actualDuration = shiftOffsetDuration;
+                                AddLegatoPitchBends(currentCursor, ctx, timedEvents, tempoMap, actualDuration);
+                            }
+                            else
+                            {
+                                var totalSteps = semitoneDistance - 1;
+                                var singleStepDuration = TimeConverter.ConvertTo<MusicalTimeSpan>(960, tempoMap);
+                                var totalBridgeDuration = (MusicalTimeSpan)singleStepDuration.Multiply(totalSteps);
 
-                                if (semitoneDistance <= 1)
-                                {
-                                    var shiftOffsetDuration = TimeConverter.ConvertTo<MusicalTimeSpan>(960, tempoMap);
-                                    actualDuration = (MusicalTimeSpan)actualDuration.Subtract(shiftOffsetDuration, TimeSpanMode.LengthLength);
-                                    currentCursor = currentCursor.Add(actualDuration, TimeSpanMode.TimeLength);
-                                    actualDuration = shiftOffsetDuration;
-                                    AddLegatoPitchBends(currentCursor, ctx, timedEvents, tempoMap, actualDuration);
-                                }
-                                else
-                                {
-                                    var totalSteps = semitoneDistance - 1;
-                                    var singleStepDuration = TimeConverter.ConvertTo<MusicalTimeSpan>(960, tempoMap);
-                                    var totalBridgeDuration = (MusicalTimeSpan)singleStepDuration.Multiply(totalSteps);
-                                    
-                                    actualDuration = (MusicalTimeSpan)actualDuration.Subtract(totalBridgeDuration, TimeSpanMode.LengthLength);
-                                    currentCursor = currentCursor.Add(actualDuration, TimeSpanMode.TimeLength);
-                                    var runningNoteNumber = noteNumber;
+                                actualDuration = (MusicalTimeSpan)actualDuration.Subtract(totalBridgeDuration, TimeSpanMode.LengthLength);
+                                currentCursor = currentCursor.Add(actualDuration, TimeSpanMode.TimeLength);
+                                var runningNoteNumber = noteNumber;
 
-                                    for (var i = 0; i < totalSteps; i++)
+                                for (var i = 0; i < totalSteps; i++)
+                                {
+                                    // Housekeeping
+                                    timedEvents.Add(new PitchBendEvent(8192), currentCursor, ctx);
+
+                                    var nextNote = (SevenBitNumber)(runningNoteNumber + direction);
+
+                                    if (i == 0)
                                     {
-                                        // Housekeeping
-                                        timedEvents.Add(new PitchBendEvent(8192), currentCursor, ctx);
-
-                                        var nextNote = (SevenBitNumber)(runningNoteNumber + direction);
-
-                                        if (i == 0)
-                                        {
-                                            // OVERLAP (Start -> Bridge 1)
-                                            timedEvents.Add(new NoteOnEvent(nextNote, (SevenBitNumber)95), currentCursor, ctx);
-                                            timedEvents.Add(new NoteOffEvent(runningNoteNumber, velocity), currentCursor, ctx);
-                                        }
-                                        else
-                                        {
-                                            // SWITCH (Bridge X -> Bridge Y)
-                                            timedEvents.Add(new NoteOffEvent(runningNoteNumber, velocity), currentCursor, ctx);
-                                            timedEvents.Add(new NoteOnEvent(nextNote, (SevenBitNumber)95), currentCursor, ctx);
-                                        }
-
-                                        currentCursor = currentCursor.Add(singleStepDuration, TimeSpanMode.TimeLength);
-                                        runningNoteNumber = nextNote;
+                                        // OVERLAP (Start -> Bridge 1)
+                                        timedEvents.Add(new NoteOnEvent(nextNote, (SevenBitNumber)95), currentCursor, ctx);
+                                        timedEvents.Add(new NoteOffEvent(runningNoteNumber, velocity), currentCursor, ctx);
+                                    }
+                                    else
+                                    {
+                                        // SWITCH (Bridge X -> Bridge Y)
+                                        timedEvents.Add(new NoteOffEvent(runningNoteNumber, velocity), currentCursor, ctx);
+                                        timedEvents.Add(new NoteOnEvent(nextNote, (SevenBitNumber)95), currentCursor, ctx);
                                     }
 
-                                    bridgeNoteNumberForSliding = runningNoteNumber;
-                                    actualDuration = new MusicalTimeSpan(0, 1);
+                                    currentCursor = currentCursor.Add(singleStepDuration, TimeSpanMode.TimeLength);
+                                    runningNoteNumber = nextNote;
                                 }
+
+                                bridgeNoteNumberForSliding = runningNoteNumber;
+                                actualDuration = new MusicalTimeSpan(0, 1);
                             }
                         }
 
