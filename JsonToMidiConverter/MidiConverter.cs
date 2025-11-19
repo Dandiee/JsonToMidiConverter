@@ -89,16 +89,21 @@ internal static class MidiConverter
 
                     var beatStartCursor = currentCursor;
 
+                    var orderedNotes = beat.notes.OrderByDescending(e => e.StringNumber).ToList();
+
                     for (var noteIndex = 0; noteIndex < beat.notes.Length; noteIndex++)
                     {
-                        var note = beat.notes[noteIndex];
+                        var note = orderedNotes[noteIndex];
 
                         if (part.partId == 3)
                         {
 
                         }
 
-                        currentCursor = beatStartCursor;
+                        var chordNoteOffset = noteIndex * TimeConverter.ConvertTo<MusicalTimeSpan>(123, tempoMap);
+                        var chordNoteOffsetTicks = TimeConverter.ConvertFrom(chordNoteOffset, tempoMap);
+
+                        currentCursor = (MusicalTimeSpan)beatStartCursor + (noteIndex * TimeConverter.ConvertTo<MusicalTimeSpan>(123, tempoMap));
                         var currentCursorAbsoluteTick = TimeConverter.ConvertFrom(currentCursor, tempoMap);
 
                         var ctx = new NoteContext(tempoMap, part, note, measureIndex);
@@ -274,17 +279,44 @@ internal static class MidiConverter
 
                         // NoteOff
                         var nextIdenticalNote = nextBeat?.notes.SingleOrDefault(e => (int)e.StringNumber == (int)note.StringNumber && e.fret == note.fret);
-                        if (nextIdenticalNote == null || !nextIdenticalNote.tie)
+                        if (orderedNotes.Count < 2)
                         {
-                            // Tie ended (or never existed). Fire NoteOff.
-                            var shiftedNoteNumber = bridgeNoteNumberForSliding ?? noteNumber;
-
-                            timedEvents.Add(new NoteOffEvent(shiftedNoteNumber, velocity), currentCursor, ctx);
-
-                            if (note.staccato)
+                            if ((nextIdenticalNote == null || !nextIdenticalNote.tie))
                             {
-                                var staccatoSilence = (MusicalTimeSpan)fullBeatDuration.Subtract(rawDuration, TimeSpanMode.LengthLength);
-                                currentCursor = currentCursor.Add(staccatoSilence, TimeSpanMode.TimeLength);
+                                // Tie ended (or never existed). Fire NoteOff.
+                                var shiftedNoteNumber = bridgeNoteNumberForSliding ?? noteNumber;
+
+                                timedEvents.Add(new NoteOffEvent(shiftedNoteNumber, velocity), currentCursor, ctx);
+
+                                if (note.staccato)
+                                {
+                                    var staccatoSilence = (MusicalTimeSpan)fullBeatDuration.Subtract(rawDuration, TimeSpanMode.LengthLength);
+                                    currentCursor = currentCursor.Add(staccatoSilence, TimeSpanMode.TimeLength);
+                                }
+                            }
+                        }
+                        else if (orderedNotes.Count > 1) // its an accord/chord
+                        {
+                            if (noteIndex == orderedNotes.Count - 1)
+                            {
+                                if (part.partId == 3)
+                                {
+
+                                }
+                                //var noteLength = TimeConverter.ConvertFrom(actualDuration, tempoMap);
+                                //var shiftedNoteNumber = bridgeNoteNumberForSliding ?? noteNumber;
+
+                                var accordSetBackDuration = TimeConverter.ConvertTo<MusicalTimeSpan>(123, tempoMap).Multiply(orderedNotes.Count - 1);
+                                currentCursor = currentCursor.Subtract(accordSetBackDuration, TimeSpanMode.TimeLength);
+                                var q = TimeConverter.ConvertFrom(currentCursor, tempoMap);
+                                for (var accordIndex = 0; accordIndex < orderedNotes.Count; accordIndex++)
+                                {
+                                    var reverseOrderIndex = orderedNotes.Count - (accordIndex + 1);
+                                    var noteOnIndex = orderedNotes[reverseOrderIndex];
+                                    var channelOnNote = GetNoteChannel(part, noteOnIndex);
+                                    var noteNumberOnNote = GetNoteNumber(part, noteOnIndex);
+                                    timedEvents.Add(new NoteOffEvent(noteNumberOnNote, velocity), currentCursor, ctx, channelOnNote);
+                                }
                             }
                         }
                     }
@@ -424,6 +456,8 @@ internal static class MidiConverter
 
             var referenceChunk = ReferenceData[ctx.Part.partId];
             var referenceEvent = referenceChunk[events.Count];
+            var areTheSameType = referenceEvent.Event.GetType() == eventType;
+            Debug.Assert(areTheSameType);
 
             if (!(midiEvent is PitchBendEvent pitch && pitch.PitchValue == 8888))
             {
@@ -441,9 +475,7 @@ internal static class MidiConverter
                 }
             }
 
-            var areTheSameType = referenceEvent.Event.GetType() == eventType;
-
-            Debug.Assert(areTheSameType);
+            
 
             if (areTheSameType)
             {
@@ -476,14 +508,9 @@ internal static class MidiConverter
 
     public static FourBitNumber GetNoteChannel(Part part, Nóta note)
     {
-        if (part.instrumentId == 71 || part.instrumentId == 68 || part.instrumentId == 27)
+        if (part.instrumentId == 71 || part.instrumentId == 68 || part.instrumentId == 27 || part.instrumentId == 30)
         {
             return (FourBitNumber)note.StringNumber;
-        }
-
-        if (part.instrumentId == 30)
-        {
-            return (FourBitNumber)5;
         }
 
         if (part.instrumentId == 27) return (FourBitNumber)2;
