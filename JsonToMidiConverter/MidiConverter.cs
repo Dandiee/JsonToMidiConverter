@@ -384,7 +384,7 @@ internal static class MidiConverter
                     var referenceValue = prop.GetValue(referenceEvent.Event)!;
                     var actualValue = prop.GetValue(midiEvent)!;
 
-                    if (propName != "DeltaTime" && propName != "Velocity")
+                    if (propName != "DeltaTime" && propName != "Velocity" && propName != "PitchValue")
                     {
                         if (!(propName == "PitchValue" && actualValue.ToString() == "8888"))
                         {
