@@ -10,6 +10,7 @@ using System.Drawing;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.Marshalling;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -119,6 +120,8 @@ internal static class MidiConverter
         return (FourBitNumber)0;
     }
 
+    public static readonly List<(long AbsoluteTime, MidiEvent Event)>[]  ReferenceData = GetReferenceMidiData();
+
     public static MidiFile Convert(Song song)
     {
         //WriteDebugFile(song);
@@ -131,6 +134,7 @@ internal static class MidiConverter
             TimeDivision = new TicksPerQuarterNoteTimeDivision(TicksPerQuarterNote)
         };
 
+        
 
 
         var tempoMap = GetTempo(midiFile, song.parts[0]);
@@ -150,40 +154,40 @@ internal static class MidiConverter
             for (var i = 0; i < 9; i++)
             {
                 // Program Change
-                timedEvents.Add(new TimedEvent(
+                timedEvents.AddEvent(
                     new ProgramChangeEvent((SevenBitNumber)part.instrumentId) { Channel = (FourBitNumber)i },
-                    timeZero.ToTick(tempoMap)));
+                    timeZero.ToTick(tempoMap), part);
             }
 
             for (var i = 0; i < 9; i++)
             {
                 // Mod Wheel Reset
-                timedEvents.Add(new TimedEvent(
+                timedEvents.AddEvent(
                     new ControlChangeEvent((SevenBitNumber)1, (SevenBitNumber)0) { Channel = (FourBitNumber)i },
-                    timeZero.ToTick(tempoMap)));
-            }
+                    timeZero.ToTick(tempoMap), part);
+        }
 
             for (var i = 0; i < 9; i++)
             {
                 // Pitch Bend Reset
-                timedEvents.Add(new TimedEvent(new PitchBendEvent(8192) { Channel = (FourBitNumber)i }, timeZero.ToTick(tempoMap)));
+                timedEvents.AddEvent(new PitchBendEvent(8192) { Channel = (FourBitNumber)i }, timeZero.ToTick(tempoMap), part);
             }
 
             for (var i = 0; i < 9; i++)
             {
                 // RPN Pitch Range Setup (Your 4 events)
-                timedEvents.Add(new TimedEvent(new ControlChangeEvent((SevenBitNumber)101, (SevenBitNumber)0) { Channel = (FourBitNumber)i }, timeZero.ToTick(tempoMap)));
-                timedEvents.Add(new TimedEvent(new ControlChangeEvent((SevenBitNumber)100, (SevenBitNumber)0) { Channel = (FourBitNumber)i }, timeZero.ToTick(tempoMap)));
-                timedEvents.Add(new TimedEvent(new ControlChangeEvent((SevenBitNumber)6, (SevenBitNumber)24) { Channel = (FourBitNumber)i }, timeZero.ToTick(tempoMap)));
-                timedEvents.Add(new TimedEvent(new ControlChangeEvent((SevenBitNumber)38, (SevenBitNumber)0) { Channel = (FourBitNumber)i }, timeZero.ToTick(tempoMap)));
+                timedEvents.AddEvent(new ControlChangeEvent((SevenBitNumber)101, (SevenBitNumber)0) { Channel = (FourBitNumber)i }, timeZero.ToTick(tempoMap), part);
+                timedEvents.AddEvent(new ControlChangeEvent((SevenBitNumber)100, (SevenBitNumber)0) { Channel = (FourBitNumber)i }, timeZero.ToTick(tempoMap), part);
+                timedEvents.AddEvent(new ControlChangeEvent((SevenBitNumber)6, (SevenBitNumber)24) { Channel = (FourBitNumber)i }, timeZero.ToTick(tempoMap), part);
+                timedEvents.AddEvent(new ControlChangeEvent((SevenBitNumber)38, (SevenBitNumber)0) { Channel = (FourBitNumber)i }, timeZero.ToTick(tempoMap), part);
             }
 
 
             if (!string.IsNullOrEmpty(part.name))
-                timedEvents.Add(new TimedEvent(new SequenceTrackNameEvent(part.name), timeZero.ToTick(tempoMap)));
+                timedEvents.AddEvent(new SequenceTrackNameEvent(part.name), timeZero.ToTick(tempoMap), part);
 
             if (!string.IsNullOrEmpty(part.instrument))
-                timedEvents.Add(new TimedEvent(new InstrumentNameEvent(part.instrument), timeZero.ToTick(tempoMap)));
+                timedEvents.AddEvent(new InstrumentNameEvent(part.instrument), timeZero.ToTick(tempoMap), part);
 
 
             var speeds = new Dictionary<string, int>
@@ -242,8 +246,8 @@ internal static class MidiConverter
                 }
 
                 // 3. PLACE MARKER (Exactly at Grid)
-                timedEvents.Add(new TimedEvent(new MarkerEvent($"MEASURE_{measureIndex}"),
-                    currentCursor.ToTick(tempoMap)));
+                timedEvents.AddEvent(new MarkerEvent($"MEASURE_{measureIndex}"),
+                    currentCursor.ToTick(tempoMap), part);
 
 
                 if (measure.rest)
@@ -295,9 +299,9 @@ internal static class MidiConverter
                                     currentCursor = currentCursor.Add(oneTickTime, TimeSpanMode.TimeLength);
                                 }
 
-                                timedEvents.Add(new TimedEvent(
+                                timedEvents.AddEvent(
                                     new PitchBendEvent(8192) { Channel = GetNoteChannel(part, note) },
-                                    currentCursor.ToTick(tempoMap)));
+                                    currentCursor.ToTick(tempoMap), part);
 
                             }
                         }
@@ -317,8 +321,8 @@ internal static class MidiConverter
                         // NoteOn
                         if (!note.tie)
                         {
-                            timedEvents.Add(new TimedEvent(new NoteOnEvent((SevenBitNumber)noteNumber, velocity) { Channel = GetNoteChannel(part, note) },
-                                currentCursor.ToTick(tempoMap)));
+                            timedEvents.AddEvent(new NoteOnEvent((SevenBitNumber)noteNumber, velocity) { Channel = GetNoteChannel(part, note) },
+                                currentCursor.ToTick(tempoMap), part);
 
                             if (note.slide == "shift")
                             {
@@ -332,15 +336,15 @@ internal static class MidiConverter
                                 actualDuration = shiftOffsetDuration;
                                 var c = actualDuration.ToTick(tempoMap);
 
-                                timedEvents.Add(new TimedEvent(
+                                timedEvents.AddEvent(
                                     new PitchBendEvent(8192) { Channel = GetNoteChannel(part, note) },
-                                    currentCursor.ToTick(tempoMap)));
+                                    currentCursor.ToTick(tempoMap), part);
 
-                                timedEvents.Add(new TimedEvent(new NoteOnEvent((SevenBitNumber)(noteNumber + 1), velocity) { Channel = GetNoteChannel(part, note) },
-                                    currentCursor.ToTick(tempoMap)));
+                                timedEvents.AddEvent(new NoteOnEvent((SevenBitNumber)(noteNumber + 1), velocity) { Channel = GetNoteChannel(part, note) },
+                                    currentCursor.ToTick(tempoMap), part);
 
-                                timedEvents.Add(new TimedEvent(new NoteOffEvent((SevenBitNumber)noteNumber, velocity) { Channel = GetNoteChannel(part, note) },
-                                    currentCursor.ToTick(tempoMap)));
+                                timedEvents.AddEvent(new NoteOffEvent((SevenBitNumber)noteNumber, velocity) { Channel = GetNoteChannel(part, note) },
+                                    currentCursor.ToTick(tempoMap), part);
                             }
                         }
 
@@ -350,7 +354,8 @@ internal static class MidiConverter
                             actualDuration = (MusicalTimeSpan)actualDuration.Divide(2);
                             currentCursor = currentCursor.Add(actualDuration, TimeSpanMode.TimeLength);
 
-                            timedEvents.Add(new TimedEvent(new PitchBendEvent(8195) { Channel = GetNoteChannel(part, note) }, currentCursor.ToTick(tempoMap)));
+                            timedEvents.AddEvent(
+                                new PitchBendEvent(8195) { Channel = GetNoteChannel(part, note) }, currentCursor.ToTick(tempoMap), part);
 
                             for (var l = 0; l < 99; l++)
                             {
@@ -360,7 +365,8 @@ internal static class MidiConverter
                                     actualDuration -= fillerTime;
                                     currentCursor = currentCursor.Add(fillerTime, TimeSpanMode.TimeLength);
 
-                                    timedEvents.Add(new TimedEvent(new PitchBendEvent(8888) { Channel = GetNoteChannel(part, note) }, currentCursor.ToTick(tempoMap)));
+                                    timedEvents.AddEvent(
+                                        new PitchBendEvent(8888) { Channel = GetNoteChannel(part, note) }, currentCursor.ToTick(tempoMap), part);
 
                                 }
                                 else
@@ -369,7 +375,8 @@ internal static class MidiConverter
                                     actualDuration -= legatoTime;
                                     currentCursor = currentCursor.Add(legatoTime, TimeSpanMode.TimeLength);
 
-                                    timedEvents.Add(new TimedEvent(new PitchBendEvent(8888) { Channel = GetNoteChannel(part, note) }, currentCursor.ToTick(tempoMap)));
+                                    timedEvents.AddEvent(new 
+                                        PitchBendEvent(8888) { Channel = GetNoteChannel(part, note) }, currentCursor.ToTick(tempoMap), part);
                                 }
                             }
                         }
@@ -384,15 +391,10 @@ internal static class MidiConverter
 
                             var shiftedNoteNumber = note.slide == "shift" ? noteNumber + 1 : noteNumber;
 
-                            timedEvents.Add(new TimedEvent(
+                            timedEvents.AddEvent(
                                 new NoteOffEvent((SevenBitNumber)shiftedNoteNumber, velocity)
                                     { Channel = GetNoteChannel(part, note) },
-                                currentCursor.ToTick(tempoMap)
-                            ));
-                        }
-                        else
-                        {
-
+                                currentCursor.ToTick(tempoMap), part);
                         }
                     }
 
@@ -409,6 +411,41 @@ internal static class MidiConverter
         CompareMidis(midiFile, referenceMidi);
 
         return midiFile;
+    }
+
+    public static void AddEvent(this IList<TimedEvent> events, MidiEvent midiEvent, long time, Part part)
+    {
+        if (part.partId < 10)
+        {
+            var referenceChunk = ReferenceData[part.partId];
+            var referenceEvent = referenceChunk[events.Count];
+        }
+
+        events.Add(new TimedEvent(midiEvent, time));
+    }
+
+    private static List<(long AbsoluteTime, MidiEvent Event)>[] GetReferenceMidiData()
+    {
+        var referenceMidi = MidiFile.Read("ReferenceOutput.mid");
+        var results = new List<(long AbsoluteTime, MidiEvent Event)>[referenceMidi.Chunks.Count];
+
+        for (var i = 0; i < referenceMidi.Chunks.Count; i++)
+        {
+            results[i] = new List<(long AbsoluteTime, MidiEvent Event)>();
+            var time = 0l;
+            foreach (var midiEvent in (referenceMidi.Chunks[i] as TrackChunk).Events)
+            {
+                if (time == 0 && midiEvent is TimeSignatureEvent)
+                {
+                    continue;
+                }
+
+                results[i].Add(new (time, midiEvent));
+                time += midiEvent.DeltaTime;
+            }
+        }
+
+        return results;
     }
 
 
