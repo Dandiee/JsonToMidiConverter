@@ -150,28 +150,28 @@ internal static class MidiConverter
                                 var totalSteps = semitoneDistance - 1;
                                 var stepSize = GetShiftStepSizeTicks(nextBeat, beat, note, part, actualDuration, tempoMap);
 
-                                var runningNoteNumber = noteNumber;
                                 var firstNoteDuration = actualDuration.Subtract((totalSteps * stepSize).ToTimeSpan(tempoMap), TimeSpanMode.LengthLength);
                                 currentCursor = currentCursor.Add(firstNoteDuration, TimeSpanMode.TimeLength);
 
                                 for (var i = 0; i < totalSteps; i++)
                                 {
                                     events.Add(new PitchBendEvent(8192), currentCursor, ctx);
-                                    var nextNote = (SevenBitNumber)(runningNoteNumber + direction);
 
+                                    var currentNote = (SevenBitNumber)(noteNumber + i * direction);
+                                    var nextNote = (SevenBitNumber)(currentNote + direction);
 
                                     if (i == 0)
                                     {
                                         events.Add(new NoteOnEvent(nextNote, (SevenBitNumber)95), currentCursor, ctx);
                                         if (!note.tie)
                                         {
-                                            events.Add(new NoteOffEvent(runningNoteNumber, beatVelocity), currentCursor, ctx);
+                                            events.Add(new NoteOffEvent(currentNote, beatVelocity), currentCursor, ctx);
                                         }
                                     }
                                     else
                                     {
 
-                                        events.Add(new NoteOffEvent(runningNoteNumber, beatVelocity), currentCursor, ctx);
+                                        events.Add(new NoteOffEvent(currentNote, beatVelocity), currentCursor, ctx);
                                         events.Add(new NoteOnEvent(nextNote, (SevenBitNumber)95), currentCursor, ctx);
                                     }
 
@@ -179,10 +179,10 @@ internal static class MidiConverter
 
                                     if (i == 0 && note.tie)
                                     {
-                                        events.Add(new NoteOffEvent(runningNoteNumber, beatVelocity), currentCursor, ctx);
+                                        events.Add(new NoteOffEvent(currentNote, beatVelocity), currentCursor, ctx);
                                     }
 
-                                    runningNoteNumber = nextNote;
+                                    currentNote = nextNote;
                                 }
                             }
                         }
