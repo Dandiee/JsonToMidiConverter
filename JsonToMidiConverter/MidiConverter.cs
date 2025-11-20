@@ -104,38 +104,60 @@ internal static class MidiConverter
                                 var stepSize = GetShiftStepSizeTicks(nextBeat, beat, note, part, actualDuration, tempoMap);
 
                                 var firstNoteDuration = actualDuration.Subtract((totalSteps * stepSize).ToTimeSpan(tempoMap), TimeSpanMode.LengthLength);
-                                currentCursor = currentCursor.Add(firstNoteDuration, TimeSpanMode.TimeLength);
-                                events.Add(new PitchBendEvent(8192), currentCursor, ctx);
 
-                                var currentNote = noteNumber;
-                                var nextNote = (SevenBitNumber)(currentNote + direction);
-                                events.Add(new NoteOnEvent(nextNote, (SevenBitNumber)95), currentCursor, ctx);
+                                var c = 0;
+                                foreach (var n in beat.ReversedNotes)
+                                {
+                                    currentCursor = beatCursor.Add(firstNoteDuration, TimeSpanMode.TimeLength).AddTicks(123 * c, tempoMap);
+                                    c++;
 
-                                if (note.tie)
-                                {
-                                    currentCursor = currentCursor.Add(stepSize.ToTimeSpan(tempoMap), TimeSpanMode.TimeLength);
-                                    events.Add(new NoteOffEvent(currentNote, beatVelocity), currentCursor, ctx);
+                                    var nNumber = GetNoteNumber(part, n);
+                                    events.Add(new PitchBendEvent(8192), currentCursor, ctx);
+                                    var currentNote = nNumber;
+                                    var nextNote = (SevenBitNumber)(currentNote + direction);
+                                    events.Add(new NoteOnEvent(nextNote, (SevenBitNumber)95), currentCursor, ctx);
+
+                                    if (note.tie)
+                                    {
+                                        currentCursor = currentCursor.Add(stepSize.ToTimeSpan(tempoMap), TimeSpanMode.TimeLength);
+                                        events.Add(new NoteOffEvent(currentNote, beatVelocity), currentCursor, ctx);
+                                    }
+                                    else
+                                    {
+                                        events.Add(new NoteOffEvent(currentNote, beatVelocity), currentCursor, ctx);
+                                        currentCursor = currentCursor.Add(stepSize.ToTimeSpan(tempoMap), TimeSpanMode.TimeLength);
+                                    }
+
+                                    if (beat.notes.Length > 1)
+                                    {
+                                        currentCursor = currentCursor.AddTicks(123, tempoMap).ToTicks(tempoMap).ToTimeSpan(tempoMap);
+                                    }
                                 }
-                                else
-                                {
-                                    events.Add(new NoteOffEvent(currentNote, beatVelocity), currentCursor, ctx);
-                                    currentCursor = currentCursor.Add(stepSize.ToTimeSpan(tempoMap), TimeSpanMode.TimeLength);
-                                }
+
+                                var slideStart = beatCursor.Add(firstNoteDuration, TimeSpanMode.TimeLength);
 
                                 // Bridge notes
                                 for (var i = 1; i < totalSteps; i++)
                                 {
-                                    events.Add(new PitchBendEvent(8192), currentCursor, ctx);
+                                    var cc = 0;
+                                    foreach(var n in beat.ReversedNotes)
+                                    {
+                                        currentCursor = slideStart.AddTicks(stepSize * i, tempoMap).AddTicks(123 * cc, tempoMap);
+                                        cc++;
 
-                                    currentNote = (SevenBitNumber)(noteNumber + i * direction);
-                                    nextNote = (SevenBitNumber)(currentNote + direction);
+                                        events.Add(new PitchBendEvent(8192), currentCursor, ctx);
 
-                                    events.Add(new NoteOffEvent(currentNote, beatVelocity), currentCursor, ctx);
-                                    events.Add(new NoteOnEvent(nextNote, (SevenBitNumber)95), currentCursor, ctx);
+                                        var nNumber = GetNoteNumber(part, n);
+                                        var currentNote = (SevenBitNumber)(nNumber + direction * i);
+                                        var nextNote = (SevenBitNumber)(currentNote + direction);
 
-                                    currentCursor = currentCursor.Add(stepSize.ToTimeSpan(tempoMap), TimeSpanMode.TimeLength);
+                                        events.Add(new NoteOffEvent(currentNote, beatVelocity), currentCursor, ctx);
+                                        events.Add(new NoteOnEvent(nextNote, (SevenBitNumber)95), currentCursor, ctx);
 
+                                        //currentCursor = currentCursor.Add(stepSize.ToTimeSpan(tempoMap), TimeSpanMode.TimeLength);
+                                    }
                                 }
+                                
                             }
                         }
 

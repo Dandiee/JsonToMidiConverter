@@ -23,11 +23,13 @@ public static class Extensions
     public static long ToTicks(this ITimeSpan timeSpan, TempoMap tempoMap) =>
         TimeConverter.ConvertFrom(timeSpan, tempoMap);
 
-    public static TTimeSpan AddTicks<TTimeSpan>(this TTimeSpan time, long tick, TempoMap tempoMap)
+    public static MusicalTimeSpan AddTicks<TTimeSpan>(this TTimeSpan time, long tick, TempoMap tempoMap)
         where TTimeSpan : ITimeSpan
     {
-        var clone = time.Clone();
-        var tickTime = TimeConverter.ConvertTo(Math.Abs(tick), TimeSpanTypeMapping[time.GetType()], tempoMap);
+        var fixedTime = time.ToTicks(tempoMap).ToTimeSpan(tempoMap);
+
+        var clone = fixedTime.Clone();
+        var tickTime = TimeConverter.ConvertTo(Math.Abs(tick), TimeSpanTypeMapping[fixedTime.GetType()], tempoMap);
 
         if (tick >= 0)
         {
@@ -38,6 +40,6 @@ public static class Extensions
             clone = clone.Subtract(tickTime, TimeSpanMode.TimeLength);
         }
 
-            return (TTimeSpan)clone;
+        return (MusicalTimeSpan)clone;
     }
 }
