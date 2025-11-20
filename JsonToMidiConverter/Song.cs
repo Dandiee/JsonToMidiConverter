@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Text.Json.Serialization;
+using JsonToMidiConverter;
 using Melanchall.DryWetMidi.Interaction;
 
 public class Song
@@ -187,6 +188,11 @@ public class Beat
 
         return null;
     }
+
+    public long GetMeasureStartDuration(TempoMap tempoMap)
+        => Measure.Beats
+            .TakeWhile(e => e != this)
+            .Sum(e => e.MusicalDuration.ToTicks(tempoMap));
 }
 
 public class Text
