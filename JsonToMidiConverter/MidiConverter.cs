@@ -122,8 +122,6 @@ internal static class MidiConverter
                         
                         var noteNumber = GetNoteNumber(part, note);
 
-                        SevenBitNumber? bridgeNoteNumberForSliding = null;
-
                         // NoteOn
                         if (!note.tie)
                         {
@@ -138,7 +136,6 @@ internal static class MidiConverter
 
                         if (note.slide == "shift")
                         {
-
                             var targetNote = nextBeat!.notes.First(n => (int)n.StringNumber == (int)note.StringNumber);
                             var targetPitch = GetNoteNumber(part, targetNote);
                             var direction = targetPitch < noteNumber ? -1 : 1;
@@ -154,8 +151,6 @@ internal static class MidiConverter
                             }
                             else
                             {
-                                // --- MULTI-SEMITONE LOGIC (ADAPTIVE + TICK TAX) ---
-
                                 var totalSteps = semitoneDistance - 1;
 
                                 // A. Calculate Standard Cost
@@ -197,10 +192,7 @@ internal static class MidiConverter
                                 // Loop through the bridge notes
                                 for (var i = 0; i < totalSteps; i++)
                                 {
-                                    // Events happen at the START of the step (which is the End of the previous step)
-
                                     timedEvents.Add(new PitchBendEvent(8192), currentCursor, ctx);
-
 
                                     var nextNote = (SevenBitNumber)(runningNoteNumber + direction);
 
@@ -218,35 +210,18 @@ internal static class MidiConverter
                                         timedEvents.Add(new NoteOnEvent(nextNote, (SevenBitNumber)95), currentCursor, ctx);
                                     }
 
-                                    // 3. ADVANCE CURSOR (Applying the 1-tick tax)
-                                    // We add the nominal duration, then subtract 1 tick.
-                                    // This creates the cumulative -1, -2, -3... drift relative to the grid, matching the reference.
+
                                     currentCursor = currentCursor.Add(singleStepDuration, TimeSpanMode.TimeLength);
                                     currentCursor = currentCursor.Subtract(oneTick, TimeSpanMode.LengthLength);
 
                                     // Handle Tie Cutoff
                                     if (i == 0 && note.tie)
                                     {
-                                        // The cursor has already moved (Step - 1). 
-                                        // The tied note cutoff logic in your previous log appeared to be 1 tick before THAT.
-                                        // But technically, since we already subtracted 1 tick for the loop, currentCursor IS the cutoff point.
-                                        // Let's stick to the previous working logic relative to the NEW cursor position.
-                                        // If NoteOff was at 3571199 and Start was 3570239, Delta is 960.
-                                        // If singleStep is 960, Cursor moves 959.
-                                        // We need one more tick back? No, let's trust the loop cursor.
                                         timedEvents.Add(new NoteOffEvent(runningNoteNumber, beatVelocity), currentCursor, ctx);
                                     }
 
                                     runningNoteNumber = nextNote;
                                 }
-
-                                bridgeNoteNumberForSliding = runningNoteNumber;
-
-                                // 4. HANDOFF TO MAIN LOOP
-                                // We set actualDuration to 1 tick.
-                                // The Main Loop does: cursor.Add(actualDuration).Subtract(1).
-                                // Result: cursor.Add(1).Subtract(1) -> No change.
-                                // This ensures the Final NoteOff is placed exactly where our loop left off (preserving the gap).
                                 actualDuration = oneTick;
                             }
                         }
@@ -264,15 +239,37 @@ internal static class MidiConverter
                         currentCursor = currentCursor.Add(actualDuration, TimeSpanMode.TimeLength);
                         currentCursor = currentCursor.AddTicks(-1, tempoMap);
 
+                        
+                    }
+
+                    // NoteOff
+                    for (var noteIndex = 0; noteIndex < beat.notes.Length; noteIndex++)
+                    {
+                        var note = beat.notes[noteIndex];
+                        if (note.rest) continue;
+
+
+                        var noteNumber = GetNoteNumber(part, note);
+                        var ctx = new NoteContext(tempoMap, part, note, measureIndex);
+
+
+                        var rawNoteDuration = (MusicalTimeSpan)fullBeatDuration.Clone();
+                        if (note.staccato)
+                        {
+                            rawNoteDuration /= 2;
+                        }
+
                         // NoteOff
                         var nextIdenticalNote = nextBeat?.notes.SingleOrDefault(e => (int)e.StringNumber == (int)note.StringNumber && e.fret == note.fret);
                         if (orderedNotes.Count < 2)
                         {
                             if ((nextIdenticalNote == null || !nextIdenticalNote.tie))
                             {
-                                var shiftedNoteNumber = bridgeNoteNumberForSliding ?? noteNumber;
+                                var lastNoteOnNumber = note.slide == "shift"
+                                    ? GetLastNoteOnEvent(timedEvents).NoteNumber
+                                    : noteNumber;
 
-                                timedEvents.Add(new NoteOffEvent(shiftedNoteNumber, beatVelocity), currentCursor, ctx);
+                                timedEvents.Add(new NoteOffEvent(lastNoteOnNumber, beatVelocity), currentCursor, ctx);
 
                                 if (note.staccato)
                                 {
@@ -295,6 +292,16 @@ internal static class MidiConverter
     }
 
 
+    public static NoteOnEvent GetLastNoteOnEvent(IList<TimedEvent> timedEvents)
+    {
+        for (var i = timedEvents.Count - 1; i > -1; i--)
+        {
+            if (timedEvents[i].Event is NoteOnEvent noteOn)
+                return noteOn;
+        }
+
+        throw new Exception("no");
+    }
 
     public static void Add(this IList<TimedEvent> events, MidiEvent midiEvent, ITimeSpan time, NoteContext ctx, int? channelOverride = null)
     {
@@ -609,6 +616,9 @@ internal static class MidiConverter
     }
 
     public static SevenBitNumber GetNoteNumber(Part part, Nóta note)
+        => GetNoteNumber(part, note.StringNumber, note.fret, note.harmonic);
+
+    public static SevenBitNumber GetNoteNumber(Part part, double stringNumber, int fret, string? harmonic)
     {
         if (part.partId == 3)
         {
@@ -616,24 +626,24 @@ internal static class MidiConverter
         }
 
         // 1. DRUM HANDLING
-        if (part.instrumentId == 1024 || (int)note.StringNumber == -1)
+        if (part.instrumentId == 1024 || (int)stringNumber == -1)
         {
-            return (SevenBitNumber)note.fret;
+            return (SevenBitNumber)fret;
         }
 
         // 2. BASE PITCH (Open String)
         // We need the open string pitch first
         int openStringPitch = part.tuning.Length == 0
-            ? (int)note.StringNumber // Fallback
-            : (int)part.tuning[(int)note.StringNumber];
+            ? (int)stringNumber // Fallback
+            : (int)part.tuning[(int)stringNumber];
 
         // 3. HARMONIC HANDLING
-        if (note.harmonic == "natural")
+        if (harmonic == "natural")
         {
             // The 'fret' or 'harmonicFret' tells us WHICH harmonic, 
             // but the pitch is an offset from the OPEN string.
 
-            switch (note.fret) // Or note.harmonicFret
+            switch (fret) // Or note.harmonicFret
             {
                 case 12: return (SevenBitNumber)(openStringPitch + 12);
                 case 7: return (SevenBitNumber)(openStringPitch + 19);
@@ -649,7 +659,7 @@ internal static class MidiConverter
         }
 
         // 4. STANDARD FRETTED NOTE
-        return (SevenBitNumber)(openStringPitch + note.fret);
+        return (SevenBitNumber)(openStringPitch + fret);
     }
 
 }
