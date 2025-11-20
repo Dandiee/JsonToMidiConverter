@@ -151,11 +151,29 @@ internal static class MidiConverter
                     }
 
                     // NoteOff
-                    for (var noteIndex = 0; noteIndex < beat.notes.Length; noteIndex++)
+                    if (beat.notes.Length > 1)
                     {
-                        var note = beat.notes[noteIndex];
-                        if (note.rest) continue;
+                        currentCursor = beatCursor.Add(beat.MusicalDuration, TimeSpanMode.TimeLength);
+                        foreach (var note in beat.ReversedNotes)
+                        {
+                            if (note.WillBeTied()) continue;
 
+                            var noteNumber = GetNoteNumber(note.Part, note);
+                            if (note.tie)
+                            {
+                                noteNumber = (note.GetTies().Last().NoteOnEvent.Event as NoteOnEvent).NoteNumber;
+                            }
+
+                            events.Add(new NoteOffEvent(noteNumber, new SevenBitNumber(123)), currentCursor, new NoteContext(tempoMap, note));
+                        }
+
+
+                        continue;
+                    }
+
+                    foreach(var note in beat.ReversedNotes)
+                    {
+                        if (note.rest) continue;
 
                         var rawNoteDuration = (MusicalTimeSpan)beat.MusicalDuration.Clone();
                         if (note.staccato)
@@ -176,10 +194,10 @@ internal static class MidiConverter
 
                         // NoteOff
                         var nextIdenticalNote = nextBeat?.notes.SingleOrDefault(e => (int)e.StringNumber == (int)note.StringNumber && e.fret == note.fret);
-                        if (orderedNotes.Count < 2)
                         {
                             if ((nextIdenticalNote == null || !nextIdenticalNote.tie))
                             {
+                                
                                 var lastNoteOnEvent = GetLastNoteOnEvent(events, noteNumber);
 
                                 if (events[^1].Event is PitchBendEvent) // legato case
@@ -237,8 +255,6 @@ internal static class MidiConverter
                             }
                         }
                     }
-
-                    prevBeat = beat;
                 }
             }
 
@@ -545,10 +561,8 @@ internal static class MidiConverter
 
     public static SevenBitNumber GetNoteNumber(Part part, double stringNumber, int fret, string? harmonic)
     {
-        if (part.partId == 3)
-        {
 
-        }
+        
 
         // 1. DRUM HANDLING
         if (part.instrumentId == 1024 || (int)stringNumber == -1)
@@ -556,11 +570,18 @@ internal static class MidiConverter
             return (SevenBitNumber)fret;
         }
 
-        // 2. BASE PITCH (Open String)
-        // We need the open string pitch first
         int openStringPitch = part.tuning.Length == 0
             ? (int)stringNumber // Fallback
             : (int)part.tuning[(int)stringNumber];
+
+        //if (part.partId == 3)
+        //{
+        //    return (SevenBitNumber)(openStringPitch + fret);
+        //}
+
+        // 2. BASE PITCH (Open String)
+        // We need the open string pitch first
+
 
         // 3. HARMONIC HANDLING
         if (harmonic == "natural")
@@ -576,10 +597,7 @@ internal static class MidiConverter
                 case 4: return (SevenBitNumber)(openStringPitch + 28);
                 case 9: return (SevenBitNumber)(openStringPitch + 28); // 9th fret harmonic is same as 4th
                 case 3: return (SevenBitNumber)(openStringPitch + 31); // 3rd fret is +2 Octaves + 5th
-                default:
-                    // Fallback for weird harmonics: treat as normal fret or standard octave?
-                    // Usually returning openString + 12 is a safe fallback if unknown.
-                    return (SevenBitNumber)(openStringPitch + 12);
+                //default: return (SevenBitNumber)(openStringPitch + 12);
             }
         }
 

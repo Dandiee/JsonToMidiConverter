@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Text.Json.Serialization;
 using JsonToMidiConverter;
 using Melanchall.DryWetMidi.Interaction;
+using Melanchall.DryWetMidi.MusicTheory;
 
 public class Song
 {
@@ -14,7 +15,7 @@ public class Song
     {
         parts = parts.OrderBy(e => e.partId).ToArray();
 
-        for(var i = 0; i < parts.Length; i++)
+        for (var i = 0; i < parts.Length; i++)
         {
             parts[i].Build(this, i);
         }
@@ -48,10 +49,10 @@ public class Part
         Index = index;
         Song = song;
 
-        for (var i =0; i < measures.Length; i++)
+        for (var i = 0; i < measures.Length; i++)
         {
             measures[i].Build(this, i);
-        }   
+        }
     }
 }
 
@@ -91,7 +92,7 @@ public class Measure
         Index = index;
         Part = part;
 
-        for(var i = 0; i < voices.Length; i++)
+        for (var i = 0; i < voices.Length; i++)
         {
             voices[i].Build(this, i);
         }
@@ -99,7 +100,7 @@ public class Measure
 
     public Measure? GetNext()
     {
-        if (Index >= Part.measures.Length - 1) 
+        if (Index >= Part.measures.Length - 1)
             return null;
 
         return Part.measures[Index + 1];
@@ -107,7 +108,7 @@ public class Measure
 
     public Measure? GetPrevious()
     {
-        if (Index <= 0) 
+        if (Index <= 0)
             return null;
 
         return Part.measures[Index - 1];
@@ -152,10 +153,10 @@ public class Beat
     /// <summary>
     /// THIS IS ONYL FOR VISUAL REPRESENTATION ON THE MUSIC SHEET DONT LET IT CONFUSE YOU AGAIN!
     /// </summary>
-    public int type { get; set; } 
+    public int type { get; set; }
     public bool palmMute { get; set; }
     public int[] duration { get; set; } = Array.Empty<int>();
-    public byte numerator  => (byte)duration[0];
+    public byte numerator => (byte)duration[0];
     public byte denominator => (byte)duration[1];
     public bool beamStart { get; set; }
     public bool beamStop { get; set; }
@@ -181,8 +182,13 @@ public class Beat
     public Song Song => Part.Song;
     public MusicalTimeSpan MusicalDuration { get; private set; }
 
+    public Nóta[] ReversedNotes { get; set; }
+
     public void Build(Voice voice, int index)
     {
+        ReversedNotes = notes;
+        notes = notes.Reverse().ToArray();
+
         Index = index;
         Voice = voice;
         MusicalDuration = new MusicalTimeSpan(duration[0], duration[1]);
@@ -195,11 +201,11 @@ public class Beat
 
     public Beat? GetNext()
     {
-        if (Index < Measure.Beats.Length - 1) 
+        if (Index < Measure.Beats.Length - 1)
             return Measure.Beats[Index + 1];
 
         var nextMeasure = Measure.GetNext();
-        if (nextMeasure != null) 
+        if (nextMeasure != null)
             return nextMeasure.Beats[0];
 
         return null;
@@ -208,11 +214,11 @@ public class Beat
 
     public Beat? GetPrevious()
     {
-        if (Index > 0) 
+        if (Index > 0)
             return Measure.Beats[Index - 1];
 
         var previousMeasure = Measure.GetPrevious();
-        if (previousMeasure != null) 
+        if (previousMeasure != null)
             return previousMeasure.Beats[^1];
 
         return null;
@@ -276,8 +282,8 @@ public class Nóta
 
         while (true)
         {
-            var beatStartIndex = measure == Measure 
-                ? Beat.Index - 1 
+            var beatStartIndex = measure == Measure
+                ? Beat.Index - 1
                 : measure.Beats.Length - 1;
 
             for (var b = beatStartIndex; b > -1; b--)
@@ -311,6 +317,14 @@ public class Nóta
             }
             else break;
         }
+    }
+
+    public bool WillBeTied()
+    {
+        var nextBeat = Beat.GetNext();
+        if (nextBeat == null) return false;
+
+        return nextBeat.notes.Any(e => e.tie && e.IsPitchEqual(this));
     }
 
     public bool IsInInbetweenTie()
