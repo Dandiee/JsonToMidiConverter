@@ -59,7 +59,7 @@ class DetailedCompare
         
         return evt switch
         {
-            NoteOnEvent noteOn => $"{delta} NoteOn  Nóta={noteOn.NoteNumber,3} Vel={noteOn.Velocity,3} Ch={noteOn.Channel}",
+            NoteOnEvent noteOn => $"{delta} NoteOnEvent  Nóta={noteOn.NoteNumber,3} Vel={noteOn.Velocity,3} Ch={noteOn.Channel}",
             NoteOffEvent noteOff => $"{delta} NoteOff Nóta={noteOff.NoteNumber,3} Ch={noteOff.Channel}",
             SetTempoEvent tempo => $"{delta} Tempó   {tempo.MicrosecondsPerQuarterNote}µs/qn",
             TimeSignatureEvent ts => $"{delta} TimeSig {ts.Numerator}/{Math.Pow(2, ts.Denominator)}",

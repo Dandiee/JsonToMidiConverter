@@ -61,7 +61,7 @@ public static class DebugShit
                     sb.AppendLine($"\t\t\tBEAT_{j}: {beatJson}");
 
 
-                    //sb.AppendLine($"\t\t\tBEAT - Ind: {j.ToString().PadLeft(2)}; NotesCount: {beat.notes.Length}; Rest: {beat.rest.ToString().PadLeft(5)}; Type: {beat.type}; Duration: [{beat.duration[0]}, {beat.duration[1]}]");
+                    //sb.AppendLine($"\t\t\tBEAT - Ind: {j.ToString().PadLeft(2)}; NotesCount: {beat.notes.Length}; Rest: {beat.rest.ToString().PadLeft(5)}; Type: {beat.type}; MusicalDuration: [{beat.duration[0]}, {beat.duration[1]}]");
                     //for (var k = 0; k < beat.notes.Length; k++)
                     //{
                     //    var note = beat.notes[k];
