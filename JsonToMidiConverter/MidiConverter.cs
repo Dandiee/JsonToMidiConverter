@@ -50,7 +50,7 @@ internal static class MidiConverter
                         TimeSpanMode.TimeLength);
                 }
 
-              
+
 
                 // 3. PLACE MARKER (Exactly at Grid)
                 timedEvents.Add(new MarkerEvent($"MEASURE_{measureIndex}"), currentCursor, new NoteContext(tempoMap, part, null), part.partId);
@@ -100,14 +100,8 @@ internal static class MidiConverter
 
                         }
 
-                        var chordNoteOffset = noteIndex * TimeConverter.ConvertTo<MusicalTimeSpan>(123, tempoMap);
-                        var chordNoteOffsetTicks = TimeConverter.ConvertFrom(chordNoteOffset, tempoMap);
-
                         currentCursor = (MusicalTimeSpan)beatStartCursor + (noteIndex * TimeConverter.ConvertTo<MusicalTimeSpan>(123, tempoMap));
-                        var currentCursorAbsoluteTick = TimeConverter.ConvertFrom(currentCursor, tempoMap);
-
                         var ctx = new NoteContext(tempoMap, part, note, measureIndex);
-
                         var fullBeatDuration = new MusicalTimeSpan(beat.duration[0], beat.duration[1]);
                         var rawDuration = (MusicalTimeSpan)fullBeatDuration.Clone();
                         if (note.staccato)
@@ -120,18 +114,17 @@ internal static class MidiConverter
                                 TimeSpanMode.LengthLength)
                             : rawDuration;
 
-                        if (!beat.rest)
-                        {
-                            if (!note.tie && timedEvents[^1].Event is not PitchBendEvent)
-                            {
-                                if (timedEvents[^1].Event is not MarkerEvent)
-                                {
-                                    var oneTickTime = TimeConverter.ConvertTo<MusicalTimeSpan>(1, tempoMap);
-                                    currentCursor = currentCursor.Add(oneTickTime, TimeSpanMode.TimeLength);
-                                }
+                        var g = false;
 
-                                timedEvents.Add(new PitchBendEvent(8192), currentCursor, ctx);
+                        if (!beat.rest && !note.tie && timedEvents[^1].Event is not PitchBendEvent)
+                        {
+                            if (timedEvents[^1].Event is not MarkerEvent)
+                            {
+                                var oneTickTime = TimeConverter.ConvertTo<MusicalTimeSpan>(1, tempoMap);
+                                currentCursor = currentCursor.Add(oneTickTime, TimeSpanMode.TimeLength);
                             }
+
+                            
                         }
 
                         if (note.rest)
@@ -148,6 +141,7 @@ internal static class MidiConverter
                         // NoteOn
                         if (!note.tie)
                         {
+                            timedEvents.Add(new PitchBendEvent(8192), currentCursor, ctx);
                             timedEvents.Add(new NoteOnEvent(noteNumber, velocity), currentCursor, ctx);
                         }
 
@@ -213,7 +207,9 @@ internal static class MidiConverter
                                 for (var i = 0; i < totalSteps; i++)
                                 {
                                     // Events happen at the START of the step (which is the End of the previous step)
+
                                     timedEvents.Add(new PitchBendEvent(8192), currentCursor, ctx);
+
 
                                     var nextNote = (SevenBitNumber)(runningNoteNumber + direction);
 
@@ -332,104 +328,11 @@ internal static class MidiConverter
         return midiFile;
     }
 
-    private static Nóta GetDestinationNote(int beatIndex, Part part, Nóta note, int measureIndex)
-    {
-        for (var m = measureIndex; m < part.measures.Length; m++)
-        {
-            var beats = part.measures[m].voices.Single().beats;
-            var fromBeat = m == measureIndex ? beatIndex + 1 : 0;
 
-            for (var b = fromBeat; b < beats.Length; b++)
-            {
-                var beat = beats[b];
-                foreach (var candidateNote in beat.notes)
-                {
-                    if ((int)note.StringNumber == candidateNote.StringNumber && !candidateNote.rest && candidateNote.fret > 0
-                        )
-                    {
-                        return candidateNote;
-                    }
-                }
-                
-            }
-        }
-
-        throw new Exception("wtf");
-    }
-
-    public static void AddLegatoPitchBends(ITimeSpan currentCursor, NoteContext ctx, IList<TimedEvent> timedEvents, TempoMap tempoMap, MusicalTimeSpan actualDuration)
-    {
-        timedEvents.Add(new PitchBendEvent(8195), currentCursor, ctx);
-
-        for (var l = 0; l < 99; l++)
-        {
-            if (l == 98)
-            {
-                var fillerTime = actualDuration - TimeConverter.ConvertTo<MusicalTimeSpan>(11, tempoMap);
-                actualDuration -= fillerTime;
-                currentCursor = currentCursor.Add(fillerTime, TimeSpanMode.TimeLength);
-
-                timedEvents.Add(new PitchBendEvent(8888), currentCursor, ctx);
-
-            }
-            else
-            {
-                var legatoTime = TimeConverter.ConvertTo<MusicalTimeSpan>(8, tempoMap);
-                actualDuration -= legatoTime;
-                currentCursor = currentCursor.Add(legatoTime, TimeSpanMode.TimeLength);
-
-                timedEvents.Add(new PitchBendEvent(8888), currentCursor, ctx);
-            }
-        }
-    }
-
-    public static SevenBitNumber GetNoteNumber(Part part, Nóta note)
-    {
-        if (part.partId == 3)
-        {
-
-        }
-
-        // 1. DRUM HANDLING
-        if (part.instrumentId == 1024 || (int)note.StringNumber == -1)
-        {
-            return (SevenBitNumber)note.fret;
-        }
-
-        // 2. BASE PITCH (Open String)
-        // We need the open string pitch first
-        int openStringPitch = part.tuning.Length == 0
-            ? (int)note.StringNumber // Fallback
-            : (int)part.tuning[(int)note.StringNumber];
-
-        // 3. HARMONIC HANDLING
-        if (note.harmonic == "natural")
-        {
-            // The 'fret' or 'harmonicFret' tells us WHICH harmonic, 
-            // but the pitch is an offset from the OPEN string.
-
-            switch (note.fret) // Or note.harmonicFret
-            {
-                case 12: return (SevenBitNumber)(openStringPitch + 12);
-                case 7: return (SevenBitNumber)(openStringPitch + 19);
-                case 5: return (SevenBitNumber)(openStringPitch + 24);
-                case 4: return (SevenBitNumber)(openStringPitch + 28);
-                case 9: return (SevenBitNumber)(openStringPitch + 28); // 9th fret harmonic is same as 4th
-                case 3: return (SevenBitNumber)(openStringPitch + 31); // 3rd fret is +2 Octaves + 5th
-                default:
-                    // Fallback for weird harmonics: treat as normal fret or standard octave?
-                    // Usually returning openString + 12 is a safe fallback if unknown.
-                    return (SevenBitNumber)(openStringPitch + 12);
-            }
-        }
-
-        // 4. STANDARD FRETTED NOTE
-        return (SevenBitNumber)(openStringPitch + note.fret);
-    }
 
     public static void Add(this IList<TimedEvent> events, MidiEvent midiEvent, ITimeSpan time, NoteContext ctx, int? channelOverride = null)
     {
-        
+
 
         if (midiEvent is ChannelEvent channelEvent)
         {
@@ -440,7 +343,7 @@ internal static class MidiConverter
         var tickTime = TimeConverter.ConvertFrom(time, ctx.TempoMap);
         if (events.Count >= 1792)
         {
-            tickTime -= theChange* 0;
+            tickTime -= theChange * 0;
         }
 
         if (events.Count >= 1793)
@@ -452,7 +355,7 @@ internal static class MidiConverter
 
         if (ctx.Part.partId < 10 && ctx.MeasureIndex < 82)
         {
-            
+
 
             var referenceChunk = ReferenceData[ctx.Part.partId];
             var referenceEvent = referenceChunk[events.Count];
@@ -471,11 +374,11 @@ internal static class MidiConverter
                 var diff = referenceEvent.AbsoluteTime - tickTime;
                 if (Math.Abs(diff) != 1)
                 {
-                     Debug.Assert(referenceEvent.AbsoluteTime == tickTime, warning);
+                    Debug.Assert(referenceEvent.AbsoluteTime == tickTime, warning);
                 }
             }
 
-            
+
 
             if (areTheSameType)
             {
@@ -648,7 +551,7 @@ internal static class MidiConverter
         return tempoMapManager.TempoMap;
     }
 
-    
+
 
     // A concise dictionary for specific overrides or non-standard IDs
     private static readonly IReadOnlyDictionary<int, int> InstrumentChannels = new Dictionary<int, int>
@@ -659,7 +562,7 @@ internal static class MidiConverter
 
         // Vocals (often mapped to arbitrary melody instruments in tabs)
         [68] = 4, // Oboe (used for vocals) -> Ch 5
-        
+
         [52] = 4, // Choir Aahs -> Ch 5
         [53] = 4, // Voice Oohs -> Ch 5
         [54] = 4, // Synth Voice -> Ch 5
@@ -711,5 +614,76 @@ internal static class MidiConverter
         ["mp"] = 003
     };
     public record NoteContext(TempoMap TempoMap, Part Part, Nóta? Note, int? MeasureIndex = null);
+
+
+    public static void AddLegatoPitchBends(ITimeSpan currentCursor, NoteContext ctx, IList<TimedEvent> timedEvents, TempoMap tempoMap, MusicalTimeSpan actualDuration)
+    {
+        timedEvents.Add(new PitchBendEvent(8195), currentCursor, ctx);
+
+        for (var l = 0; l < 99; l++)
+        {
+            if (l == 98)
+            {
+                var fillerTime = actualDuration - TimeConverter.ConvertTo<MusicalTimeSpan>(11, tempoMap);
+                actualDuration -= fillerTime;
+                currentCursor = currentCursor.Add(fillerTime, TimeSpanMode.TimeLength);
+
+                timedEvents.Add(new PitchBendEvent(8888), currentCursor, ctx);
+
+            }
+            else
+            {
+                var legatoTime = TimeConverter.ConvertTo<MusicalTimeSpan>(8, tempoMap);
+                actualDuration -= legatoTime;
+                currentCursor = currentCursor.Add(legatoTime, TimeSpanMode.TimeLength);
+
+                timedEvents.Add(new PitchBendEvent(8888), currentCursor, ctx);
+            }
+        }
+    }
+
+    public static SevenBitNumber GetNoteNumber(Part part, Nóta note)
+    {
+        if (part.partId == 3)
+        {
+
+        }
+
+        // 1. DRUM HANDLING
+        if (part.instrumentId == 1024 || (int)note.StringNumber == -1)
+        {
+            return (SevenBitNumber)note.fret;
+        }
+
+        // 2. BASE PITCH (Open String)
+        // We need the open string pitch first
+        int openStringPitch = part.tuning.Length == 0
+            ? (int)note.StringNumber // Fallback
+            : (int)part.tuning[(int)note.StringNumber];
+
+        // 3. HARMONIC HANDLING
+        if (note.harmonic == "natural")
+        {
+            // The 'fret' or 'harmonicFret' tells us WHICH harmonic, 
+            // but the pitch is an offset from the OPEN string.
+
+            switch (note.fret) // Or note.harmonicFret
+            {
+                case 12: return (SevenBitNumber)(openStringPitch + 12);
+                case 7: return (SevenBitNumber)(openStringPitch + 19);
+                case 5: return (SevenBitNumber)(openStringPitch + 24);
+                case 4: return (SevenBitNumber)(openStringPitch + 28);
+                case 9: return (SevenBitNumber)(openStringPitch + 28); // 9th fret harmonic is same as 4th
+                case 3: return (SevenBitNumber)(openStringPitch + 31); // 3rd fret is +2 Octaves + 5th
+                default:
+                    // Fallback for weird harmonics: treat as normal fret or standard octave?
+                    // Usually returning openString + 12 is a safe fallback if unknown.
+                    return (SevenBitNumber)(openStringPitch + 12);
+            }
+        }
+
+        // 4. STANDARD FRETTED NOTE
+        return (SevenBitNumber)(openStringPitch + note.fret);
+    }
 
 }
