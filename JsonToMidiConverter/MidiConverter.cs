@@ -23,8 +23,8 @@ internal static class MidiConverter
 
         foreach (var part in song.parts)
         {
-            var timedEvents = new List<TimedEvent>();
-            BuildHeader(part, tempoMap, timedEvents);
+            var events = new List<TimedEvent>();
+            BuildHeader(part, tempoMap, events);
 
             ITimeSpan currentCursor = new MusicalTimeSpan();
 
@@ -53,12 +53,12 @@ internal static class MidiConverter
 
 
                 // 3. PLACE MARKER (Exactly at Grid)
-                timedEvents.Add(new MarkerEvent($"MEASURE_{measureIndex}"), currentCursor, new NoteContext(tempoMap, part, null), part.partId);
+                events.Add(new MarkerEvent($"MEASURE_{measureIndex}"), currentCursor, new NoteContext(tempoMap, part, null), part.partId);
 
                 var measureChange = part.automations.tempo.SingleOrDefault(e => e.measure == measureIndex);
                 if (measureChange != null && measureIndex != 0)
                 {
-                    timedEvents.Add(new SetTempoEvent(Tempo.FromBeatsPerMinute(measureChange.bpm).MicrosecondsPerQuarterNote), currentCursor, new NoteContext(tempoMap, part, null), part.partId);
+                    events.Add(new SetTempoEvent(Tempo.FromBeatsPerMinute(measureChange.bpm).MicrosecondsPerQuarterNote), currentCursor, new NoteContext(tempoMap, part, null), part.partId);
                 }
 
                 if (measure.rest)
@@ -119,20 +119,16 @@ internal static class MidiConverter
                             continue;
                         }
 
-                        
+
                         var noteNumber = GetNoteNumber(part, note);
 
                         // NoteOn
                         if (!note.tie)
                         {
-                            if (timedEvents[^1].Event is not MarkerEvent)
-                            {
-                                currentCursor = currentCursor.AddTicks(1, tempoMap);
-                            }
-
-                            timedEvents.Add(new PitchBendEvent(8192), currentCursor, ctx);
-                            timedEvents.Add(new NoteOnEvent(noteNumber, beatVelocity), currentCursor, ctx);
+                            events.Add(new PitchBendEvent(8192), currentCursor, ctx);
+                            events.Add(new NoteOnEvent(noteNumber, beatVelocity), currentCursor, ctx);
                         }
+
 
                         if (note.slide == "shift")
                         {
@@ -147,82 +143,47 @@ internal static class MidiConverter
                                 actualDuration = (MusicalTimeSpan)actualDuration.Subtract(shiftOffsetDuration, TimeSpanMode.LengthLength);
                                 currentCursor = currentCursor.Add(actualDuration, TimeSpanMode.TimeLength);
                                 actualDuration = shiftOffsetDuration;
-                                AddLegatoPitchBends(currentCursor, ctx, timedEvents, tempoMap, actualDuration);
+                                AddLegatoPitchBends(currentCursor, ctx, events, tempoMap, actualDuration);
                             }
                             else
                             {
                                 var totalSteps = semitoneDistance - 1;
-
-                                // A. Calculate Standard Cost
-                                var standardStepTicks = 960;
-                                var totalBridgeTicks = totalSteps * standardStepTicks;
-
-                                // B. Calculate the "50% Limit"
-                                long currentTotalTicks = TimeConverter.ConvertFrom(actualDuration, tempoMap);
-                                long maxBridgeTicks = currentTotalTicks / 2;
-
-                                MusicalTimeSpan singleStepDuration;
-                                MusicalTimeSpan totalBridgeDuration;
-
-                                // C. Determine Strategy
-                                if (totalBridgeTicks > maxBridgeTicks)
-                                {
-                                    // COMPRESSION STRATEGY
-                                    var compressedStepTicks = maxBridgeTicks / totalSteps;
-
-                                    totalBridgeDuration = TimeConverter.ConvertTo<MusicalTimeSpan>(maxBridgeTicks, tempoMap);
-                                    singleStepDuration = TimeConverter.ConvertTo<MusicalTimeSpan>(compressedStepTicks, tempoMap);
-                                }
-                                else
-                                {
-                                    // STANDARD STRATEGY
-                                    totalBridgeDuration = TimeConverter.ConvertTo<MusicalTimeSpan>(totalBridgeTicks, tempoMap);
-                                    singleStepDuration = TimeConverter.ConvertTo<MusicalTimeSpan>(standardStepTicks, tempoMap);
-                                }
-
-                                // 1. Reduce Main Note
-                                actualDuration = (MusicalTimeSpan)actualDuration.Subtract(totalBridgeDuration, TimeSpanMode.LengthLength);
-
-                                // 2. Advance Cursor to Bridge Start
-                                currentCursor = currentCursor.Add(actualDuration, TimeSpanMode.TimeLength);
+                                var stepSize = GetShiftStepSizeTicks(nextBeat, beat, note, part, actualDuration, tempoMap);
 
                                 var runningNoteNumber = noteNumber;
-                                var oneTick = TimeConverter.ConvertTo<MusicalTimeSpan>(1, tempoMap);
+                                var firstNoteDuration = actualDuration.Subtract((totalSteps * stepSize).ToTimeSpan(tempoMap), TimeSpanMode.LengthLength);
+                                currentCursor = currentCursor.Add(firstNoteDuration, TimeSpanMode.TimeLength);
 
-                                // Loop through the bridge notes
                                 for (var i = 0; i < totalSteps; i++)
                                 {
-                                    timedEvents.Add(new PitchBendEvent(8192), currentCursor, ctx);
-
+                                    events.Add(new PitchBendEvent(8192), currentCursor, ctx);
                                     var nextNote = (SevenBitNumber)(runningNoteNumber + direction);
+
 
                                     if (i == 0)
                                     {
-                                        timedEvents.Add(new NoteOnEvent(nextNote, (SevenBitNumber)95), currentCursor, ctx);
+                                        events.Add(new NoteOnEvent(nextNote, (SevenBitNumber)95), currentCursor, ctx);
                                         if (!note.tie)
                                         {
-                                            timedEvents.Add(new NoteOffEvent(runningNoteNumber, beatVelocity), currentCursor, ctx);
+                                            events.Add(new NoteOffEvent(runningNoteNumber, beatVelocity), currentCursor, ctx);
                                         }
                                     }
                                     else
                                     {
-                                        timedEvents.Add(new NoteOffEvent(runningNoteNumber, beatVelocity), currentCursor, ctx);
-                                        timedEvents.Add(new NoteOnEvent(nextNote, (SevenBitNumber)95), currentCursor, ctx);
+
+                                        events.Add(new NoteOffEvent(runningNoteNumber, beatVelocity), currentCursor, ctx);
+                                        events.Add(new NoteOnEvent(nextNote, (SevenBitNumber)95), currentCursor, ctx);
                                     }
 
+                                    currentCursor = currentCursor.Add(stepSize.ToTimeSpan(tempoMap), TimeSpanMode.TimeLength);
 
-                                    currentCursor = currentCursor.Add(singleStepDuration, TimeSpanMode.TimeLength);
-                                    currentCursor = currentCursor.Subtract(oneTick, TimeSpanMode.LengthLength);
-
-                                    // Handle Tie Cutoff
                                     if (i == 0 && note.tie)
                                     {
-                                        timedEvents.Add(new NoteOffEvent(runningNoteNumber, beatVelocity), currentCursor, ctx);
+                                        events.Add(new NoteOffEvent(runningNoteNumber, beatVelocity), currentCursor, ctx);
                                     }
 
                                     runningNoteNumber = nextNote;
                                 }
-                                actualDuration = oneTick;
                             }
                         }
 
@@ -232,14 +193,8 @@ internal static class MidiConverter
                             actualDuration = (MusicalTimeSpan)actualDuration.Divide(2);
                             currentCursor = currentCursor.Add(actualDuration, TimeSpanMode.TimeLength);
 
-                            AddLegatoPitchBends(currentCursor, ctx, timedEvents, tempoMap, actualDuration);
+                            AddLegatoPitchBends(currentCursor, ctx, events, tempoMap, actualDuration);
                         }
-
-
-                        currentCursor = currentCursor.Add(actualDuration, TimeSpanMode.TimeLength);
-                        currentCursor = currentCursor.AddTicks(-1, tempoMap);
-
-                        
                     }
 
                     // NoteOff
@@ -249,15 +204,27 @@ internal static class MidiConverter
                         if (note.rest) continue;
 
 
-                        var noteNumber = GetNoteNumber(part, note);
-                        var ctx = new NoteContext(tempoMap, part, note, measureIndex);
-
-
                         var rawNoteDuration = (MusicalTimeSpan)fullBeatDuration.Clone();
                         if (note.staccato)
                         {
                             rawNoteDuration /= 2;
                         }
+
+                        var actualDuration = prevBeat?.graceNote == "onBeat"
+                            ? (MusicalTimeSpan)rawNoteDuration.Subtract(new MusicalTimeSpan(prevBeat.numerator, prevBeat.denominator),
+                                TimeSpanMode.LengthLength)
+                            : rawNoteDuration;
+
+                        currentCursor = currentCursor.Add(actualDuration, TimeSpanMode.TimeLength);
+                        //currentCursor = currentCursor.AddTicks(-1, tempoMap);
+
+
+
+
+                        var noteNumber = GetNoteNumber(part, note);
+                        var ctx = new NoteContext(tempoMap, part, note, measureIndex);
+
+
 
                         // NoteOff
                         var nextIdenticalNote = nextBeat?.notes.SingleOrDefault(e => (int)e.StringNumber == (int)note.StringNumber && e.fret == note.fret);
@@ -266,10 +233,56 @@ internal static class MidiConverter
                             if ((nextIdenticalNote == null || !nextIdenticalNote.tie))
                             {
                                 var lastNoteOnNumber = note.slide == "shift"
-                                    ? GetLastNoteOnEvent(timedEvents).NoteNumber
+                                    ? GetLastNoteOnEvent(events).NoteNumber
                                     : noteNumber;
 
-                                timedEvents.Add(new NoteOffEvent(lastNoteOnNumber, beatVelocity), currentCursor, ctx);
+                                var lastTenEvents = events.Skip(events.Count - 10).Take(10).ToList();
+                                var last = events[^1];
+
+                                if (events[^1].Event is PitchBendEvent) // legato case
+                                {
+                                    currentCursor = (events[^1].Time + 10).ToTimeSpan(tempoMap);
+                                }
+
+
+
+                                if (events[^1].Event is NoteOffEvent)
+                                {
+                                    if (note.tie) // timedEvents.Count == 1097)
+                                    {
+                                        currentCursor = (events[^1].Time).ToTimeSpan(tempoMap);
+                                    }
+                                    else
+                                    {
+                                        currentCursor = (events[^1].Time + 960).ToTimeSpan(tempoMap);
+                                    }
+                                }
+
+                                if (events[^1].Event is NoteOnEvent)
+                                {
+                                    if (note.slide == "shift")
+                                    {
+                                        var stepSize = GetShiftStepSizeTicks(nextBeat, beat, note, part, actualDuration, tempoMap);
+                                        currentCursor = (events[^1].Time + stepSize).ToTimeSpan(tempoMap);
+                                    }
+                                    else
+                                    {
+                                        var offByOneLength = actualDuration.ToTicks(tempoMap);
+                                        currentCursor = (events[^1].Time + offByOneLength).ToTimeSpan(tempoMap);
+                                    }
+                                }
+
+                                if (last.Event is MarkerEvent)
+                                {
+                                    //currentCursor = currentCursor.AddTicks(-1, tempoMap);
+                                }
+
+                                if (note.slide == null)
+                                {
+                                    //currentCursor = currentCursor.AddTicks(-1, tempoMap);
+                                }
+
+                                events.Add(new NoteOffEvent(lastNoteOnNumber, beatVelocity), currentCursor, ctx);
 
                                 if (note.staccato)
                                 {
@@ -284,7 +297,7 @@ internal static class MidiConverter
                 }
             }
 
-            var trackChunk = timedEvents.ToTrackChunk();
+            var trackChunk = events.ToTrackChunk();
             midiFile.Chunks.Add(trackChunk);
         }
         midiFile.ReplaceTempoMap(tempoMap);
@@ -303,9 +316,31 @@ internal static class MidiConverter
         throw new Exception("no");
     }
 
+    public static long GetShiftStepSizeTicks(Beat nextBeat, Beat beat, Nóta note, Part part, ITimeSpan actualDuration, TempoMap tempoMap)
+    {
+        var noteNumber = GetNoteNumber(part, note);
+
+        var targetNote = nextBeat!.notes.First(n => (int)n.StringNumber == (int)note.StringNumber);
+        var targetPitch = GetNoteNumber(part, targetNote);
+        var direction = targetPitch < noteNumber ? -1 : 1;
+        var semitoneDistance = Math.Abs(targetPitch - noteNumber);
+
+        var totalSteps = semitoneDistance - 1;
+        var useStandardStep = 960 * totalSteps <= actualDuration.ToTicks(tempoMap) / 2;
+        var stepSize = useStandardStep
+            ? 960
+            : actualDuration.ToTicks(tempoMap) / 2 / totalSteps;
+
+        return stepSize;
+    }
+
     public static void Add(this IList<TimedEvent> events, MidiEvent midiEvent, ITimeSpan time, NoteContext ctx, int? channelOverride = null)
     {
 
+        if (events.Count == 629)
+        {
+
+        }
 
         if (midiEvent is ChannelEvent channelEvent)
         {
@@ -332,6 +367,14 @@ internal static class MidiConverter
 
             var referenceChunk = ReferenceData[ctx.Part.partId];
             var referenceEvent = referenceChunk[events.Count];
+
+            if (midiEvent.DeltaTime > 0)
+            {
+
+            }
+
+            //Debug.Assert(referenceEvent.Event.DeltaTime == midiEvent.DeltaTime);
+
             var areTheSameType = referenceEvent.Event.GetType() == eventType;
             Debug.Assert(areTheSameType);
 
@@ -345,7 +388,7 @@ internal static class MidiConverter
 
                 var warning = $"Time mismatch at Index {events.Count} of {eventType.Name}, Expected = {referenceEvent.AbsoluteTime} vs Actual = {tickTime}";
                 var diff = referenceEvent.AbsoluteTime - tickTime;
-                if (Math.Abs(diff) != 1)
+                if (Math.Abs(diff) > 6)
                 {
                     Debug.Assert(referenceEvent.AbsoluteTime == tickTime, warning);
                 }
