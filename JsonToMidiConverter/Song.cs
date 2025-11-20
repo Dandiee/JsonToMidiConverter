@@ -12,6 +12,8 @@ public class Song
 
     public void Build()
     {
+        parts = parts.OrderBy(e => e.partId).ToArray();
+
         for(var i = 0; i < parts.Length; i++)
         {
             parts[i].Build(this, i);
@@ -94,6 +96,23 @@ public class Measure
             voices[i].Build(this, i);
         }
     }
+
+    public Measure? GetNext()
+    {
+        if (Index >= Part.measures.Length - 1) 
+            return null;
+
+        return Part.measures[Index + 1];
+    }
+
+    public Measure? GetPrevious()
+    {
+        if (Index <= 0) 
+            return null;
+
+        return Part.measures[Index - 1];
+    }
+
 }
 
 public class Marker
@@ -176,18 +195,29 @@ public class Beat
 
     public Beat? GetNext()
     {
-        for (var i = Measure.Index; i < Part.measures.Length; i++)
-        {
-            var beatStartIndex = i == Measure.Index ? Index + 1 : 0;
+        if (Index < Measure.Beats.Length - 1) 
+            return Measure.Beats[Index + 1];
 
-            for (var j = beatStartIndex; j < Measure.Beats.Length; j++)
-            {
-                return Part.measures[i].Beats[j];
-            }
-        }
+        var nextMeasure = Measure.GetNext();
+        if (nextMeasure != null) 
+            return nextMeasure.Beats[0];
+
+        return null;
+
+    }
+
+    public Beat? GetPrevious()
+    {
+        if (Index > 0) 
+            return Measure.Beats[Index - 1];
+
+        var previousMeasure = Measure.GetPrevious();
+        if (previousMeasure != null) 
+            return previousMeasure.Beats[^1];
 
         return null;
     }
+
 
     public long GetMeasureStartDuration(TempoMap tempoMap)
         => Measure.Beats

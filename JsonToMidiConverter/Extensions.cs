@@ -15,6 +15,7 @@ public static class Extensions
             [typeof(MetricTimeSpan)] = TimeSpanType.Metric,
             [typeof(MidiTimeSpan)] = TimeSpanType.Midi,
             [typeof(MusicalTimeSpan)] = TimeSpanType.Musical,
+
         };
 
     public static MusicalTimeSpan ToTimeSpan(this long ticks, TempoMap tempoMap) => TimeConverter.ConvertTo<MusicalTimeSpan>(ticks, tempoMap);
