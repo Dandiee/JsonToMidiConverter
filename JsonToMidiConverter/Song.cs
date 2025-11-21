@@ -325,6 +325,23 @@ public class Nóta
         }
     }
 
+    public Nóta GetSlideTarget()
+    {
+        if (string.IsNullOrEmpty(slide)) throw new Exception("The not is not a slide.");
+
+        var nextBeat = Beat.GetNext();
+        while (true)
+        {
+            var targetNote = nextBeat.notes.SingleOrDefault(e => e.StringNumber == StringNumber);
+            if (targetNote != null)
+            {
+                return targetNote;
+            }
+
+            nextBeat = nextBeat.GetNext();
+        }
+    }
+
     public bool WillBeTied()
     {
         var nextBeat = Beat.GetNext();

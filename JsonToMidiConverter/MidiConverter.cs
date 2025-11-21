@@ -222,6 +222,12 @@ internal static class MidiConverter
                                 noteNumber = GetNoteNumber(tieRoot.Part, tieRoot);
                             }
 
+                            if (note.slide == "shift")
+                            {
+                                var targetNote = note.GetSlideTarget();
+                                noteNumber = (SevenBitNumber)(targetNote.NoteNumber + 1);
+                            }
+
                             events.Add(new NoteOffEvent(noteNumber, new SevenBitNumber(123)), currentCursor, new NoteContext(tempoMap, note));
                         }
 
