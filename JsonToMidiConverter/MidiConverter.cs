@@ -100,17 +100,12 @@ internal static partial class MidiConverter
                             }
                             else
                             {
-                                if (note.Slide == Slide.Upwards)
-                                {
-
-                                }
-
                                 var totalSteps = semitoneDistance - 1;
                                 var stepSize = note.GetShiftStepSizeTicks();
 
                                 var firstNoteDuration = actualDuration - (totalSteps * stepSize);
 
-                                if (note.tie && (note.Slide == Slide.Downwards || note.Slide == Slide.Upwards))
+                                if (note.Slide == Slide.Upwards || (note.tie && (note.Slide == Slide.Downwards)))
                                 {
                                     currentCursor -= stepSize;
                                 }
@@ -123,7 +118,7 @@ internal static partial class MidiConverter
                                 shiftBuffer.Add(new PitchBendEvent(8192), currentCursor, note);
                                 shiftBuffer.Add(new NoteOnEvent(nextNote.To7(), Velocity), currentCursor, note);
 
-                                if (note.Slide == Slide.Shift)
+                                if (note.Slide == Slide.Shift || note.Slide == Slide.Upwards)
                                 {
                                     if (note.tie)
                                     {
@@ -330,9 +325,16 @@ internal static partial class MidiConverter
                                     }
                                 }
 
+                                if (note.Slide == Slide.Upwards)
+                                {
+                                    
+                                    var size = note.GetShiftStepSizeTicks();
+                                    currentCursor = new Time(events[^1].Time + size);
+                                }
+
                                 events.Add(new NoteOffEvent(((NoteOnEvent)lastNoteOnEvent.Event).NoteNumber, Velocity), currentCursor, note);
 
-                                if (note.Slide == Slide.Downwards || note.Slide == Slide.Upwards)
+                                if (note.Slide == Slide.Downwards)
                                 {
                                     events.Add(new NoteOffEvent(note.NoteNumber, Velocity), currentCursor, note);
                                 }

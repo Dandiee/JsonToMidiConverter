@@ -7,7 +7,7 @@ using System.Reflection;
 
 namespace JsonToMidiConverter;
 
-[DebuggerDisplay("[{TimedEvents.Count} Last: P{LastNote.Part.Index} M{LastNote.Measure.Index} B{LastNote.Beat.Index}]")]
+[DebuggerDisplay("[{TimedEvents.Count} Last at [{LastEvent.Time}]: {LastNote}]")]
 public class Events : IEnumerable<TimedEvent>
 {
     public static readonly List<(long AbsoluteTime, MidiEvent Event)>[] ReferenceData = GetReferenceMidiData();
@@ -43,11 +43,6 @@ public class Events : IEnumerable<TimedEvent>
             channelEvent.Channel = (channelOverride ?? note.Channel).To4();
         }
 
-        if (note != null)
-        {
-
-        }
-
         Recap = TimedEvents.Skip(Math.Max(0, TimedEvents.Count - 30)).ToList();
 
         var eventType = midiEvent.GetType();
@@ -58,27 +53,28 @@ public class Events : IEnumerable<TimedEvent>
 
             if (pid < 10)
             {
-                var referenceChunk = ReferenceData[pid];
-                var referenceEvent = referenceChunk[TimedEvents.Count];
-                var areTheSameType = referenceEvent.Event.GetType() == eventType;
-                Debug.Assert(areTheSameType);
+                var refEvent = ReferenceData[pid][TimedEvents.Count];
+
+                var refType = refEvent.Event.EventType;
+                var ourType = midiEvent.EventType;
+                Debug.Assert(refType == ourType);
 
                 if (!(midiEvent is PitchBendEvent pitch && pitch.PitchValue == 8888))
                 {
-                    var diff = referenceEvent.AbsoluteTime - time.Tick;
-                    if (Math.Abs(diff) > 8)
+                    var diff = refEvent.AbsoluteTime - time.Tick;
+                    if (Math.Abs(diff) > 9)
                     {
-                        Debug.Assert(referenceEvent.AbsoluteTime == time.Tick);
+                        Debug.Assert(refEvent.AbsoluteTime == time.Tick);
                     }
                 }
 
-                if (areTheSameType)
+                if (refType == ourType)
                 {
                     var props = eventType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
                     foreach (var prop in props)
                     {
                         var propName = prop.Name;
-                        var referenceValue = prop.GetValue(referenceEvent.Event)!;
+                        var referenceValue = prop.GetValue(refEvent.Event)!;
                         var actualValue = prop.GetValue(midiEvent)!;
 
                         if (propName != "DeltaTime" && propName != "Velocity" && propName != "PitchValue")

@@ -420,13 +420,19 @@ public class Nóta
         var targetPitch = GetSlideTargetPitch();
         var semitoneDistance = Math.Abs(targetPitch - NoteNumber);
 
+        var isSlideOut = Slide == Slide.Downwards || Slide == Slide.Upwards;
+
         var totalTicks = duration;
-        var maxDuration = totalTicks / 2;
+        var maxDuration = isSlideOut
+            ? (totalTicks * 3) / 4  // 75% Cap
+            : totalTicks / 2;       // 50% Cap
+
+        
 
         var idealDuration = new Time(semitoneDistance - 1) * 960;
         var finalDuration = idealDuration < maxDuration ? idealDuration : maxDuration;
 
-        var denominator = Slide == Slide.Downwards || Slide == Slide.Upwards
+        long denominator = isSlideOut
             ? semitoneDistance
             : semitoneDistance - 1;
 
