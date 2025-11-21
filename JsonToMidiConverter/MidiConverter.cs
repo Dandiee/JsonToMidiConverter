@@ -83,15 +83,12 @@ internal static class MidiConverter
                         // NoteOnEvent
                         {
 
-                            if (part.instrumentId == 0) // for piano its different
+                            if (part.IsPianoLike) // for piano its different
                             {
                                 foreach (var n in beat.notes.Where(e => !e.tie))
                                 {
                                     events.Add(new PitchBendEvent(8192), currentCursor, new NoteContext(tempoMap, n));
-
-
                                 }
-
 
                                 foreach (var n in beat.notes.Where(e => !e.tie))
                                 {
@@ -468,7 +465,7 @@ internal static class MidiConverter
             return (FourBitNumber)assignedChannel;
         }
 
-        if (part.instrumentId == 0) // piano
+        if (part.instrumentId == 0 || part.instrumentId == 48) // piano and sampler
         {
             return (FourBitNumber)(int)note.StringNumber;
         }

@@ -45,17 +45,21 @@ public class Part
 
     public int Index { get; private set; }
     public Song Song { get; private set; }
+    public bool IsPianoLike { get; private set; }
 
     public void Build(Song song, int index)
     {
         Index = index;
         Song = song;
+        IsPianoLike = PianoLikeInstruments.Contains(instrumentId);
 
         for (var i = 0; i < measures.Length; i++)
         {
             measures[i].Build(this, i);
         }
     }
+
+    public static readonly HashSet<int> PianoLikeInstruments = new() { 0, 48 };
 }
 
 public class Automations
@@ -193,8 +197,7 @@ public class Beat
         Voice = voice;
         MusicalDuration = new MusicalTimeSpan(duration[0], duration[1]);
 
-
-        if (Part.instrumentId != 0) // for piano we dont change the fuckin note order
+        if (!Part.IsPianoLike) // for piano we dont change the fuckin note order
         {
             notes = notes.Reverse().ToArray();
         }
