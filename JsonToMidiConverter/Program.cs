@@ -28,7 +28,7 @@ if (song is null)
     return;
 }
 
-song.Build();
+
 
 var midiFile = MidiConverter.Convert(song);
 midiFile.Write(outputFile, overwriteFile: true);
