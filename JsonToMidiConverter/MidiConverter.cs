@@ -8,9 +8,7 @@ namespace JsonToMidiConverter;
 internal static partial class MidiConverter
 {
     private const int TicksPerQuarterNote = 15360;
-    public static readonly List<(long AbsoluteTime, MidiEvent Event)>[] ReferenceData = GetReferenceMidiData();
-    public static bool SuspenseValidation;
-
+    
     public static readonly SevenBitNumber Velocity = 9.To7();
 
     public static MidiFile Convert(Song song)
@@ -21,7 +19,8 @@ internal static partial class MidiConverter
 
         foreach (var part in song.parts)
         {
-            var events = new List<TimedEvent>();
+            var events = new Events();
+
             BuildHeader(part, events);
 
             if (part.partId == 10) continue;
@@ -84,8 +83,8 @@ internal static partial class MidiConverter
 
                         if (note.Slide == Slide.Shift|| note.Slide == Slide.Downwards || note.Slide == Slide.Upwards)
                         {
-                            SuspenseValidation = true;
-                            var shiftBuffer = new List<TimedEvent>();
+                            Events.SuspenseValidation = true;
+                            var shiftBuffer = new Events();
 
                             var targetPitch = note.GetSlideTargetPitch();
                             var direction = targetPitch < note.NoteNumber ? -1 : 1;
@@ -158,7 +157,7 @@ internal static partial class MidiConverter
                                 }
                             }
 
-                            SuspenseValidation = false;
+                            Events.SuspenseValidation = false;
                             if (beat.notes.Length == 1)
                             {
                                 var osk = 0;
@@ -357,61 +356,61 @@ internal static partial class MidiConverter
         return midiFile;
     }
 
-    public static void BuildHeader(Part part, IList<TimedEvent> timedEvents)
+    public static void BuildHeader(Part part, Events events)
     {
         var timeZero = new Time();
 
         for (var i = 0; i < 9; i++)
         {
             // Program Change
-            timedEvents.Add(new ProgramChangeEvent(part.instrumentId.To7()), timeZero, null, i, part.partId);
+            events.Add(new ProgramChangeEvent(part.instrumentId.To7()), timeZero, null, i, part.partId);
         }
 
         for (var i = 0; i < 9; i++)
         {
             // Mod Wheel Reset
-            timedEvents.Add(new ControlChangeEvent(1.To7(), 0.To7()), timeZero, null, i, part.partId);
+            events.Add(new ControlChangeEvent(1.To7(), 0.To7()), timeZero, null, i, part.partId);
         }
 
         for (var i = 0; i < 9; i++)
         {
             // Pitch Bend Reset
-            timedEvents.Add(new PitchBendEvent(8192), timeZero, null, i, part.partId);
+            events.Add(new PitchBendEvent(8192), timeZero, null, i, part.partId);
         }
 
         for (var i = 0; i < 9; i++)
         {
             // RPN Pitch Range Setup (Your 4 events)
-            timedEvents.Add(new ControlChangeEvent(101.To7(),0.To7()), timeZero, null, i, part.partId);
-            timedEvents.Add(new ControlChangeEvent(100.To7(), 0.To7()), timeZero, null, i, part.partId);
-            timedEvents.Add(new ControlChangeEvent(6.To7(), 24.To7()), timeZero, null, i, part.partId);
-            timedEvents.Add(new ControlChangeEvent(38.To7(), 0.To7()), timeZero, null, i, part.partId);
+            events.Add(new ControlChangeEvent(101.To7(),0.To7()), timeZero, null, i, part.partId);
+            events.Add(new ControlChangeEvent(100.To7(), 0.To7()), timeZero, null, i, part.partId);
+            events.Add(new ControlChangeEvent(6.To7(), 24.To7()), timeZero, null, i, part.partId);
+            events.Add(new ControlChangeEvent(38.To7(), 0.To7()), timeZero, null, i, part.partId);
         }
 
 
         if (!string.IsNullOrEmpty(part.name))
         {
-            timedEvents.Add(new SequenceTrackNameEvent(part.name), timeZero, null, null, part.partId);
+            events.Add(new SequenceTrackNameEvent(part.name), timeZero, null, null, part.partId);
         }
 
         if (!string.IsNullOrEmpty(part.instrument))
         {
-            timedEvents.Add(new InstrumentNameEvent(part.instrument), timeZero,
+            events.Add(new InstrumentNameEvent(part.instrument), timeZero,
                 null, null, part.partId);
         }
     }
 
-    public static void AddLegatoPitchBends(Time currentCursor, Nóta note, IList<TimedEvent> timedEvents, Time actualDuration)
+    public static void AddLegatoPitchBends(Time currentCursor, NÃ³ta note, Events events, Time actualDuration)
     {
-        timedEvents.Add(new PitchBendEvent(8195), currentCursor, note);
+        events.Add(new PitchBendEvent(8195), currentCursor, note);
 
         if (note.vibrato)
         {
             var target = note.GetSlideTarget();
             var inbetweenNote = Math.Sign(target.NoteNumber - note.NoteNumber) + note.NoteNumber;
 
-            timedEvents.Add(new NoteOnEvent(inbetweenNote.To7(), Velocity), currentCursor, note);
-            timedEvents.Add(new NoteOffEvent(note.NoteNumber, Velocity), currentCursor, note);
+            events.Add(new NoteOnEvent(inbetweenNote.To7(), Velocity), currentCursor, note);
+            events.Add(new NoteOffEvent(note.NoteNumber, Velocity), currentCursor, note);
         }
         else
         {
@@ -423,7 +422,7 @@ internal static partial class MidiConverter
                     actualDuration -= fillerTime;
                     currentCursor += fillerTime;
 
-                    timedEvents.Add(new PitchBendEvent(8888), currentCursor, note);
+                    events.Add(new PitchBendEvent(8888), currentCursor, note);
 
                 }
                 else
@@ -432,13 +431,13 @@ internal static partial class MidiConverter
                     actualDuration -= legatoTime;
                     currentCursor += legatoTime;
 
-                    timedEvents.Add(new PitchBendEvent(8888), currentCursor, note);
+                    events.Add(new PitchBendEvent(8888), currentCursor, note);
                 }
             }
         }
     }
 
-    public static TimedEvent GetLastNoteOnEvent(IList<TimedEvent> events, SevenBitNumber noteNumber)
+    public static TimedEvent GetLastNoteOnEvent(Events events, SevenBitNumber noteNumber)
     {
         for (var i = events.Count - 1; ; i--)
         {
