@@ -1,12 +1,8 @@
 using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
-using Melanchall.DryWetMidi.MusicTheory;
 using System.Diagnostics;
 using System.Reflection;
-using System.Reflection.Metadata.Ecma335;
-using Microsoft.VisualBasic;
-using Note = Melanchall.DryWetMidi.Interaction.Note;
 
 namespace JsonToMidiConverter;
 
@@ -15,7 +11,7 @@ internal static partial class MidiConverter
     
 
     public static TimedEvent Add(this IList<TimedEvent> events, MidiEvent midiEvent, Time time,
-        Nóta? note, int? channelOverride = null, int? partId = null, int? noteNumberOverride = null)
+        Nóta? note, int? channelOverride = null, int? partId = null, SevenBitNumber? noteNumberOverride = null)
     {
 
         var origNoteNumber = note?.NoteNumber;
@@ -26,7 +22,7 @@ internal static partial class MidiConverter
 
         if (midiEvent is ChannelEvent channelEvent)
         {
-            channelEvent.Channel = (FourBitNumber)(channelOverride ?? note.Channel);
+            channelEvent.Channel = (channelOverride ?? note.Channel).To4();
         }
 
         var lastTen = events.Skip(events.Count - 20).Take(20).ToList();

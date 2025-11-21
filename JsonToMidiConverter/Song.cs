@@ -311,7 +311,7 @@ public class Nóta
 
     public List<TimedEvent> Events { get; } = new();
 
-    public int NoteNumber { get; set; }
+    public SevenBitNumber NoteNumber { get; set; }
     public Time ActualDuration { get; private set; }
     public Time RawDuration { get; private set; }
 
@@ -319,7 +319,7 @@ public class Nóta
     {
         Index = index;
         Beat = beat;
-        NoteNumber = GetNoteNumber();
+        NoteNumber = GetNoteNumber().To7();
         Channel  = GetNoteChannel();
 
         RawDuration = staccato
@@ -481,7 +481,7 @@ public class Nóta
 
         int openStringPitch = Part.tuning.Length == 0
             ? (int)StringNumber // Fallback
-            : (int)Part.tuning[(int)StringNumber];
+            : Part.tuning[(int)StringNumber];
 
         if (harmonic == "natural")
         {
@@ -502,7 +502,7 @@ public class Nóta
 
     public SevenBitNumber GetSlideTargetPitch()
     {
-        if (slide == "shift") return (SevenBitNumber)GetSlideTarget().NoteNumber;
+        if (slide == "shift") return GetSlideTarget().NoteNumber;
         if (slide == "downwards")
         {
             var distanceToFret1 = fret - 1;
@@ -522,12 +522,9 @@ public class Nóta
             return (FourBitNumber)StringNumber;
         }
 
-        if (Part.instrumentId == 27) return (FourBitNumber)2;
-
-        // 1. DRUMS (Always Channel 10, index 9)
-        if (Part.instrumentId == 1024) return (FourBitNumber)9;
-
-        // 2. Try explicit lookup first (for special overrides)
+        if (Part.instrumentId == 27) return 2.To4();
+        if (Part.instrumentId == 1024) return 9.To4();
+        
         if (InstrumentChannels.TryGetValue(Part.instrumentId, out int assignedChannel))
         {
             return (FourBitNumber)assignedChannel;
@@ -537,44 +534,27 @@ public class Nóta
         {
             return (FourBitNumber)(int)StringNumber;
         }
-
-        // 3. INTELLIGENT FALLBACK (GM Families)
-        // If not explicitly listed, calculate channel based on instrument type.
-        // GM IDs: 0-127.
-
         var id = Part.instrumentId;
 
-        if (id >= 0 && id <= 7) return (FourBitNumber)0; // Piano -> Ch 1
-        if (id >= 24 && id <= 34) return (FourBitNumber)1; // Guitar -> Ch 2
-        if (id >= 32 && id <= 39) return (FourBitNumber)2; // Bass   -> Ch 3
-        if (id >= 40 && id <= 55) return (FourBitNumber)3; // Strings/Voices -> Ch 4
-        if (id >= 56 && id <= 71) return (FourBitNumber)4; // Brass/Reeds -> Ch 5
-        if (id >= 16 && id <= 23) return (FourBitNumber)5; // Organ  -> Ch 6
+        if (id >= 0 && id <= 7) return 0.To4(); // Piano -> Ch 1
+        if (id >= 24 && id <= 34) return 1.To4(); // Guitar -> Ch 2
+        if (id >= 32 && id <= 39) return 2.To4(); // Bass   -> Ch 3
+        if (id >= 40 && id <= 55) return 3.To4(); // Strings/Voices -> Ch 4
+        if (id >= 56 && id <= 71) return 4.To4(); // Brass/Reeds -> Ch 5
+        if (id >= 16 && id <= 23) return 5.To4(); // Organ  -> Ch 6
 
-        // Default for everything else (Synths, FX, World)
-        return (FourBitNumber)6;
+        return 6.To4();
     }
 
     private static readonly IReadOnlyDictionary<int, int> InstrumentChannels = new Dictionary<int, int>
     {
-        // --- Standard General MIDI Overrides ---
-
         [71] = 1, // Clarinet (used for vocals) -> Ch 5
-
-        // Vocals (often mapped to arbitrary melody instruments in tabs)
         [68] = 4, // Oboe (used for vocals) -> Ch 5
-
         [52] = 4, // Choir Aahs -> Ch 5
         [53] = 4, // Voice Oohs -> Ch 5
         [54] = 4, // Synth Voice -> Ch 5
-
-        // --- Guitar Pro / Tab Specifics ---
-
-        // Drums (Double check 1024 isn't the only drum ID used in your source)
         [1024] = 9, // Standard Drums
         [127] = 9, // Gunshot (sometimes used as a snare marker)
-
-        // Special Effects
         [119] = 8, // Reverse Cymbal -> Ch 9
         [122] = 8, // Seashore -> Ch 9
     };
