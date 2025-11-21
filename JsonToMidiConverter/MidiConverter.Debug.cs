@@ -14,7 +14,7 @@ internal static partial class MidiConverter
 {
     
 
-    public static (TimedEvent Event, Nóta Ctx) Add(this IList<TimedEvent> events, MidiEvent midiEvent, Time time,
+    public static TimedEvent Add(this IList<TimedEvent> events, MidiEvent midiEvent, Time time,
         Nóta? note, int? channelOverride = null, int? partId = null, int? noteNumberOverride = null)
     {
 
@@ -86,7 +86,7 @@ internal static partial class MidiConverter
             note.NoteNumber = origNoteNumber.Value;
         }
 
-        return (newEvent, note);
+        return newEvent;
     }
 
     private static List<(long AbsoluteTime, MidiEvent Event)>[] GetReferenceMidiData()

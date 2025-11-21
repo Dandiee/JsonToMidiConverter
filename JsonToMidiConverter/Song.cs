@@ -86,12 +86,6 @@ public class Part
             }
 
             var time = new BarBeatTicksTimeSpan(i, 0, 0);
-
-            if (lastSignature[0] < 1 || lastSignature[1] < 1 || lastBpm < 1)
-            {
-
-            }
-
             tempoMapManager.SetTimeSignature(time, new TimeSignature(lastSignature[0], lastSignature[1]));
             tempoMapManager.SetTempo(time, Tempo.FromBeatsPerMinute(lastBpm));
         }
@@ -313,7 +307,6 @@ public class Nóta
     public Measure Measure => Voice.Measure;
     public Part Part => Measure.Part;
     public Song Song => Part.Song;
-    public TimedEvent NoteOnEvent { get; set; }
     public FourBitNumber Channel { get; private set; }
 
     public List<TimedEvent> Events { get; } = new();

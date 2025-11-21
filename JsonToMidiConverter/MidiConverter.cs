@@ -9,7 +9,7 @@ internal static partial class MidiConverter
 {
     private const int TicksPerQuarterNote = 15360;
     public static readonly List<(long AbsoluteTime, MidiEvent Event)>[] ReferenceData = GetReferenceMidiData();
-    public static bool SuspenseValidation = false;
+    public static bool SuspenseValidation;
 
     public static MidiFile Convert(Song song)
     {
@@ -38,14 +38,10 @@ internal static partial class MidiConverter
                     events.Add(new SetTempoEvent(Tempo.FromBeatsPerMinute(measureChange.bpm).MicrosecondsPerQuarterNote), measureCursor, null, null, part.partId);
                 }
 
-
                 foreach (var beat in measure.Beats)
                 {
                     var beatVelocity = (SevenBitNumber)(112);
                     var beatCursor = measureCursor + beat.GetMeasureStartDuration(Time.Map);
-
-                    var prevBeat = beat.GetPrevious();
-                    var nextBeat = beat.GetNext();
 
                     currentCursor = beatCursor;
 
@@ -57,9 +53,6 @@ internal static partial class MidiConverter
                             continue;
                         }
 
-
-
-
                         if (part.IsPianoLike) // for piano its different
                         {
                             foreach (var n in beat.notes.Where(e => !e.tie))
@@ -69,18 +62,15 @@ internal static partial class MidiConverter
 
                             foreach (var n in beat.notes.Where(e => !e.tie))
                             {
-                                note.NoteOnEvent = events.Add(new NoteOnEvent((SevenBitNumber)n.NoteNumber, beatVelocity), currentCursor, n).Event;
+                                events.Add(new NoteOnEvent((SevenBitNumber)n.NoteNumber, beatVelocity), currentCursor, n);
                             }
                         }
-
                         else
                         {
                             foreach (var n in beat.notes.Where(e => !e.tie))
                             {
-                                var lasstten = events.Skip(events.Count - 20).Take(20).ToList();
                                 events.Add(new PitchBendEvent(8192), currentCursor, n);
-
-                                note.NoteOnEvent = events.Add(new NoteOnEvent((SevenBitNumber)n.NoteNumber, beatVelocity), currentCursor, n).Event;
+                                events.Add(new NoteOnEvent((SevenBitNumber)n.NoteNumber, beatVelocity), currentCursor, n);
 
                                 if (beat.notes.Length > 1)
                                 {
@@ -234,8 +224,6 @@ internal static partial class MidiConverter
                         currentCursor += 123;
                     }
 
-
-
                     // NoteOff
                     if (beat.notes.Length > 1)
                     {
@@ -278,7 +266,7 @@ internal static partial class MidiConverter
                         currentCursor += note.ActualDuration;
 
                         // NoteOff
-                        var nextIdenticalNote = nextBeat?.notes.SingleOrDefault(e => (int)e.StringNumber == (int)note.StringNumber && e.fret == note.fret);
+                        var nextIdenticalNote = beat.GetNext()?.notes.SingleOrDefault(e => (int)e.StringNumber == (int)note.StringNumber && e.fret == note.fret);
                         {
                             if ((nextIdenticalNote == null || !nextIdenticalNote.tie))
                             {
@@ -317,32 +305,10 @@ internal static partial class MidiConverter
                                 {
                                     if (note.tie)
                                     {
-                                        // Alternative good solution dont delete mindlessly
-                                        // TimedEvent? tieRoot = null;
-                                        // for (var i = events.Count - 1; tieRoot == null; i--)
-                                        // {
-                                        //     var candidate = events[i];
-                                        //     if (candidate.Event is NoteOnEvent noe)
-                                        //     {
-                                        //         var candidateNoteNumber = noe.NoteNumber;
-                                        //         if (candidateNoteNumber == noteNumber)
-                                        //         {
-                                        //             tieRoot = candidate;
-                                        //         }
-                                        //     }
-                                        // }
-                                        // 
-                                        // var ends = beatCursor.Add(beat.MusicalDuration, TimeSpanMode.TimeLength);
-                                        // var tieEndsAt = ends.ToTicks(tempoMap);
-                                        // var leftoverTime = events[^1].Time - tieEndsAt;
-                                        // currentCursor = (events[^1].Time - leftoverTime).ToTimeSpan(tempoMap);
-
                                         var ties = note.GetTies().ToList();
-                                        var tieRoot = ties.Last();
-                                        var tieRootStartedAt = ties.Last().NoteOnEvent.Time;
+                                        var tieRootStartedAt = ties.Last().Events.Single(s => s.Event.EventType == MidiEventType.NoteOn);
                                         var tieLength = ties.Sum(e => e.Beat.MusicalDuration.Tick);
-                                        var tieEndsAt = tieRootStartedAt + tieLength;
-
+                                        var tieEndsAt = tieRootStartedAt.Time + tieLength;
                                         var leftoverTime = events[^1].Time - tieEndsAt;
                                         currentCursor = new(events[^1].Time - leftoverTime);
                                     }

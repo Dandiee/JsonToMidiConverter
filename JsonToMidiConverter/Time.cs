@@ -4,9 +4,9 @@ using Melanchall.DryWetMidi.Interaction;
 namespace JsonToMidiConverter;
 
 [DebuggerDisplay("{Tick} - {Span}")]
-public class Time
+public readonly struct Time : IEquatable<Time>
 {
-    public static TempoMap Map { get; set; }
+    public static TempoMap Map;
 
     public readonly MusicalTimeSpan Span;
 
@@ -45,4 +45,8 @@ public class Time
     public static bool operator !=(Time lhs, Time rhs) => lhs.Tick != rhs.Tick;
 
     public Time Clone() => new(Tick);
+
+    public bool Equals(Time other) => Span.Equals(other.Span) && Tick == other.Tick;
+    public override bool Equals(object? obj) => obj is Time other && Equals(other);
+    public override int GetHashCode() => Tick.GetHashCode();
 }
