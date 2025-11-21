@@ -413,16 +413,12 @@ public class Nóta
 
     public long GetShiftStepSizeTicks()
     {
-        var duration = tie
-            ? new Time(GetTies().Sum(e => e.Beat.MusicalDuration.Tick))
-            : ActualDuration;
-
         var targetPitch = GetSlideTargetPitch();
         var semitoneDistance = Math.Abs(targetPitch - NoteNumber);
 
         var isSlideOut = Slide == Slide.Downwards || Slide == Slide.Upwards;
 
-        var totalTicks = duration;
+        var totalTicks = ActualDuration;
         var maxDuration = isSlideOut
             ? (totalTicks * 3) / 4  // 75% Cap
             : totalTicks / 2;       // 50% Cap

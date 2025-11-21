@@ -32,6 +32,8 @@ public class Events : IEnumerable<TimedEvent>
         SevenBitNumber? noteNumberOverride = null)
     {
 
+        
+
         var origNoteNumber = note?.NoteNumber;
         if (noteNumberOverride != null)
         {
@@ -91,8 +93,16 @@ public class Events : IEnumerable<TimedEvent>
 
         var newEvent = new TimedEvent(midiEvent, time.Tick);
         TimedEvents.Add(newEvent);
-        if (note != null)
+        if (note != null && !SuspenseValidation)
         {
+            if (newEvent.Event is NoteOnEvent e)
+            {
+                var asd = note.Events.Where(e => e.Event.EventType == MidiEventType.NoteOn && (e.Event as NoteOnEvent).NoteNumber == (newEvent.Event as NoteOnEvent).NoteNumber).ToList();
+                if (asd.Count > 0)
+                {
+
+                }
+            }
             note.Events.Add(newEvent);
         }
 

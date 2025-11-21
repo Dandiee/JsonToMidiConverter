@@ -35,11 +35,17 @@ public readonly struct Time : IEquatable<Time>
     public static Time operator +(ITimeSpan lhs, Time rhs) => new(TimeConverter.ConvertFrom(lhs, Map) + rhs.Tick);
     public static Time operator -(ITimeSpan lhs, Time rhs) => new(TimeConverter.ConvertFrom(lhs, Map) - rhs.Tick);
 
+    public static long operator %(Time lhs, long rhs) => lhs.Tick % rhs;
+
+
     public static Time operator *(Time lhs, long rhs) => new(lhs.Tick * rhs);
     public static Time operator /(Time lhs, long rhs) => new(lhs.Tick / rhs);
 
     public static bool operator <(Time lhs, Time rhs) => lhs.Tick < rhs.Tick;
     public static bool operator >(Time lhs, Time rhs) => lhs.Tick > rhs.Tick;
+
+    public static bool operator <=(Time lhs, Time rhs) => lhs.Tick <= rhs.Tick;
+    public static bool operator >=(Time lhs, Time rhs) => lhs.Tick >= rhs.Tick;
 
     public static bool operator ==(Time lhs, Time rhs) => lhs.Tick == rhs.Tick;
     public static bool operator !=(Time lhs, Time rhs) => lhs.Tick != rhs.Tick;

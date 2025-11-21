@@ -1,6 +1,7 @@
 using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
+using Melanchall.DryWetMidi.MusicTheory;
 using System.Diagnostics;
 
 namespace JsonToMidiConverter;
@@ -81,8 +82,15 @@ internal static partial class MidiConverter
 
                         var actualDuration = note.ActualDuration.Clone();
 
+
+                        // Sliding nightmare
                         if (note.Slide == Slide.Shift|| note.Slide == Slide.Downwards || note.Slide == Slide.Upwards)
                         {
+                            if (note.Part.Index == 8 && note.Measure.Index == 60)
+                            {
+
+                            }
+
                             Events.SuspenseValidation = true;
                             var shiftBuffer = new Events();
 
@@ -92,14 +100,21 @@ internal static partial class MidiConverter
 
                             if (semitoneDistance <= 1)
                             {
-                                var shiftOffsetDuration = 960;
-                                actualDuration -= new Time(shiftOffsetDuration);
-                                currentCursor += actualDuration;
-                                actualDuration = new Time(shiftOffsetDuration);
+                                var slideDuration = actualDuration % 960 == 0
+                                    ? new Time(960)
+                                    : actualDuration / 4;
+
+                                currentCursor += actualDuration - slideDuration;
+                                actualDuration = slideDuration;
                                 AddLegatoPitchBends(currentCursor, note, shiftBuffer, actualDuration);
                             }
                             else
                             {
+                                if (note.Beat.Index == 7 && note.Measure.Index == 72 && note.Part.Index == 8)
+                                {
+
+                                }
+
                                 var totalSteps = semitoneDistance - 1;
                                 var stepSize = note.GetShiftStepSizeTicks();
 
@@ -117,24 +132,30 @@ internal static partial class MidiConverter
 
                                 shiftBuffer.Add(new PitchBendEvent(8192), currentCursor, note);
                                 shiftBuffer.Add(new NoteOnEvent(nextNote.To7(), Velocity), currentCursor, note);
-
-                                if (note.Slide == Slide.Shift || note.Slide == Slide.Upwards)
+                                if (note.tie)
                                 {
-                                    if (note.tie)
+                                    // CASE A: TIED SLIDE OUT (Up/Down) -> "Ghosting"
+                                    // Logic: Do NOT turn off the source note. It stays alive until the measure/beat ends.
+                                    if (note.Slide == Slide.Downwards || note.Slide == Slide.Upwards)
                                     {
                                         currentCursor += stepSize;
-                                        shiftBuffer.Add(new NoteOffEvent(currentNote, Velocity), currentCursor, note);
                                     }
+                                    // CASE B: TIED SHIFT -> "Overlap"
+                                    // Logic: Advance time first, then kill (smooth transition).
                                     else
                                     {
-                                        shiftBuffer.Add(new NoteOffEvent(currentNote, Velocity), currentCursor, note);
                                         currentCursor += stepSize;
+                                        shiftBuffer.Add(new NoteOffEvent(currentNote, Velocity), currentCursor, note);
                                     }
                                 }
                                 else
                                 {
+                                    // CASE C: NO TIE (Any Slide) -> "Swap"
+                                    // Logic: Kill immediately, then advance (clean cut).
+                                    shiftBuffer.Add(new NoteOffEvent(currentNote, Velocity), currentCursor, note);
                                     currentCursor += stepSize;
                                 }
+
 
                                 var steps = (note.Slide == Slide.Downwards || note.Slide == Slide.Upwards) ? totalSteps + 1 : totalSteps;
                                 for (var i = 1; i < steps; i++)
@@ -219,13 +240,15 @@ internal static partial class MidiConverter
                         currentCursor += 123;
                     }
 
+                    
+
                     // NoteOff
                     if (beat.notes.Length > 1)
                     {
-                        currentCursor = beatCursor + beat.MusicalDuration;
+                        
                         foreach (var note in beat.ReversedNotes)
                         {
-                            if (note.WillBeTied()) continue;
+                            if (note.rest || note.WillBeTied()) continue;
 
                             var noteNumber = note.NoteNumber;
                             if (note.tie)
@@ -240,6 +263,11 @@ internal static partial class MidiConverter
                                 noteNumber = (targetNote.NoteNumber + 1).To7();
                             }
 
+                     
+
+                            
+
+                            currentCursor = beatCursor + note.ActualDuration;
                             events.Add(new NoteOffEvent(noteNumber, Velocity), currentCursor, note);
                         }
 
@@ -247,9 +275,51 @@ internal static partial class MidiConverter
                         continue;
                     }
 
+                  
+
                     foreach (var note in beat.ReversedNotes)
                     {
                         if (note.rest) continue;
+
+                        var originalOn = note.Events.Where(e => e.Event.EventType == MidiEventType.NoteOn).ToList();
+                        //if (originalOn.Count == 0) continue;
+
+
+                        var ons = new List<TimedEvent>();
+                        foreach (var e in note.Events)
+                        {
+                            if (e.Event.EventType == MidiEventType.NoteOn)
+                            {
+                                ons.Add(e);
+                            }
+                            else if (e.Event.EventType == MidiEventType.NoteOff)
+                            {
+                                var pair = ons.SingleOrDefault(on => ((NoteOnEvent)on.Event).NoteNumber == ((NoteOffEvent)e.Event).NoteNumber);
+                                if (pair != null) ons.Remove(pair);
+                            }
+                        }
+
+                        var leftoverNote = ons.SingleOrDefault();
+                        if (leftoverNote != null)
+                        {
+                            var startedAt = leftoverNote.Time;
+                            var duration = note.ActualDuration;
+                            var endsAt = duration + startedAt;
+                            var noteOn = (NoteOnEvent)leftoverNote.Event;
+                            if (!note.WillBeTied())
+                            {
+                                //events.Add(new NoteOffEvent(noteOn.NoteNumber, Velocity), endsAt, note);
+                            }
+                        }
+
+                        //continue;
+
+                        if (note.Part.Index == 8 && note.Measure.Index == 72)
+                        {
+
+                        }
+
+                        
 
                         var rawNoteDuration = beat.MusicalDuration.Clone();
                         if (note.staccato)
@@ -420,7 +490,7 @@ internal static partial class MidiConverter
             {
                 if (l == 98)
                 {
-                    var fillerTime = actualDuration - 11;
+                    var fillerTime = actualDuration - 7;
                     actualDuration -= fillerTime;
                     currentCursor += fillerTime;
 
@@ -429,7 +499,7 @@ internal static partial class MidiConverter
                 }
                 else
                 {
-                    var legatoTime = 8;
+                    var legatoTime = 6;
                     actualDuration -= legatoTime;
                     currentCursor += legatoTime;
 
