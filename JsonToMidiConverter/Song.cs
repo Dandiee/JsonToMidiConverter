@@ -308,7 +308,7 @@ public class Nóta
 
     public int Index { get; private set; }
     public Beat Beat { get; private set; }
-    public Time ActualDuration { get; private set; }
+    
     public Voice Voice => Beat.Voice;
     public Measure Measure => Voice.Measure;
     public Part Part => Measure.Part;
@@ -319,6 +319,8 @@ public class Nóta
     public List<TimedEvent> Events { get; } = new();
 
     public int NoteNumber { get; set; }
+    public Time ActualDuration { get; private set; }
+    public Time RawDuration { get; private set; }
 
     public void Build(Beat beat, int index)
     {
@@ -326,10 +328,15 @@ public class Nóta
         Beat = beat;
         NoteNumber = GetNoteNumber();
         Channel  = GetNoteChannel();
+
+        RawDuration = staccato
+            ? beat.MusicalDuration.Clone() / 2
+            : beat.MusicalDuration.Clone();
+
         var prevBeat = Beat.GetPrevious();
         ActualDuration = prevBeat?.graceNote == "onBeat"
-            ? Beat.MusicalDuration - prevBeat.MusicalDuration
-            : Beat.MusicalDuration;
+            ? RawDuration - prevBeat.MusicalDuration
+            : RawDuration;
     }
 
     public Nóta GetNext()
