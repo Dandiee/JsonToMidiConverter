@@ -92,4 +92,30 @@ internal static partial class MidiConverter
         return (newEvent, note);
     }
 
+    private static List<(long AbsoluteTime, MidiEvent Event)>[] GetReferenceMidiData()
+    {
+        var referenceMidi = MidiFile.Read("ReferenceOutput.mid");
+        var results = new List<(long AbsoluteTime, MidiEvent Event)>[referenceMidi.Chunks.Count];
+
+        for (var i = 0; i < referenceMidi.Chunks.Count; i++)
+        {
+            results[i] = new List<(long AbsoluteTime, MidiEvent Event)>();
+            var time = 0l;
+            foreach (var midiEvent in (referenceMidi.Chunks[i] as TrackChunk)!.Events)
+            {
+
+                if (time == 0 && (midiEvent is TimeSignatureEvent || midiEvent is SetTempoEvent))
+                {
+                    continue;
+                }
+
+                time += midiEvent.DeltaTime;
+                results[i].Add(new(time, midiEvent));
+
+            }
+        }
+
+        return results;
+    }
+
 }

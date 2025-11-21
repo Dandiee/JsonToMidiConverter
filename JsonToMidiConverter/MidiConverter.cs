@@ -44,7 +44,7 @@ internal static partial class MidiConverter
 
                 foreach (var beat in measure.Beats)
                 {
-                    var beatVelocity = (SevenBitNumber)(beat.velocity != null ? Speeds[beat.velocity] : 100);
+                    var beatVelocity = (SevenBitNumber)(112);
                     var beatCursor = measureCursor.AddTicks(beat.GetMeasureStartDuration(tempoMap), tempoMap);
 
                     var prevBeat = beat.GetPrevious();
@@ -411,10 +411,6 @@ internal static partial class MidiConverter
         return midiFile;
     }
 
-
-
-  
-
     public static void BuildHeader(Part part, TempoMap tempoMap, IList<TimedEvent> timedEvents)
     {
         var timeZero = new MusicalTimeSpan();
@@ -428,8 +424,7 @@ internal static partial class MidiConverter
         for (var i = 0; i < 9; i++)
         {
             // Mod Wheel Reset
-            timedEvents.Add(
-                new ControlChangeEvent((SevenBitNumber)1, (SevenBitNumber)0), timeZero, null, i, part.partId);
+            timedEvents.Add(new ControlChangeEvent((SevenBitNumber)1, (SevenBitNumber)0), timeZero, null, i, part.partId);
         }
 
         for (var i = 0; i < 9; i++)
@@ -459,46 +454,6 @@ internal static partial class MidiConverter
                 null, null, part.partId);
         }
     }
-
-    private static List<(long AbsoluteTime, MidiEvent Event)>[] GetReferenceMidiData()
-    {
-        var referenceMidi = MidiFile.Read("ReferenceOutput.mid");
-        var results = new List<(long AbsoluteTime, MidiEvent Event)>[referenceMidi.Chunks.Count];
-
-        for (var i = 0; i < referenceMidi.Chunks.Count; i++)
-        {
-            results[i] = new List<(long AbsoluteTime, MidiEvent Event)>();
-            var time = 0l;
-            foreach (var midiEvent in (referenceMidi.Chunks[i] as TrackChunk)!.Events)
-            {
-
-                if (time == 0 && (midiEvent is TimeSignatureEvent || midiEvent is SetTempoEvent))
-                {
-                    continue;
-                }
-
-                time += midiEvent.DeltaTime;
-                results[i].Add(new(time, midiEvent));
-
-            }
-        }
-
-        return results;
-    }
-
-
-
-
-    // A concise dictionary for specific overrides or non-standard IDs
-    
-    public static readonly IReadOnlyDictionary<string, int> Speeds = new Dictionary<string, int>
-    {
-        [""] = 112,
-        ["fff"] = 112,
-        ["f"] = 001,
-        ["mf"] = 002,
-        ["mp"] = 003
-    };
 
     public static void AddLegatoPitchBends(ITimeSpan currentCursor, Nóta note, IList<TimedEvent> timedEvents, TempoMap tempoMap, MusicalTimeSpan actualDuration)
     {
