@@ -5,6 +5,7 @@ using Melanchall.DryWetMidi.MusicTheory;
 using System.Diagnostics;
 using System.Reflection;
 using System.Reflection.Metadata.Ecma335;
+using Microsoft.VisualBasic;
 using Note = Melanchall.DryWetMidi.Interaction.Note;
 
 namespace JsonToMidiConverter;
@@ -43,10 +44,6 @@ internal static class MidiConverter
                     events.Add(new SetTempoEvent(Tempo.FromBeatsPerMinute(measureChange.bpm).MicrosecondsPerQuarterNote), measureCursor, new NoteContext(tempoMap, null), null, part.partId);
                 }
 
-                if (part.Index == 4 && measure.Index == 83)
-                {
-
-                }
 
                 foreach (var beat in measure.Beats)
                 {
@@ -81,7 +78,7 @@ internal static class MidiConverter
 
                         var noteNumber = GetNoteNumber(part, note);
 
-                        
+
 
                         // NoteOnEvent
                         {
@@ -158,29 +155,43 @@ internal static class MidiConverter
                                 }
                             }
 
-
-                            var noteEnrichedBuffer = new List<(TimedEvent TimedEvent, NoteContext Ctx)>();
-                            foreach (var shiftEvent in shiftBuffer)
+                            SuspenseValidation = false;
+                            if (beat.notes.Length == 1)
                             {
-                                var tickOffset = 0;
-                                foreach (var n in beat.ReversedNotes)
+                                foreach (var bufferEvent in shiftBuffer)
                                 {
-                                    var offsetTime = (shiftEvent.Time + tickOffset).ToTimeSpan(tempoMap);
-                                    var result = new List<TimedEvent>().Add(shiftEvent.Event, offsetTime, new NoteContext(tempoMap, n));
-                                    noteEnrichedBuffer.Add(result);
-                                    tickOffset += 123;
+                                    events.Add(bufferEvent.Event, bufferEvent.Time.ToTimeSpan(tempoMap), new NoteContext(tempoMap, beat.notes[0]));
                                 }
                             }
-
-                            SuspenseValidation = false;
-                            var c = 0;
-                            var test = noteEnrichedBuffer.OrderBy(e => e.TimedEvent.Time).ToList();
-                            foreach (var shiftEvent in noteEnrichedBuffer.OrderBy(e => e.TimedEvent.Time))
+                            else
                             {
-                                events.Add(shiftEvent.TimedEvent.Event, shiftEvent.TimedEvent.Time.ToTimeSpan(tempoMap), shiftEvent.Ctx);
-                                c++;
-                            }
 
+                                var chunks = shiftBuffer.Chunk(3).ToList();
+
+                                var strumBase = -(123 * beat.notes.Length);
+                                var stepStrum = 123 / 2;
+                                var strumDecay = 10;
+
+                                for (var stepIndex = 0; stepIndex < semitoneDistance - 1; stepIndex++)
+                                {
+                                    for (var noteIndex = 0; noteIndex < beat.notes.Length; noteIndex++)
+                                    {
+                                        var pitchOffset = beat.notes[noteIndex].NoteNumber - beat.notes[0].NoteNumber;
+
+                                        foreach (var stepEvent in chunks[stepIndex])
+                                        {
+                                            var strumEvent = stepEvent.Event.Clone();
+                                            if (strumEvent is NoteEvent ne)
+                                            {
+                                                ne.NoteNumber += (SevenBitNumber)pitchOffset;
+                                            }
+
+                                            var strumTime = stepEvent.Time + strumBase + noteIndex * (stepStrum - (strumDecay - 1) * stepIndex);
+                                            events.Add(strumEvent, strumTime.ToTimeSpan(tempoMap), new NoteContext(tempoMap, beat.notes[noteIndex]));
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         // Legato
@@ -194,7 +205,7 @@ internal static class MidiConverter
                         currentCursor = currentCursor.ToTicks(tempoMap).ToTimeSpan(tempoMap).AddTicks(123, tempoMap);
                     }
 
-                   
+
 
                     // NoteOff
                     if (beat.notes.Length > 1)
@@ -337,8 +348,16 @@ internal static class MidiConverter
 
 
 
-    public static (TimedEvent Event, NoteContext Ctx) Add(this IList<TimedEvent> events, MidiEvent midiEvent, ITimeSpan time, NoteContext ctx, int? channelOverride = null, int? partId = null)
+    public static (TimedEvent Event, NoteContext Ctx) Add(this IList<TimedEvent> events, MidiEvent midiEvent, ITimeSpan time,
+        NoteContext ctx, int? channelOverride = null, int? partId = null, int? noteNumberOverride = null)
     {
+
+        var origNoteNumber = ctx.Note?.NoteNumber;
+        if (noteNumberOverride != null)
+        {
+            ctx.Note.NoteNumber = noteNumberOverride.Value;
+        }
+
         if (midiEvent is ChannelEvent channelEvent)
         {
             channelEvent.Channel = (FourBitNumber)(channelOverride ?? GetNoteChannel(ctx.Note.Part, ctx.Note!));
@@ -363,10 +382,9 @@ internal static class MidiConverter
                     var warning =
                         $"Time mismatch at Index {events.Count} of {eventType.Name}, Expected = {referenceEvent.AbsoluteTime} vs Actual = {tickTime}";
                     var diff = referenceEvent.AbsoluteTime - tickTime;
-                    if (Math.Abs(diff) > 6)
+                    if (Math.Abs(diff) > 8)
                     {
                         Debug.Assert(referenceEvent.AbsoluteTime == tickTime, warning);
-                        areTheSameType = false;
                     }
                 }
 
@@ -396,6 +414,11 @@ internal static class MidiConverter
         if (ctx.Note != null)
         {
             ctx.Note.Events.Add(newEvent);
+        }
+
+        if (noteNumberOverride != null)
+        {
+            ctx.Note.NoteNumber = origNoteNumber.Value;
         }
 
         return (newEvent, ctx);

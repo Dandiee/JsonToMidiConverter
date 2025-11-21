@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Text.Json.Serialization;
 using JsonToMidiConverter;
+using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using Melanchall.DryWetMidi.MusicTheory;
@@ -238,7 +239,7 @@ public class Text
     public int width { get; set; }
 }
 
-[DebuggerDisplay("N{Index} B{Beat.Index} M{Measure.Index} P{Part.Index} STR{StringNumber}/FRT{fret}")]
+[DebuggerDisplay("N{Index} B{Beat.Index} M{Measure.Index} P{Part.Index} STR{StringNumber}/FRT{fret} NN{NoteNumber}")]
 public class Nóta
 {
     public int fret { get; set; }
@@ -267,6 +268,8 @@ public class Nóta
     public TimedEvent NoteOnEvent { get; set; }
 
     public List<TimedEvent> Events { get; } = new();
+
+    public int NoteNumber { get; set; }
 
     public Nóta GetNext()
     {
@@ -363,12 +366,41 @@ public class Nóta
     {
         Index = index;
         Beat = beat;
+        NoteNumber = GetNoteNumber();
     }
 
     public void Is(int noteIndex, int beatIndex, int measureIndex, int? partIndex = null)
     {
         if (Index == noteIndex && Beat.Index == beatIndex && Measure.Index == measureIndex &&
             (!partIndex.HasValue || Part.Index == partIndex.Value)) Debugger.Break();
+    }
+
+    public int GetNoteNumber()
+    {
+        if (Part.instrumentId == 1024 || (int)StringNumber == -1)
+        {
+            return fret;
+        }
+
+        int openStringPitch = Part.tuning.Length == 0
+            ? (int)StringNumber // Fallback
+            : (int)Part.tuning[(int)StringNumber];
+
+        if (harmonic == "natural")
+        {
+            switch (fret) // Or note.harmonicFret
+            {
+                case 12: return (openStringPitch + 12);
+                case 7: return (openStringPitch + 19);
+                case 5: return (openStringPitch + 24);
+                case 4: return (openStringPitch + 28);
+                case 9: return (openStringPitch + 28); // 9th fret harmonic is same as 4th
+                case 3: return (openStringPitch + 31); // 3rd fret is +2 Octaves + 5th
+            }
+        }
+
+        // 4. STANDARD FRETTED NOTE
+        return (openStringPitch + fret);
     }
 }
 
