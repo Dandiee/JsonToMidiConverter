@@ -413,45 +413,7 @@ internal static partial class MidiConverter
 
 
 
-    public static FourBitNumber GetNoteChannel(Part part, Nóta note)
-    {
-        if (part.instrumentId == 71 || part.instrumentId == 68 || part.instrumentId == 27 || part.instrumentId == 30)
-        {
-            return (FourBitNumber)note.StringNumber;
-        }
-
-        if (part.instrumentId == 27) return (FourBitNumber)2;
-
-        // 1. DRUMS (Always Channel 10, index 9)
-        if (part.instrumentId == 1024) return (FourBitNumber)9;
-
-        // 2. Try explicit lookup first (for special overrides)
-        if (InstrumentChannels.TryGetValue(part.instrumentId, out int assignedChannel))
-        {
-            return (FourBitNumber)assignedChannel;
-        }
-
-        if (part.instrumentId == 0 || part.instrumentId == 48 || part.instrumentId == 34) // piano and sampler
-        {
-            return (FourBitNumber)(int)note.StringNumber;
-        }
-
-        // 3. INTELLIGENT FALLBACK (GM Families)
-        // If not explicitly listed, calculate channel based on instrument type.
-        // GM IDs: 0-127.
-
-        var id = part.instrumentId;
-
-        if (id >= 0 && id <= 7) return (FourBitNumber)0; // Piano -> Ch 1
-        if (id >= 24 && id <= 34) return (FourBitNumber)1; // Guitar -> Ch 2
-        if (id >= 32 && id <= 39) return (FourBitNumber)2; // Bass   -> Ch 3
-        if (id >= 40 && id <= 55) return (FourBitNumber)3; // Strings/Voices -> Ch 4
-        if (id >= 56 && id <= 71) return (FourBitNumber)4; // Brass/Reeds -> Ch 5
-        if (id >= 16 && id <= 23) return (FourBitNumber)5; // Organ  -> Ch 6
-
-        // Default for everything else (Synths, FX, World)
-        return (FourBitNumber)6;
-    }
+  
 
     public static void BuildHeader(Part part, TempoMap tempoMap, IList<TimedEvent> timedEvents)
     {
@@ -562,57 +524,7 @@ internal static partial class MidiConverter
 
 
     // A concise dictionary for specific overrides or non-standard IDs
-    private static readonly IReadOnlyDictionary<int, int> InstrumentChannels = new Dictionary<int, int>
-    {
-        // --- Standard General MIDI Overrides ---
-
-        [71] = 1, // Clarinet (used for vocals) -> Ch 5
-
-        // Vocals (often mapped to arbitrary melody instruments in tabs)
-        [68] = 4, // Oboe (used for vocals) -> Ch 5
-
-        [52] = 4, // Choir Aahs -> Ch 5
-        [53] = 4, // Voice Oohs -> Ch 5
-        [54] = 4, // Synth Voice -> Ch 5
-
-        // --- Guitar Pro / Tab Specifics ---
-
-        // Drums (Double check 1024 isn't the only drum ID used in your source)
-        [1024] = 9, // Standard Drums
-        [127] = 9, // Gunshot (sometimes used as a snare marker)
-
-        // Special Effects
-        [119] = 8, // Reverse Cymbal -> Ch 9
-        [122] = 8, // Seashore -> Ch 9
-    };
-
-    //private static readonly IReadOnlyDictionary<int, int> InstrumentChannels = new Dictionary<int, int>
-    //{
-    //    // vocal
-    //    [71] = 1,
-    //    [68] = 1,
-
-
-    //    [27] = 2,
-    //    [30] = 2,
-
-    //    // drum
-
-
-    //    // piano
-    //    [0] = 3,
-    //    [34] = 3,
-    //    [29] = 3,
-
-
-    //    [1024] = 9,
-
-    //    // guitar
-    //    [48] = 4,
-    //    [34] = 4,
-    //    [48] = 4,
-    //};
-
+    
     public static readonly IReadOnlyDictionary<string, int> Speeds = new Dictionary<string, int>
     {
         [""] = 112,

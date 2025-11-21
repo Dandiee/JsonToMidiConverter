@@ -26,7 +26,7 @@ internal static partial class MidiConverter
 
         if (midiEvent is ChannelEvent channelEvent)
         {
-            channelEvent.Channel = (FourBitNumber)(channelOverride ?? GetNoteChannel(note.Part, note!));
+            channelEvent.Channel = (FourBitNumber)(channelOverride ?? note.Channel);
         }
 
         var lastTen = events.Skip(events.Count - 20).Take(20).ToList();
