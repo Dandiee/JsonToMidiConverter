@@ -75,6 +75,9 @@ internal static partial class MidiConverter
                             continue;
                         }
 
+
+
+
                         // NoteOnEvent
                         {
 
@@ -109,7 +112,7 @@ internal static partial class MidiConverter
                         }
 
 
-                        if (note.slide == "shift" || note.slide == "downwards")
+                        if (note.slide == "shift" || note.slide == "downwards" || note.slide == "upwards")
                         {
                             SuspenseValidation = true;
                             var shiftBuffer = new List<TimedEvent>();
@@ -128,16 +131,17 @@ internal static partial class MidiConverter
                             }
                             else
                             {
+                                if (note.slide == "upwards")
+                                {
 
-
-                                note.Is(0, 6, 27, 8);
+                                }
 
                                 var totalSteps = semitoneDistance - 1;
                                 var stepSize = note.GetShiftStepSizeTicks(tempoMap);
 
                                 var firstNoteDuration = actualDuration.Subtract((totalSteps * stepSize).ToTimeSpan(tempoMap), TimeSpanMode.LengthLength);
 
-                                if (note.tie && note.slide == "downwards")
+                                if (note.tie && (note.slide == "downwards" || note.slide == "upwards" ))
                                 {
                                     currentCursor = currentCursor.AddTicks(-stepSize, tempoMap);
                                 }
@@ -150,7 +154,7 @@ internal static partial class MidiConverter
                                 shiftBuffer.Add(new PitchBendEvent(8192), currentCursor, ctx);
                                 shiftBuffer.Add(new NoteOnEvent(nextNote, (SevenBitNumber)95), currentCursor, ctx);
 
-                                if (note.slide != "downwards")
+                                if (note.slide == "shift")
                                 {
                                     if (note.tie)
                                     {
@@ -168,7 +172,7 @@ internal static partial class MidiConverter
                                     currentCursor = currentCursor.Add(stepSize.ToTimeSpan(tempoMap), TimeSpanMode.TimeLength);
                                 }
 
-                                var steps = note.slide == "downwards" ? totalSteps + 1 : totalSteps;
+                                var steps = (note.slide == "downwards" || note.slide == "upwards") ? totalSteps + 1 : totalSteps;
                                 for (var i = 1; i < steps; i++)
                                 {
                                     shiftBuffer.Add(new PitchBendEvent(8192), currentCursor, ctx);
@@ -225,11 +229,25 @@ internal static partial class MidiConverter
                             }
                         }
 
+                        if (note.vibrato)
+                        {
+                            events.Add(new ControlChangeEvent((SevenBitNumber)1, (SevenBitNumber)64), currentCursor, ctx);
+
+                            if (note.slide != null)
+                                currentCursor = currentCursor.Add(actualDuration.Divide(2), TimeSpanMode.TimeLength);
+                            else
+                                currentCursor = currentCursor.Add(actualDuration, TimeSpanMode.TimeLength);
+                            events.Add(new ControlChangeEvent((SevenBitNumber)1, (SevenBitNumber)0), currentCursor, ctx);
+                        }
+
                         // Legato
                         if (!note.tie && !string.IsNullOrEmpty(note.slide) && note.slide == "legato")
                         {
-                            actualDuration = (MusicalTimeSpan)actualDuration.Divide(2);
-                            currentCursor = currentCursor.Add(actualDuration, TimeSpanMode.TimeLength);
+                            if (!note.vibrato) // vibrato already took care of the cursor
+                            {
+                                actualDuration = (MusicalTimeSpan)actualDuration.Divide(2);
+                                currentCursor = currentCursor.Add(actualDuration, TimeSpanMode.TimeLength);
+                            }
 
                             AddLegatoPitchBends(currentCursor, ctx, events, tempoMap, actualDuration);
                         }
@@ -361,9 +379,22 @@ internal static partial class MidiConverter
 
                                 var bug = currentCursor.ToTicks(tempoMap);
                                 var lastTen = events.Skip(events.Count - 20).Take(20).ToList();
+
+                                if (note.vibrato)
+                                {
+                                    if (note.slide != null)
+                                    {
+                                        currentCursor = beatCursor.Add(note.ActualDuration.Divide(1), TimeSpanMode.TimeLength);
+                                    }
+                                    else
+                                    {
+                                        currentCursor = beatCursor.Add(note.ActualDuration, TimeSpanMode.TimeLength);
+                                    }
+                                }
+
                                 events.Add(new NoteOffEvent(((NoteOnEvent)lastNoteOnEvent.Event).NoteNumber, beatVelocity), currentCursor, ctx);
 
-                                if (note.slide == "downwards")
+                                if (note.slide == "downwards" || note.slide == "upwards")
                                 {
                                     events.Add(new NoteOffEvent((SevenBitNumber)note.NoteNumber, beatVelocity), currentCursor, ctx);
                                 }
@@ -602,26 +633,43 @@ internal static partial class MidiConverter
 
     public static void AddLegatoPitchBends(ITimeSpan currentCursor, NoteContext ctx, IList<TimedEvent> timedEvents, TempoMap tempoMap, MusicalTimeSpan actualDuration)
     {
+
+
         timedEvents.Add(new PitchBendEvent(8195), currentCursor, ctx);
 
-        for (var l = 0; l < 99; l++)
+        if (ctx.Note.vibrato)
         {
-            if (l == 98)
+            var length = ctx.Note.ActualDuration.ToTicks(tempoMap);
+            var target = ctx.Note.GetSlideTarget();
+            var inbetweenNote = Math.Sign(target.NoteNumber - ctx.Note.NoteNumber) + ctx.Note.NoteNumber;
+
+            timedEvents.Add(new NoteOnEvent((SevenBitNumber)inbetweenNote, (SevenBitNumber)95), currentCursor, ctx);
+            timedEvents.Add(new NoteOffEvent((SevenBitNumber)ctx.Note.NoteNumber, (SevenBitNumber)95), currentCursor, ctx);
+            //currentCursor = currentCursor.AddTicks(960, tempoMap);
+            //timedEvents.Add(new NoteOffEvent((SevenBitNumber)ctx.Note.NoteNumber, (SevenBitNumber)95), currentCursor, new NoteContext(tempoMap, target));
+
+        }
+        else
+        {
+            for (var l = 0; l < 99; l++)
             {
-                var fillerTime = actualDuration - TimeConverter.ConvertTo<MusicalTimeSpan>(11, tempoMap);
-                actualDuration -= fillerTime;
-                currentCursor = currentCursor.Add(fillerTime, TimeSpanMode.TimeLength);
+                if (l == 98)
+                {
+                    var fillerTime = actualDuration - TimeConverter.ConvertTo<MusicalTimeSpan>(11, tempoMap);
+                    actualDuration -= fillerTime;
+                    currentCursor = currentCursor.Add(fillerTime, TimeSpanMode.TimeLength);
 
-                timedEvents.Add(new PitchBendEvent(8888), currentCursor, ctx);
+                    timedEvents.Add(new PitchBendEvent(8888), currentCursor, ctx);
 
-            }
-            else
-            {
-                var legatoTime = TimeConverter.ConvertTo<MusicalTimeSpan>(8, tempoMap);
-                actualDuration -= legatoTime;
-                currentCursor = currentCursor.Add(legatoTime, TimeSpanMode.TimeLength);
+                }
+                else
+                {
+                    var legatoTime = TimeConverter.ConvertTo<MusicalTimeSpan>(8, tempoMap);
+                    actualDuration -= legatoTime;
+                    currentCursor = currentCursor.Add(legatoTime, TimeSpanMode.TimeLength);
 
-                timedEvents.Add(new PitchBendEvent(8888), currentCursor, ctx);
+                    timedEvents.Add(new PitchBendEvent(8888), currentCursor, ctx);
+                }
             }
         }
     }

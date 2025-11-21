@@ -382,7 +382,7 @@ public class Nóta
         var idealDuration = (semitoneDistance - 1) * 960;
         var finalDuration = idealDuration < maxDuration ? idealDuration : maxDuration;
 
-        var denominator = slide == "downwards"
+        var denominator = slide == "downwards" || slide == "upwards"
             ? semitoneDistance
             : semitoneDistance - 1;
 
@@ -470,7 +470,10 @@ public class Nóta
             var distanceToFret1 = fret - 1;
             return (SevenBitNumber)(NoteNumber - distanceToFret1);
         }
-
+        if (slide == "upwards")
+        {
+            return (SevenBitNumber)(NoteNumber + 9);
+        }
         throw new Exception("what slide");
     }
 }

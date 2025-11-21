@@ -29,6 +29,8 @@ internal static partial class MidiConverter
             channelEvent.Channel = (FourBitNumber)(channelOverride ?? GetNoteChannel(ctx.Note.Part, ctx.Note!));
         }
 
+        var lastTen = events.Skip(events.Count - 20).Take(20).ToList();
+
         var tickTime = TimeConverter.ConvertFrom(time, ctx.TempoMap);
         var eventType = midiEvent.GetType();
 
