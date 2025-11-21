@@ -14,29 +14,29 @@ internal static partial class MidiConverter
 {
     
 
-    public static (TimedEvent Event, NoteContext Ctx) Add(this IList<TimedEvent> events, MidiEvent midiEvent, ITimeSpan time,
-        NoteContext ctx, int? channelOverride = null, int? partId = null, int? noteNumberOverride = null)
+    public static (TimedEvent Event, Nóta Ctx) Add(this IList<TimedEvent> events, MidiEvent midiEvent, ITimeSpan time,
+        Nóta? note, int? channelOverride = null, int? partId = null, int? noteNumberOverride = null)
     {
 
-        var origNoteNumber = ctx.Note?.NoteNumber;
+        var origNoteNumber = note?.NoteNumber;
         if (noteNumberOverride != null)
         {
-            ctx.Note.NoteNumber = noteNumberOverride.Value;
+            note.NoteNumber = noteNumberOverride.Value;
         }
 
         if (midiEvent is ChannelEvent channelEvent)
         {
-            channelEvent.Channel = (FourBitNumber)(channelOverride ?? GetNoteChannel(ctx.Note.Part, ctx.Note!));
+            channelEvent.Channel = (FourBitNumber)(channelOverride ?? GetNoteChannel(note.Part, note!));
         }
 
         var lastTen = events.Skip(events.Count - 20).Take(20).ToList();
 
-        var tickTime = TimeConverter.ConvertFrom(time, ctx.TempoMap);
+        var tickTime = TimeConverter.ConvertFrom(time, TempoMap);
         var eventType = midiEvent.GetType();
 
         if (!SuspenseValidation)
         {
-            var pid = partId ?? ctx.Note.Part.Index;
+            var pid = partId ?? note.Part.Index;
 
             if (pid < 10)
             {
@@ -79,17 +79,17 @@ internal static partial class MidiConverter
 
         var newEvent = new TimedEvent(midiEvent, tickTime);
         events.Add(newEvent);
-        if (ctx.Note != null)
+        if (note != null)
         {
-            ctx.Note.Events.Add(newEvent);
+            note.Events.Add(newEvent);
         }
 
         if (noteNumberOverride != null)
         {
-            ctx.Note.NoteNumber = origNoteNumber.Value;
+            note.NoteNumber = origNoteNumber.Value;
         }
 
-        return (newEvent, ctx);
+        return (newEvent, note);
     }
 
 }
