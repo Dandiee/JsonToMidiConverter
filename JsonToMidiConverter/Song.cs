@@ -189,11 +189,15 @@ public class Beat
     public void Build(Voice voice, int index)
     {
         ReversedNotes = notes;
-        notes = notes.Reverse().ToArray();
-
         Index = index;
         Voice = voice;
         MusicalDuration = new MusicalTimeSpan(duration[0], duration[1]);
+
+
+        if (Part.instrumentId != 0) // for piano we dont change the fuckin note order
+        {
+            notes = notes.Reverse().ToArray();
+        }
 
         for (var i = 0; i < notes.Length; i++)
         {

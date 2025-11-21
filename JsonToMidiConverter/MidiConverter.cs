@@ -82,16 +82,36 @@ internal static class MidiConverter
 
                         // NoteOnEvent
                         {
-                            foreach (var n in beat.notes.Where(e => !e.tie))
+
+                            if (part.instrumentId == 0) // for piano its different
                             {
-                                var nNumber = GetNoteNumber(n.Part, n);
-                                events.Add(new PitchBendEvent(8192), currentCursor, new NoteContext(tempoMap, n));
-
-                                note.NoteOnEvent = events.Add(new NoteOnEvent(nNumber, beatVelocity), currentCursor, new NoteContext(tempoMap, n)).Event;
-
-                                if (beat.notes.Length > 1)
+                                foreach (var n in beat.notes.Where(e => !e.tie))
                                 {
-                                    currentCursor = currentCursor.AddTicks(123, tempoMap);
+                                    events.Add(new PitchBendEvent(8192), currentCursor, new NoteContext(tempoMap, n));
+
+
+                                }
+
+
+                                foreach (var n in beat.notes.Where(e => !e.tie))
+                                {
+                                    note.NoteOnEvent = events.Add(new NoteOnEvent((SevenBitNumber)n.NoteNumber, beatVelocity), currentCursor, new NoteContext(tempoMap, n)).Event;
+                                }
+                            }
+
+                            else
+                            {
+                                foreach (var n in beat.notes.Where(e => !e.tie))
+                                {
+                                    var nNumber = GetNoteNumber(n.Part, n);
+                                    events.Add(new PitchBendEvent(8192), currentCursor, new NoteContext(tempoMap, n));
+
+                                    note.NoteOnEvent = events.Add(new NoteOnEvent(nNumber, beatVelocity), currentCursor, new NoteContext(tempoMap, n)).Event;
+
+                                    if (beat.notes.Length > 1)
+                                    {
+                                        currentCursor = currentCursor.AddTicks(123, tempoMap);
+                                    }
                                 }
                             }
                         }
@@ -280,7 +300,7 @@ internal static class MidiConverter
                                     }
                                 }
 
-                                else if (events[^1].Event is NoteOnEvent)
+                                else if (events[^1].Event is NoteOnEvent && !note.tie)
                                 {
                                     if (note.slide == "shift")
                                     {
@@ -446,6 +466,11 @@ internal static class MidiConverter
         if (InstrumentChannels.TryGetValue(part.instrumentId, out int assignedChannel))
         {
             return (FourBitNumber)assignedChannel;
+        }
+
+        if (part.instrumentId == 0) // piano
+        {
+            return (FourBitNumber)(int)note.StringNumber;
         }
 
         // 3. INTELLIGENT FALLBACK (GM Families)
