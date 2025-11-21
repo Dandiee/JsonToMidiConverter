@@ -49,6 +49,7 @@ public class Part
     public int Index { get; private set; }
     public Song Song { get; private set; }
     public bool IsPianoLike { get; private set; }
+    public TempoMap TempoMap { get; private set; }
 
     public void Build(Song song, int index)
     {
@@ -60,6 +61,42 @@ public class Part
         {
             measures[i].Build(this, i);
         }
+    }
+
+
+    public TempoMap GetTempo(MidiFile midi)
+    {
+        var bpmChangeByMeasure = automations.tempo.ToDictionary(kvp => kvp.measure, kvp => kvp.bpm);
+        int[] lastSignature = [];
+        var lastBpm = -1;
+
+        using var tempoMapManager = new TempoMapManager(midi.TimeDivision);
+
+        for (var i = 0; i < measures.Length; i++)
+        {
+            var measure = measures[i];
+            if (measure.signature.Length == 2)
+            {
+                lastSignature = measure.signature;
+            }
+
+            if (bpmChangeByMeasure.TryGetValue(i, out var newBpm))
+            {
+                lastBpm = newBpm;
+            }
+
+            var time = new BarBeatTicksTimeSpan(i, 0, 0);
+
+            if (lastSignature[0] < 1 || lastSignature[1] < 1 || lastBpm < 1)
+            {
+
+            }
+
+            tempoMapManager.SetTimeSignature(time, new TimeSignature(lastSignature[0], lastSignature[1]));
+            tempoMapManager.SetTempo(time, Tempo.FromBeatsPerMinute(lastBpm));
+        }
+
+        return tempoMapManager.TempoMap;
     }
 
     public static readonly HashSet<int> PianoLikeInstruments = new() { 0, 48 };

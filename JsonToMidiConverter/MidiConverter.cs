@@ -15,10 +15,10 @@ internal static partial class MidiConverter
 
     public static MidiFile Convert(Song song)
     {
-        //DebugShit.CheckConsistency();
-
         var midiFile = new MidiFile { TimeDivision = new TicksPerQuarterNoteTimeDivision(TicksPerQuarterNote) };
-        var tempoMap = GetTempo(midiFile, song.parts[0]);
+        var tempoMap = song.parts[0].GetTempo(midiFile);
+        song.Build();
+
         TempoMap = tempoMap;
         foreach (var part in song.parts)
         {
@@ -486,40 +486,6 @@ internal static partial class MidiConverter
         return results;
     }
 
-    public static TempoMap GetTempo(MidiFile midi, Part part)
-    {
-        var bpmChangeByMeasure = part.automations.tempo.ToDictionary(kvp => kvp.measure, kvp => kvp.bpm);
-        int[] lastSignature = [];
-        var lastBpm = -1;
-
-        using var tempoMapManager = new TempoMapManager(midi.TimeDivision);
-
-        for (var i = 0; i < part.measures.Length; i++)
-        {
-            var measure = part.measures[i];
-            if (measure.signature.Length == 2)
-            {
-                lastSignature = measure.signature;
-            }
-
-            if (bpmChangeByMeasure.TryGetValue(i, out var newBpm))
-            {
-                lastBpm = newBpm;
-            }
-
-            var time = new BarBeatTicksTimeSpan(i, 0, 0);
-
-            if (lastSignature[0] < 1 || lastSignature[1] < 1 || lastBpm < 1)
-            {
-
-            }
-
-            tempoMapManager.SetTimeSignature(time, new TimeSignature(lastSignature[0], lastSignature[1]));
-            tempoMapManager.SetTempo(time, Tempo.FromBeatsPerMinute(lastBpm));
-        }
-
-        return tempoMapManager.TempoMap;
-    }
 
 
 
@@ -536,21 +502,15 @@ internal static partial class MidiConverter
 
     public static void AddLegatoPitchBends(ITimeSpan currentCursor, Nóta note, IList<TimedEvent> timedEvents, TempoMap tempoMap, MusicalTimeSpan actualDuration)
     {
-
-
         timedEvents.Add(new PitchBendEvent(8195), currentCursor, note);
 
         if (note.vibrato)
         {
-            var length = note.ActualDuration.ToTicks(tempoMap);
             var target = note.GetSlideTarget();
             var inbetweenNote = Math.Sign(target.NoteNumber - note.NoteNumber) + note.NoteNumber;
 
             timedEvents.Add(new NoteOnEvent((SevenBitNumber)inbetweenNote, (SevenBitNumber)95), currentCursor, note);
             timedEvents.Add(new NoteOffEvent((SevenBitNumber)note.NoteNumber, (SevenBitNumber)95), currentCursor, note);
-            //currentCursor = currentCursor.AddTicks(960, tempoMap);
-            //timedEvents.Add(new NoteOffEvent((SevenBitNumber)note.NoteNumber, (SevenBitNumber)95), currentCursor, new Nóta(tempoMap, target));
-
         }
         else
         {
@@ -576,8 +536,6 @@ internal static partial class MidiConverter
             }
         }
     }
-
-
 
     public static TimedEvent GetLastNoteOnEvent(IList<TimedEvent> events, SevenBitNumber noteNumber)
     {
