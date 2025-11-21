@@ -27,7 +27,7 @@ public static class Extensions
         where TTimeSpan : ITimeSpan
     {
         var clone = time.Clone();
-        var tickTime = TimeConverter.ConvertTo< MusicalTimeSpan>(Math.Abs(tick), tempoMap);
+        var tickTime = TimeConverter.ConvertTo<MusicalTimeSpan>(Math.Abs(tick), tempoMap);
 
         if (tick >= 0)
         {

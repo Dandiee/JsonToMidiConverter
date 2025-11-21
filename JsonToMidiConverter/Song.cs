@@ -8,6 +8,7 @@ using Melanchall.DryWetMidi.Interaction;
 using Melanchall.DryWetMidi.MusicTheory;
 using Melanchall.DryWetMidi.Tools;
 using Microsoft.VisualBasic;
+using Note = Melanchall.DryWetMidi.Interaction.Note;
 
 public class Song
 {
@@ -270,6 +271,7 @@ public class Nóta
 
     public int Index { get; private set; }
     public Beat Beat { get; private set; }
+    public MusicalTimeSpan ActualDuration { get; private set; }
     public Voice Voice => Beat.Voice;
     public Measure Measure => Voice.Measure;
     public Part Part => Measure.Part;
@@ -279,6 +281,18 @@ public class Nóta
     public List<TimedEvent> Events { get; } = new();
 
     public int NoteNumber { get; set; }
+
+    public void Build(Beat beat, int index)
+    {
+        Index = index;
+        Beat = beat;
+        NoteNumber = GetNoteNumber();
+
+        var prevBeat = Beat.GetPrevious();
+        ActualDuration = prevBeat?.graceNote == "onBeat"
+            ? (MusicalTimeSpan)Beat.MusicalDuration.Subtract(prevBeat.MusicalDuration, TimeSpanMode.LengthLength)
+            : Beat.MusicalDuration;
+    }
 
     public Nóta GetNext()
     {
@@ -351,6 +365,30 @@ public class Nóta
         }
     }
 
+
+
+    public long GetShiftStepSizeTicks(TempoMap tempoMap)
+    {
+        var duration = tie
+            ? GetTies().Sum(e => e.Beat.MusicalDuration.ToTicks(tempoMap)).ToTimeSpan(tempoMap)
+            : ActualDuration;
+
+        var targetPitch = GetSlideTargetPitch();
+        var semitoneDistance = Math.Abs(targetPitch - NoteNumber);
+
+        var totalTicks = duration.ToTicks(tempoMap);
+        var maxDuration = totalTicks / 2;
+
+        var idealDuration = (semitoneDistance - 1) * 960;
+        var finalDuration = idealDuration < maxDuration ? idealDuration : maxDuration;
+
+        var denominator = slide == "downwards"
+            ? semitoneDistance
+            : semitoneDistance - 1;
+
+        return finalDuration / denominator;
+    }
+
     public bool WillBeTied()
     {
         var nextBeat = Beat.GetNext();
@@ -388,12 +426,7 @@ public class Nóta
 
     public bool IsPitchEqual(Nóta note) => note.fret == fret && (int)note.StringNumber == (int)StringNumber;
 
-    public void Build(Beat beat, int index)
-    {
-        Index = index;
-        Beat = beat;
-        NoteNumber = GetNoteNumber();
-    }
+
 
     public void Is(int noteIndex, int beatIndex, int measureIndex, int? partIndex = null)
     {
