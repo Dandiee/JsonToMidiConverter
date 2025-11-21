@@ -44,9 +44,5 @@ public class Time
     public static bool operator ==(Time lhs, Time rhs) => lhs.Tick == rhs.Tick;
     public static bool operator !=(Time lhs, Time rhs) => lhs.Tick != rhs.Tick;
 
-
-    //public static implicit operator MusicalTimeSpan (Time t) => t.Span;
-    public static implicit operator Time(long t) => new Time(t);
-
     public Time Clone() => new(Tick);
 }

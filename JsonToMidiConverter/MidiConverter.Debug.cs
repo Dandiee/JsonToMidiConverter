@@ -14,7 +14,7 @@ internal static partial class MidiConverter
 {
     
 
-    public static (TimedEvent Event, Nóta Ctx) Add(this IList<TimedEvent> events, MidiEvent midiEvent, ITimeSpan time,
+    public static (TimedEvent Event, Nóta Ctx) Add(this IList<TimedEvent> events, MidiEvent midiEvent, Time time,
         Nóta? note, int? channelOverride = null, int? partId = null, int? noteNumberOverride = null)
     {
 
@@ -31,7 +31,6 @@ internal static partial class MidiConverter
 
         var lastTen = events.Skip(events.Count - 20).Take(20).ToList();
 
-        var tickTime = TimeConverter.ConvertFrom(time, TempoMap);
         var eventType = midiEvent.GetType();
 
         if (!SuspenseValidation)
@@ -47,12 +46,10 @@ internal static partial class MidiConverter
 
                 if (!(midiEvent is PitchBendEvent pitch && pitch.PitchValue == 8888))
                 {
-                    var warning =
-                        $"Time mismatch at Index {events.Count} of {eventType.Name}, Expected = {referenceEvent.AbsoluteTime} vs Actual = {tickTime}";
-                    var diff = referenceEvent.AbsoluteTime - tickTime;
+                    var diff = referenceEvent.AbsoluteTime - time.Tick;
                     if (Math.Abs(diff) > 8)
                     {
-                        Debug.Assert(referenceEvent.AbsoluteTime == tickTime, warning);
+                        Debug.Assert(referenceEvent.AbsoluteTime == time.Tick);
                     }
                 }
 
@@ -77,7 +74,7 @@ internal static partial class MidiConverter
             }
         }
 
-        var newEvent = new TimedEvent(midiEvent, tickTime);
+        var newEvent = new TimedEvent(midiEvent, time.Tick);
         events.Add(newEvent);
         if (note != null)
         {

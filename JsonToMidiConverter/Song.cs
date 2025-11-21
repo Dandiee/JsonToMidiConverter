@@ -226,7 +226,7 @@ public class Beat
     public Measure Measure => Voice.Measure;
     public Part Part => Measure.Part;
     public Song Song => Part.Song;
-    public MusicalTimeSpan MusicalDuration { get; private set; }
+    public Time MusicalDuration { get; private set; }
 
     public Nóta[] ReversedNotes { get; set; }
 
@@ -235,7 +235,7 @@ public class Beat
         ReversedNotes = notes;
         Index = index;
         Voice = voice;
-        MusicalDuration = new MusicalTimeSpan(duration[0], duration[1]);
+        MusicalDuration = new Time(duration[0], duration[1]);
 
         if (!Part.IsPianoLike) // for piano we dont change the fuckin note order
         {
@@ -277,7 +277,7 @@ public class Beat
     public long GetMeasureStartDuration(TempoMap tempoMap)
         => Measure.Beats
             .TakeWhile(e => e != this)
-            .Sum(e => e.MusicalDuration.ToTicks(tempoMap));
+            .Sum(e => e.MusicalDuration.Tick);
 }
 
 public class Text
@@ -308,7 +308,7 @@ public class Nóta
 
     public int Index { get; private set; }
     public Beat Beat { get; private set; }
-    public MusicalTimeSpan ActualDuration { get; private set; }
+    public Time ActualDuration { get; private set; }
     public Voice Voice => Beat.Voice;
     public Measure Measure => Voice.Measure;
     public Part Part => Measure.Part;
@@ -328,7 +328,7 @@ public class Nóta
         Channel  = GetNoteChannel();
         var prevBeat = Beat.GetPrevious();
         ActualDuration = prevBeat?.graceNote == "onBeat"
-            ? (MusicalTimeSpan)Beat.MusicalDuration.Subtract(prevBeat.MusicalDuration, TimeSpanMode.LengthLength)
+            ? Beat.MusicalDuration - prevBeat.MusicalDuration
             : Beat.MusicalDuration;
     }
 
@@ -405,26 +405,26 @@ public class Nóta
 
 
 
-    public long GetShiftStepSizeTicks(TempoMap tempoMap)
+    public long GetShiftStepSizeTicks()
     {
         var duration = tie
-            ? GetTies().Sum(e => e.Beat.MusicalDuration.ToTicks(tempoMap)).ToTimeSpan(tempoMap)
+            ? new Time(GetTies().Sum(e => e.Beat.MusicalDuration.Tick))
             : ActualDuration;
 
         var targetPitch = GetSlideTargetPitch();
         var semitoneDistance = Math.Abs(targetPitch - NoteNumber);
 
-        var totalTicks = duration.ToTicks(tempoMap);
+        var totalTicks = duration;
         var maxDuration = totalTicks / 2;
 
-        var idealDuration = (semitoneDistance - 1) * 960;
+        var idealDuration = new Time(semitoneDistance - 1) * 960;
         var finalDuration = idealDuration < maxDuration ? idealDuration : maxDuration;
 
         var denominator = slide == "downwards" || slide == "upwards"
             ? semitoneDistance
             : semitoneDistance - 1;
 
-        return finalDuration / denominator;
+        return (finalDuration / denominator).Tick;
     }
 
     public bool WillBeTied()
