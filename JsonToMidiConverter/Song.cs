@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Text.Json.Serialization;
 using JsonToMidiConverter;
+using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using Melanchall.DryWetMidi.MusicTheory;
 
@@ -264,6 +265,8 @@ public class Nóta
     public Part Part => Measure.Part;
     public Song Song => Part.Song;
     public TimedEvent NoteOnEvent { get; set; }
+
+    public List<TimedEvent> Events { get; } = new();
 
     public Nóta GetNext()
     {
