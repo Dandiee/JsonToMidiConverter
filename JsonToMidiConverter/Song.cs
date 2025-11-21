@@ -286,7 +286,8 @@ public class Nóta
     public int fret { get; set; }
     [JsonPropertyName("string")]
     public double StringNumber { get; set; }
-    public string? slide { get; set; }
+    [JsonPropertyName("slide")]
+    public string? slideString { get; set; }
     public bool vibrato { get; set; }
     public bool hp { get; set; }
     public bool tie { get; set; }
@@ -314,6 +315,9 @@ public class Nóta
     public SevenBitNumber NoteNumber { get; set; }
     public Time ActualDuration { get; private set; }
     public Time RawDuration { get; private set; }
+    
+    [JsonIgnore]
+    public Slide Slide { get; private set; }
 
     public void Build(Beat beat, int index)
     {
@@ -321,6 +325,7 @@ public class Nóta
         Beat = beat;
         NoteNumber = GetNoteNumber().To7();
         Channel  = GetNoteChannel();
+        Slide = slideString?.ToSlide() ?? Slide.None;
 
         RawDuration = staccato
             ? beat.MusicalDuration.Clone() / 2
@@ -330,6 +335,7 @@ public class Nóta
         ActualDuration = prevBeat?.graceNote == "onBeat"
             ? RawDuration - prevBeat.MusicalDuration
             : RawDuration;
+
     }
 
     public Nóta GetNext()
@@ -388,7 +394,7 @@ public class Nóta
 
     public Nóta GetSlideTarget()
     {
-        if (string.IsNullOrEmpty(slide)) throw new Exception("The not is not a slide.");
+        if (Slide == Slide.None) throw new Exception("The not is not a slide.");
 
         var nextBeat = Beat.GetNext();
         while (true)
@@ -420,7 +426,7 @@ public class Nóta
         var idealDuration = new Time(semitoneDistance - 1) * 960;
         var finalDuration = idealDuration < maxDuration ? idealDuration : maxDuration;
 
-        var denominator = slide == "downwards" || slide == "upwards"
+        var denominator = Slide == Slide.Downwards || Slide == Slide.Upwards
             ? semitoneDistance
             : semitoneDistance - 1;
 
@@ -502,13 +508,13 @@ public class Nóta
 
     public SevenBitNumber GetSlideTargetPitch()
     {
-        if (slide == "shift") return GetSlideTarget().NoteNumber;
-        if (slide == "downwards")
+        if (Slide == Slide.Shift) return GetSlideTarget().NoteNumber;
+        if (Slide == Slide.Downwards)
         {
             var distanceToFret1 = fret - 1;
             return (SevenBitNumber)(NoteNumber - distanceToFret1);
         }
-        if (slide == "upwards")
+        if (Slide == Slide.Upwards)
         {
             return (SevenBitNumber)(NoteNumber + 9);
         }
@@ -558,6 +564,15 @@ public class Nóta
         [119] = 8, // Reverse Cymbal -> Ch 9
         [122] = 8, // Seashore -> Ch 9
     };
+}
+
+public enum Slide
+{
+    None,
+    Shift,
+    Upwards,
+    Downwards,
+    Legato,
 }
 
 public class Bend

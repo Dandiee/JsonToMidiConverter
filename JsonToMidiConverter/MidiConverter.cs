@@ -82,7 +82,7 @@ internal static partial class MidiConverter
 
                         var actualDuration = note.ActualDuration.Clone();
 
-                        if (note.slide == "shift" || note.slide == "downwards" || note.slide == "upwards")
+                        if (note.Slide == Slide.Shift|| note.Slide == Slide.Downwards || note.Slide == Slide.Upwards)
                         {
                             SuspenseValidation = true;
                             var shiftBuffer = new List<TimedEvent>();
@@ -101,7 +101,7 @@ internal static partial class MidiConverter
                             }
                             else
                             {
-                                if (note.slide == "upwards")
+                                if (note.Slide == Slide.Upwards)
                                 {
 
                                 }
@@ -111,7 +111,7 @@ internal static partial class MidiConverter
 
                                 var firstNoteDuration = actualDuration - (totalSteps * stepSize);
 
-                                if (note.tie && (note.slide == "downwards" || note.slide == "upwards"))
+                                if (note.tie && (note.Slide == Slide.Downwards || note.Slide == Slide.Upwards))
                                 {
                                     currentCursor -= stepSize;
                                 }
@@ -124,7 +124,7 @@ internal static partial class MidiConverter
                                 shiftBuffer.Add(new PitchBendEvent(8192), currentCursor, note);
                                 shiftBuffer.Add(new NoteOnEvent(nextNote.To7(), Velocity), currentCursor, note);
 
-                                if (note.slide == "shift")
+                                if (note.Slide == Slide.Shift)
                                 {
                                     if (note.tie)
                                     {
@@ -142,7 +142,7 @@ internal static partial class MidiConverter
                                     currentCursor += stepSize;
                                 }
 
-                                var steps = (note.slide == "downwards" || note.slide == "upwards") ? totalSteps + 1 : totalSteps;
+                                var steps = (note.Slide == Slide.Downwards || note.Slide == Slide.Upwards) ? totalSteps + 1 : totalSteps;
                                 for (var i = 1; i < steps; i++)
                                 {
                                     shiftBuffer.Add(new PitchBendEvent(8192), currentCursor, note);
@@ -203,7 +203,7 @@ internal static partial class MidiConverter
                         {
                             events.Add(new ControlChangeEvent(1.To7(), 64.To7()), currentCursor, note);
 
-                            if (note.slide != null)
+                            if (note.Slide != Slide.None)
                                 currentCursor += actualDuration / 2;
                             else
                                 currentCursor += actualDuration;
@@ -211,7 +211,7 @@ internal static partial class MidiConverter
                         }
 
                         // Legato
-                        if (!note.tie && !string.IsNullOrEmpty(note.slide) && note.slide == "legato")
+                        if (!note.tie && note.Slide == Slide.Legato)
                         {
                             if (!note.vibrato) // vibrato already took care of the cursor
                             {
@@ -240,7 +240,7 @@ internal static partial class MidiConverter
                                 noteNumber = tieRoot.NoteNumber;
                             }
 
-                            if (note.slide == "shift")
+                            if (note.Slide == Slide.Shift)
                             {
                                 var targetNote = note.GetSlideTarget();
                                 noteNumber = (targetNote.NoteNumber + 1).To7();
@@ -292,7 +292,7 @@ internal static partial class MidiConverter
 
                                 else if (events[^1].Event is NoteOnEvent && !note.tie)
                                 {
-                                    if (note.slide == "shift")
+                                    if (note.Slide == Slide.Shift)
                                     {
                                         var stepSize = note.GetShiftStepSizeTicks();
                                         currentCursor = new(events[^1].Time + stepSize);
@@ -321,7 +321,7 @@ internal static partial class MidiConverter
 
                                 if (note.vibrato)
                                 {
-                                    if (note.slide != null)
+                                    if (note.Slide != Slide.None)
                                     {
                                         currentCursor = beatCursor + note.ActualDuration;
                                     }
@@ -333,7 +333,7 @@ internal static partial class MidiConverter
 
                                 events.Add(new NoteOffEvent(((NoteOnEvent)lastNoteOnEvent.Event).NoteNumber, Velocity), currentCursor, note);
 
-                                if (note.slide == "downwards" || note.slide == "upwards")
+                                if (note.Slide == Slide.Downwards || note.Slide == Slide.Upwards)
                                 {
                                     events.Add(new NoteOffEvent(note.NoteNumber, Velocity), currentCursor, note);
                                 }
