@@ -76,10 +76,6 @@ internal static class MidiConverter
                             continue;
                         }
 
-                        var noteNumber = GetNoteNumber(part, note);
-
-
-
                         // NoteOnEvent
                         {
 
@@ -100,10 +96,9 @@ internal static class MidiConverter
                             {
                                 foreach (var n in beat.notes.Where(e => !e.tie))
                                 {
-                                    var nNumber = GetNoteNumber(n.Part, n);
                                     events.Add(new PitchBendEvent(8192), currentCursor, new NoteContext(tempoMap, n));
 
-                                    note.NoteOnEvent = events.Add(new NoteOnEvent(nNumber, beatVelocity), currentCursor, new NoteContext(tempoMap, n)).Event;
+                                    note.NoteOnEvent = events.Add(new NoteOnEvent((SevenBitNumber)n.NoteNumber, beatVelocity), currentCursor, new NoteContext(tempoMap, n)).Event;
 
                                     if (beat.notes.Length > 1)
                                     {
@@ -114,15 +109,14 @@ internal static class MidiConverter
                         }
 
 
-                        if (note.slide == "shift")
+                        if (note.slide == "shift" || note.slide == "downwards")
                         {
                             SuspenseValidation = true;
                             var shiftBuffer = new List<TimedEvent>();
 
-                            var targetNote = nextBeat!.notes.First(n => (int)n.StringNumber == (int)note.StringNumber);
-                            var targetPitch = GetNoteNumber(part, targetNote);
-                            var direction = targetPitch < noteNumber ? -1 : 1;
-                            var semitoneDistance = Math.Abs(targetPitch - noteNumber);
+                            var targetPitch = note.GetSlideTargetPitch();
+                            var direction = targetPitch < note.NoteNumber ? -1 : 1;
+                            var semitoneDistance = Math.Abs(targetPitch - note.NoteNumber);
 
                             if (semitoneDistance <= 1)
                             {
@@ -141,7 +135,7 @@ internal static class MidiConverter
                                 currentCursor = currentCursor.Add(firstNoteDuration, TimeSpanMode.TimeLength);
                                 shiftBuffer.Add(new PitchBendEvent(8192), currentCursor, ctx);
 
-                                var currentNote = noteNumber;
+                                var currentNote = (SevenBitNumber)note.NoteNumber;
                                 var nextNote = (SevenBitNumber)(currentNote + direction);
                                 shiftBuffer.Add(new NoteOnEvent(nextNote, (SevenBitNumber)95), currentCursor, ctx);
 
@@ -161,7 +155,7 @@ internal static class MidiConverter
                                 {
                                     shiftBuffer.Add(new PitchBendEvent(8192), currentCursor, ctx);
 
-                                    currentNote = (SevenBitNumber)(noteNumber + i * direction);
+                                    currentNote = (SevenBitNumber)(note.NoteNumber + i * direction);
                                     nextNote = (SevenBitNumber)(currentNote + direction);
 
                                     shiftBuffer.Add(new NoteOffEvent(currentNote, beatVelocity), currentCursor, ctx);
@@ -232,11 +226,11 @@ internal static class MidiConverter
                         {
                             if (note.WillBeTied()) continue;
 
-                            var noteNumber = GetNoteNumber(note.Part, note);
+                            var noteNumber = note.NoteNumber;
                             if (note.tie)
                             {
                                 var tieRoot = note.GetTies().Last();
-                                noteNumber = GetNoteNumber(tieRoot.Part, tieRoot);
+                                noteNumber = tieRoot.NoteNumber;
                             }
 
                             if (note.slide == "shift")
@@ -245,7 +239,7 @@ internal static class MidiConverter
                                 noteNumber = (SevenBitNumber)(targetNote.NoteNumber + 1);
                             }
 
-                            events.Add(new NoteOffEvent(noteNumber, new SevenBitNumber(123)), currentCursor, new NoteContext(tempoMap, note));
+                            events.Add(new NoteOffEvent((SevenBitNumber)noteNumber, new SevenBitNumber(123)), currentCursor, new NoteContext(tempoMap, note));
                         }
 
 
@@ -269,7 +263,6 @@ internal static class MidiConverter
 
                         currentCursor = currentCursor.Add(actualDuration, TimeSpanMode.TimeLength);
 
-                        var noteNumber = GetNoteNumber(part, note);
                         var ctx = new NoteContext(tempoMap, note);
 
 
@@ -279,7 +272,7 @@ internal static class MidiConverter
                             if ((nextIdenticalNote == null || !nextIdenticalNote.tie))
                             {
 
-                                var lastNoteOnEvent = GetLastNoteOnEvent(events, noteNumber);
+                                var lastNoteOnEvent = GetLastNoteOnEvent(events, (SevenBitNumber)note.NoteNumber);
 
                                 if (events[^1].Event is PitchBendEvent) // legato case
                                 {
@@ -465,7 +458,7 @@ internal static class MidiConverter
             return (FourBitNumber)assignedChannel;
         }
 
-        if (part.instrumentId == 0 || part.instrumentId == 48) // piano and sampler
+        if (part.instrumentId == 0 || part.instrumentId == 48 || part.instrumentId == 34) // piano and sampler
         {
             return (FourBitNumber)(int)note.StringNumber;
         }
@@ -477,8 +470,8 @@ internal static class MidiConverter
         var id = part.instrumentId;
 
         if (id >= 0 && id <= 7) return (FourBitNumber)0; // Piano -> Ch 1
-        if (id >= 24 && id <= 31) return (FourBitNumber)1; // Guitar -> Ch 2
-        if (id >= 32 && id <= 39) return (FourBitNumber)2; // Bass   -> Ch 3
+        if (id >= 24 && id <= 34) return (FourBitNumber)1; // Guitar -> Ch 2
+        if (id >= 32 && id <= 39 ) return (FourBitNumber)2; // Bass   -> Ch 3
         if (id >= 40 && id <= 55) return (FourBitNumber)3; // Strings/Voices -> Ch 4
         if (id >= 56 && id <= 71) return (FourBitNumber)4; // Brass/Reeds -> Ch 5
         if (id >= 16 && id <= 23) return (FourBitNumber)5; // Organ  -> Ch 6
@@ -684,54 +677,7 @@ internal static class MidiConverter
         }
     }
 
-    public static SevenBitNumber GetNoteNumber(Part part, Nóta note)
-        => GetNoteNumber(part, note.StringNumber, note.fret, note.harmonic);
 
-    public static SevenBitNumber GetNoteNumber(Part part, double stringNumber, int fret, string? harmonic)
-    {
-
-
-
-        // 1. DRUM HANDLING
-        if (part.instrumentId == 1024 || (int)stringNumber == -1)
-        {
-            return (SevenBitNumber)fret;
-        }
-
-        int openStringPitch = part.tuning.Length == 0
-            ? (int)stringNumber // Fallback
-            : (int)part.tuning[(int)stringNumber];
-
-        //if (part.partId == 3)
-        //{
-        //    return (SevenBitNumber)(openStringPitch + fret);
-        //}
-
-        // 2. BASE PITCH (Open String)
-        // We need the open string pitch first
-
-
-        // 3. HARMONIC HANDLING
-        if (harmonic == "natural")
-        {
-            // The 'fret' or 'harmonicFret' tells us WHICH harmonic, 
-            // but the pitch is an offset from the OPEN string.
-
-            switch (fret) // Or note.harmonicFret
-            {
-                case 12: return (SevenBitNumber)(openStringPitch + 12);
-                case 7: return (SevenBitNumber)(openStringPitch + 19);
-                case 5: return (SevenBitNumber)(openStringPitch + 24);
-                case 4: return (SevenBitNumber)(openStringPitch + 28);
-                case 9: return (SevenBitNumber)(openStringPitch + 28); // 9th fret harmonic is same as 4th
-                case 3: return (SevenBitNumber)(openStringPitch + 31); // 3rd fret is +2 Octaves + 5th
-                                                                       //default: return (SevenBitNumber)(openStringPitch + 12);
-            }
-        }
-
-        // 4. STANDARD FRETTED NOTE
-        return (SevenBitNumber)(openStringPitch + fret);
-    }
 
     public static TimedEvent GetLastNoteOnEvent(IList<TimedEvent> events, SevenBitNumber noteNumber)
     {
@@ -746,12 +692,8 @@ internal static class MidiConverter
 
     public static long GetShiftStepSizeTicks(Beat nextBeat, Beat beat, Nóta note, Part part, ITimeSpan actualDuration, TempoMap tempoMap)
     {
-        var noteNumber = GetNoteNumber(part, note);
-
-        var targetNote = nextBeat!.notes.First(n => (int)n.StringNumber == (int)note.StringNumber);
-        var targetPitch = GetNoteNumber(part, targetNote);
-        var direction = targetPitch < noteNumber ? -1 : 1;
-        var semitoneDistance = Math.Abs(targetPitch - noteNumber);
+        var targetPitch = note.GetSlideTargetPitch();
+        var semitoneDistance = Math.Abs(targetPitch - note.NoteNumber);
 
         var totalSteps = semitoneDistance - 1;
         var useStandardStep = 960 * totalSteps <= actualDuration.ToTicks(tempoMap) / 2;

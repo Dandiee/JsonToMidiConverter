@@ -6,6 +6,8 @@ using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using Melanchall.DryWetMidi.MusicTheory;
+using Melanchall.DryWetMidi.Tools;
+using Microsoft.VisualBasic;
 
 public class Song
 {
@@ -425,6 +427,18 @@ public class Nóta
 
         // 4. STANDARD FRETTED NOTE
         return (openStringPitch + fret);
+    }
+
+    public SevenBitNumber GetSlideTargetPitch()
+    {
+        if (slide == "shift") return (SevenBitNumber)GetSlideTarget().NoteNumber;
+        if (slide == "downwards")
+        {
+            var distanceToFret1 = fret - 1;
+            return (SevenBitNumber)(NoteNumber - distanceToFret1);
+        }
+
+        throw new Exception("what slide");
     }
 }
 
