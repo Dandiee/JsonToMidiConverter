@@ -58,7 +58,7 @@ public class Events : IEnumerable<TimedEvent>
 
             //if (pid < 10)
             {
-                var refEvent = MidiConverter.ReferenceData[pid][TimedEvents.Count];
+                var refEvent = Converter.ReferenceData[pid][TimedEvents.Count];
 
                 var tiiime = refEvent.AbsoluteTime;
                 var refType = refEvent.Event.EventType;

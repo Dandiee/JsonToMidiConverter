@@ -15,6 +15,6 @@ var midi = @"References\LinkinPark.mid";
 DebugShit.CheckConsistency(midi);
 DebugShit.WriteDebugFile(song);
 
-var midiFile = MidiConverter.Convert(song, midi);
+var midiFile = Converter.Convert(song, midi);
 
 midiFile.Write("Output.mid", overwriteFile: true);

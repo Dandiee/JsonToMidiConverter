@@ -6,7 +6,7 @@ using Melanchall.DryWetMidi.Interaction;
 
 namespace JsonToMidiConverter;
 
-internal static class MidiConverter
+internal static class Converter
 {
     private const int TicksPerQuarter = 15360;
     private const int TicksPer64Th = 960; // The "Magic Grid" unit
