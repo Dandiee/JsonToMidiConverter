@@ -22,16 +22,16 @@ internal static class MidiConverter
     {
         ReferenceData = GetReferenceMidiData(referenceMidiPath);
         var midiFile = new MidiFile { TimeDivision = new TicksPerQuarterNoteTimeDivision(TicksPerQuarter) };
-        Time.Map = song.parts[0].GetTempo(midiFile);
+        Time.Map = song.Parts[0].GetTempo(midiFile);
         midiFile.ReplaceTempoMap(Time.Map);
         song.Build();
 
-        foreach (var part in song.parts)
+        foreach (var part in song.Parts)
         {
             var trackEvents = new Events();
             AddTrackHeader(trackEvents, part);
 
-            foreach (var measure in part.measures)
+            foreach (var measure in part.Measures)
             {
                 AddMeasureMarker(trackEvents, measure);
 
@@ -40,9 +40,9 @@ internal static class MidiConverter
                     var currentTime = beat.AbsoluteBeatStartTime;
 
                     // Process only the first note group (Chord/Strum)
-                    foreach (var noteGroup in beat.notes.Take(1))
+                    foreach (var noteGroup in beat.Notes.Take(1))
                     {
-                        if (noteGroup.rest)
+                        if (noteGroup.Rest)
                         {
                             currentTime += beat.MusicalDuration;
                             continue;
@@ -72,7 +72,7 @@ internal static class MidiConverter
         var beatLeftovers = events.NoteOns
             .Where(e => e.EndTick >= beatStart.Tick)
             .Where(e => e.EndTick <= beatEnd.Tick)
-            .OrderByDescending(e => e.Note.tie)
+            .OrderByDescending(e => e.Note.Tie)
             .ToList();
 
         while (beatLeftovers.Count > 0)
@@ -81,7 +81,7 @@ internal static class MidiConverter
 
             var siblingNotes = events.NoteOns
                 .Where(e => e.Note.Beat == note.Note.Beat)
-                .OrderBy(e => !e.Note.tie)
+                .OrderBy(e => !e.Note.Tie)
                 .ThenBy(e => e.TimedEvent.As<NoteOnEvent>().Channel)
 
                 .ToList();
@@ -151,7 +151,7 @@ internal static class MidiConverter
             var firstNoteHoldDuration = fullDuration - (totalSteps * stepSizeTicks);
 
             // Adjustment for specific slide directions (Slide Out logic)
-            if (note.Slide == Slide.Upwards || (note.tie && (note.Slide == Slide.Downwards)))
+            if (note.Slide == Slide.Upwards || (note.Tie && (note.Slide == Slide.Downwards)))
             {
                 currentTime -= stepSizeTicks;
             }
@@ -166,7 +166,7 @@ internal static class MidiConverter
             slideTemplate.Add(new NoteOnEvent(nextNoteNum.To7(), DefaultVelocity), currentTime, note);
 
             // Handle Tie Logic (Ghost Note vs Swap)
-            if (note.tie)
+            if (note.Tie)
             {
                 if (note.Slide == Slide.Downwards || note.Slide == Slide.Upwards)
                 {
@@ -215,11 +215,11 @@ internal static class MidiConverter
 
     public static void EnrichTemplate(Events events, Events template, Nóta note, int semitoneDistance)
     {
-        if (note.Beat.notes.Length == 1)
+        if (note.Beat.Notes.Length == 1)
         {
             foreach (var bufferEvent in template)
             {
-                events.Add(bufferEvent.Event, new Time(bufferEvent.Time), note.Beat.notes[0]);
+                events.Add(bufferEvent.Event, new Time(bufferEvent.Time), note.Beat.Notes[0]);
             }
         }
         else
@@ -227,15 +227,15 @@ internal static class MidiConverter
             // Chord: Apply "Dynamic Strum Convergence" logic
             var chunks = template.Chunk(3).ToList(); // Assuming 3 events per step (PB, Off, On)
 
-            var strumBaseOffset = -(StrumOffsetTicks * note.Beat.notes.Length);
+            var strumBaseOffset = -(StrumOffsetTicks * note.Beat.Notes.Length);
             var stepStrumDelta = StrumOffsetTicks / 2;
             var strumDecayRate = 10;
 
             for (var stepIndex = 0; stepIndex < semitoneDistance - 1; stepIndex++)
             {
-                for (var noteIndex = 0; noteIndex < note.Beat.notes.Length; noteIndex++)
+                for (var noteIndex = 0; noteIndex < note.Beat.Notes.Length; noteIndex++)
                 {
-                    var pitchOffset = note.Beat.notes[noteIndex].NoteNumber - note.Beat.notes[0].NoteNumber;
+                    var pitchOffset = note.Beat.Notes[noteIndex].NoteNumber - note.Beat.Notes[0].NoteNumber;
 
                     foreach (var stepEvent in chunks[stepIndex])
                     {
@@ -249,7 +249,7 @@ internal static class MidiConverter
                         var dynamicStrumOffset = stepStrumDelta - (strumDecayRate - 1) * stepIndex;
                         var strumTime = stepEvent.Time + strumBaseOffset + noteIndex * dynamicStrumOffset;
 
-                        events.Add(clonedEvent, new Time(strumTime), note.Beat.notes[noteIndex]);
+                        events.Add(clonedEvent, new Time(strumTime), note.Beat.Notes[noteIndex]);
                     }
                 }
             }
@@ -262,9 +262,9 @@ internal static class MidiConverter
 
         var remainingDuration = note.ActualDuration;
 
-        if (!note.tie && note.Slide == Slide.Legato)
+        if (!note.Tie && note.Slide == Slide.Legato)
         {
-            if (!note.vibrato)
+            if (!note.Vibrato)
             {
                 // Split note 50/50 if no vibrato
                 remainingDuration /= 2;
@@ -279,7 +279,7 @@ internal static class MidiConverter
 
     public static Time AddVibrato(Events events, Nóta note, Time currentTime)
     {
-        if (!note.vibrato) return currentTime;
+        if (!note.Vibrato) return currentTime;
 
         // Vibrato On (Depth 64)
         events.Add(new ControlChangeEvent(1.To7(), 64.To7()), currentTime, note);
@@ -308,11 +308,11 @@ internal static class MidiConverter
         if (note.Part.IsPianoLike)
         {
             // Pianos don't strum, they hit simultaneously
-            foreach (var n in note.Beat.notes.Where(e => !e.tie))
+            foreach (var n in note.Beat.Notes.Where(e => !e.Tie))
             {
                 events.Add(new PitchBendEvent(PitchBendCenter), currentTime, n);
             }
-            foreach (var n in note.Beat.notes.Where(e => !e.tie))
+            foreach (var n in note.Beat.Notes.Where(e => !e.Tie))
             {
                 events.Add(new NoteOnEvent(n.NoteNumber, DefaultVelocity), currentTime, n);
             }
@@ -320,12 +320,12 @@ internal static class MidiConverter
         else
         {
             // Guitars Strum (Offset by 123 ticks)
-            foreach (var n in note.Beat.notes.Where(e => !e.tie))
+            foreach (var n in note.Beat.Notes.Where(e => !e.Tie))
             {
                 events.Add(new PitchBendEvent(PitchBendCenter), currentTime, n);
                 events.Add(new NoteOnEvent(n.NoteNumber, DefaultVelocity), currentTime, n);
 
-                if (note.Beat.notes.Length > 1)
+                if (note.Beat.Notes.Length > 1)
                 {
                     currentTime += StrumOffsetTicks;
                 }
@@ -339,7 +339,7 @@ internal static class MidiConverter
     {
         events.Add(new PitchBendEvent(8195), currentTime, note);
 
-        if (note.vibrato)
+        if (note.Vibrato)
         {
             // If Vibrato is active, we simulate the transition with a discreet note
             // instead of a bend, to avoid conflict? (Check logic here based on M47)
@@ -385,13 +385,13 @@ internal static class MidiConverter
 
     public static void AddMeasureMarker(Events events, Measure measure)
     {
-        events.Add(new MarkerEvent($"MEASURE_{measure.Index}"), measure.StartTime, null, null, measure.Part.partId);
+        events.Add(new MarkerEvent($"MEASURE_{measure.Index}"), measure.StartTime, null, null, measure.Part.PartId);
 
-        var measureChange = measure.Part.automations.tempo.SingleOrDefault(e => e.measure == measure.Index);
+        var measureChange = measure.Part.Automations.Tempo.SingleOrDefault(e => e.Measure == measure.Index);
         if (measureChange != null && measure.Index != 0)
         {
-            var newTempo = Tempo.FromBeatsPerMinute(measureChange.bpm).MicrosecondsPerQuarterNote;
-            events.Add(new SetTempoEvent(newTempo), measure.StartTime, null, null, measure.Part.partId);
+            var newTempo = Tempo.FromBeatsPerMinute(measureChange.Bpm).MicrosecondsPerQuarterNote;
+            events.Add(new SetTempoEvent(newTempo), measure.StartTime, null, null, measure.Part.PartId);
         }
     }
 
@@ -399,47 +399,47 @@ internal static class MidiConverter
     {
         var timeZero = new Time();
 
-        var channels = part.instrumentId == 1024
+        var channels = part.InstrumentId == 1024
             ? [9]
             : Enumerable.Range(0, 9).ToArray();
 
         foreach(var i in channels)
         {
             // Program Change
-            events.Add(new ProgramChangeEvent(part.instrumentId.To7()), timeZero, null, i, part.partId);
+            events.Add(new ProgramChangeEvent(part.InstrumentId.To7()), timeZero, null, i, part.PartId);
         }
 
         foreach (var i in channels)
         {
             // Mod Wheel Reset
-            events.Add(new ControlChangeEvent(1.To7(), 0.To7()), timeZero, null, i, part.partId);
+            events.Add(new ControlChangeEvent(1.To7(), 0.To7()), timeZero, null, i, part.PartId);
         }
 
         foreach (var i in channels)
         {
             // Pitch Bend Reset
-            events.Add(new PitchBendEvent(8192), timeZero, null, i, part.partId);
+            events.Add(new PitchBendEvent(8192), timeZero, null, i, part.PartId);
         }
 
         foreach (var i in channels)
         {
             // RPN Pitch Range Setup (Your 4 events)
-            events.Add(new ControlChangeEvent(101.To7(), 0.To7()), timeZero, null, i, part.partId);
-            events.Add(new ControlChangeEvent(100.To7(), 0.To7()), timeZero, null, i, part.partId);
-            events.Add(new ControlChangeEvent(6.To7(), 24.To7()), timeZero, null, i, part.partId);
-            events.Add(new ControlChangeEvent(38.To7(), 0.To7()), timeZero, null, i, part.partId);
+            events.Add(new ControlChangeEvent(101.To7(), 0.To7()), timeZero, null, i, part.PartId);
+            events.Add(new ControlChangeEvent(100.To7(), 0.To7()), timeZero, null, i, part.PartId);
+            events.Add(new ControlChangeEvent(6.To7(), 24.To7()), timeZero, null, i, part.PartId);
+            events.Add(new ControlChangeEvent(38.To7(), 0.To7()), timeZero, null, i, part.PartId);
         }
 
 
-        if (!string.IsNullOrEmpty(part.name))
+        if (!string.IsNullOrEmpty(part.Name))
         {
-            events.Add(new SequenceTrackNameEvent(part.name), timeZero, null, null, part.partId);
+            events.Add(new SequenceTrackNameEvent(part.Name), timeZero, null, null, part.PartId);
         }
 
-        if (!string.IsNullOrEmpty(part.instrument))
+        if (!string.IsNullOrEmpty(part.Instrument))
         {
-            events.Add(new InstrumentNameEvent(part.instrument), timeZero,
-                null, null, part.partId);
+            events.Add(new InstrumentNameEvent(part.Instrument), timeZero,
+                null, null, part.PartId);
         }
     }
 

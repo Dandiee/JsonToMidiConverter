@@ -9,7 +9,7 @@ public sealed partial class Measure
     [JsonIgnore]public int Index { get; private set; }
     [JsonIgnore]public Part Part { get; private set; }
     [JsonIgnore]public Song Song => Part.Song;
-    [JsonIgnore]public Beat[] Beats => voices.Single().beats;
+    [JsonIgnore]public Beat[] Beats => Voices.Single().Beats;
     [JsonIgnore] public Time StartTime { get; private set; }
 
     public void Build(Part part, int index)
@@ -18,18 +18,18 @@ public sealed partial class Measure
         Part = part;
         StartTime = new Time(Index, 0d);
 
-        for (var i = 0; i < voices.Length; i++)
+        for (var i = 0; i < Voices.Length; i++)
         {
-            voices[i].Build(this, i);
+            Voices[i].Build(this, i);
         }
     }
 
     public Measure? GetNext()
     {
-        if (Index >= Part.measures.Length - 1)
+        if (Index >= Part.Measures.Length - 1)
             return null;
 
-        return Part.measures[Index + 1];
+        return Part.Measures[Index + 1];
     }
 
     public Measure? GetPrevious()
@@ -37,7 +37,7 @@ public sealed partial class Measure
         if (Index <= 0)
             return null;
 
-        return Part.measures[Index - 1];
+        return Part.Measures[Index - 1];
     }
 
 }

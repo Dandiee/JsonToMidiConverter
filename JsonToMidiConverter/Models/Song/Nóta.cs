@@ -3,24 +3,24 @@ using System.Text.Json.Serialization;
 
 namespace JsonToMidiConverter.Models.Song;
 
-[DebuggerDisplay("N{Index} B{Beat.Index} M{Measure.Index} P{Part.Index} STR{StringNumber}/FRT{fret} NN{NoteNumber}")]
+[DebuggerDisplay("N{Index} B{Beat.Index} M{Measure.Index} P{Part.Index} STR{StringNumber}/FRT{Fret} NN{NoteNumber}")]
 public sealed partial class Nóta
 {
-    public int fret { get; set; }
+    public int Fret { get; set; }
     [JsonPropertyName("string")]
     public double StringNumber { get; set; }
     [JsonPropertyName("slide")]
-    public string? slideString { get; set; }
-    public bool vibrato { get; set; }
-    public bool hp { get; set; }
-    public bool tie { get; set; }
-    public bool rest { get; set; }
+    public string? SlideString { get; set; }
+    public bool Vibrato { get; set; }
+    public bool Hp { get; set; }
+    public bool Tie { get; set; }
+    public bool Rest { get; set; }
     //public int[] tremolo { get; set; }
-    public bool staccato { get; set; }
-    public double accentuated { get; set; }
-    public bool ghost { get; set; }
-    public string? harmonic { get; set; }
-    public double harmonicFret { get; set; }
-    public Bend? bend { get; set; }
-    public bool dead { get; set; }
+    public bool Staccato { get; set; }
+    public double Accentuated { get; set; }
+    public bool Ghost { get; set; }
+    public string? Harmonic { get; set; }
+    public double HarmonicFret { get; set; }
+    public Bend? Bend { get; set; }
+    public bool Dead { get; set; }
 }

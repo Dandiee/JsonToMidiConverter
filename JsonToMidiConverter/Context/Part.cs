@@ -17,29 +17,29 @@ public sealed partial class Part
     {
         Index = index;
         Song = song;
-        IsPianoLike = PianoLikeInstruments.Contains(instrumentId);
+        IsPianoLike = PianoLikeInstruments.Contains(InstrumentId);
 
-        for (var i = 0; i < measures.Length; i++)
+        for (var i = 0; i < Measures.Length; i++)
         {
-            measures[i].Build(this, i);
+            Measures[i].Build(this, i);
         }
     }
 
 
     public TempoMap GetTempo(MidiFile midi)
     {
-        var bpmChangeByMeasure = automations.tempo.ToDictionary(kvp => kvp.measure, kvp => kvp.bpm);
+        var bpmChangeByMeasure = Automations.Tempo.ToDictionary(kvp => kvp.Measure, kvp => kvp.Bpm);
         int[] lastSignature = [];
         var lastBpm = -1;
 
         using var tempoMapManager = new TempoMapManager(midi.TimeDivision);
 
-        for (var i = 0; i < measures.Length; i++)
+        for (var i = 0; i < Measures.Length; i++)
         {
-            var measure = measures[i];
-            if (measure.signature.Length == 2)
+            var measure = Measures[i];
+            if (measure.Signature.Length == 2)
             {
-                lastSignature = measure.signature;
+                lastSignature = measure.Signature;
             }
 
             if (bpmChangeByMeasure.TryGetValue(i, out var newBpm))

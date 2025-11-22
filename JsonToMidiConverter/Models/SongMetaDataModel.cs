@@ -3,78 +3,78 @@
 
 public class SongMetaDataModel
 {
-    public bool aiGenerated { get; set; }
-    public DateTime createdAt { get; set; }
-    public int revisionId { get; set; }
-    public int songId { get; set; }
-    public string artist { get; set; }
-    public int artistId { get; set; }
-    public string title { get; set; }
-    public Author author { get; set; }
-    public string description { get; set; }
-    public string restriction { get; set; }
-    public bool hasPlayer { get; set; }
-    public bool hasTracks { get; set; }
-    public bool hasChords { get; set; }
-    public Track[] tracks { get; set; }
-    public int defaultTrack { get; set; }
-    public int popularTrack { get; set; }
-    public bool isPublished { get; set; }
-    public bool isBlank { get; set; }
-    public bool isPopular { get; set; }
-    public bool isJunk { get; set; }
-    public Video[] videos { get; set; }
-    public int popularTrackGuitar { get; set; }
-    public int popularTrackBass { get; set; }
-    public int popularTrackDrum { get; set; }
-    public int prevRevisionId { get; set; }
-    public string[] tags { get; set; }
-    public int views { get; set; }
-    public string image { get; set; }
-    public bool lyrics { get; set; }
-    public string audioV4 { get; set; }
-    public string audioV4Generated { get; set; }
-    public string audioV4Midi { get; set; }
-    public Audiov4meta audioV4Meta { get; set; }
-    public string moderationType { get; set; }
-    public bool isBlocked { get; set; }
-    public bool isOnModeration { get; set; }
-    public string createdVia { get; set; }
-    public int favoritesCount { get; set; }
-    public bool isCollaborative { get; set; }
-    public bool isRestricted { get; set; }
+    public bool AiGenerated { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public int RevisionId { get; set; }
+    public int SongId { get; set; }
+    public string Artist { get; set; }
+    public int ArtistId { get; set; }
+    public string Title { get; set; }
+    public Author Author { get; set; }
+    public string Description { get; set; }
+    public string Restriction { get; set; }
+    public bool HasPlayer { get; set; }
+    public bool HasTracks { get; set; }
+    public bool HasChords { get; set; }
+    public Track[] Tracks { get; set; }
+    public int DefaultTrack { get; set; }
+    public int PopularTrack { get; set; }
+    public bool IsPublished { get; set; }
+    public bool IsBlank { get; set; }
+    public bool IsPopular { get; set; }
+    public bool IsJunk { get; set; }
+    public Video[] Videos { get; set; }
+    public int PopularTrackGuitar { get; set; }
+    public int PopularTrackBass { get; set; }
+    public int PopularTrackDrum { get; set; }
+    public int PrevRevisionId { get; set; }
+    public string[] Tags { get; set; }
+    public int Views { get; set; }
+    public string Image { get; set; }
+    public bool Lyrics { get; set; }
+    public string AudioV4 { get; set; }
+    public string AudioV4Generated { get; set; }
+    public string AudioV4Midi { get; set; }
+    public Audiov4Meta AudioV4Meta { get; set; }
+    public string ModerationType { get; set; }
+    public bool IsBlocked { get; set; }
+    public bool IsOnModeration { get; set; }
+    public string CreatedVia { get; set; }
+    public int FavoritesCount { get; set; }
+    public bool IsCollaborative { get; set; }
+    public bool IsRestricted { get; set; }
 }
 
 public class Author
 {
-    public int personId { get; set; }
-    public string name { get; set; }
-    public string profileName { get; set; }
-    public bool isModerator { get; set; }
+    public int PersonId { get; set; }
+    public string Name { get; set; }
+    public string ProfileName { get; set; }
+    public bool IsModerator { get; set; }
 }
 
-public class Audiov4meta
+public class Audiov4Meta
 {
-    public bool hasQuickMix { get; set; }
-    public bool hasMixLayout { get; set; }
+    public bool HasQuickMix { get; set; }
+    public bool HasMixLayout { get; set; }
 }
 
 public class Video
 {
-    public int id { get; set; }
-    public string status { get; set; }
-    public string feature { get; set; }
-    public string videoId { get; set; }
+    public int Id { get; set; }
+    public string Status { get; set; }
+    public string Feature { get; set; }
+    public string VideoId { get; set; }
 }
 
 
 public class Track
 {
-    public int instrumentId { get; set; }
-    public string instrument { get; set; }
-    public int views { get; set; }
-    public string name { get; set; }
-    public int[] tuning { get; set; }
-    public string hash { get; set; }
-    public int difficulty { get; set; }
+    public int InstrumentId { get; set; }
+    public string Instrument { get; set; }
+    public int Views { get; set; }
+    public string Name { get; set; }
+    public int[] Tuning { get; set; }
+    public string Hash { get; set; }
+    public int Difficulty { get; set; }
 }

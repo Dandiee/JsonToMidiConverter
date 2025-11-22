@@ -92,15 +92,15 @@ public static class Database
             metaModels.AddRange(models);
         }
 
-        var records = metaModels.DistinctBy(e => e.songId).Select(e => new RecordModel
+        var records = metaModels.DistinctBy(e => e.SongId).Select(e => new RecordModel
         {
-            SongId = e.songId,
-            Artist = e.artist,
-            Title = e.title,
-            ArtistId = e.artistId,
-            RevisionId = e.revisionId,
-            Parts = e.tracks?.Length ?? 0,
-            Views = e.views
+            SongId = e.SongId,
+            Artist = e.Artist,
+            Title = e.Title,
+            ArtistId = e.ArtistId,
+            RevisionId = e.RevisionId,
+            Parts = e.Tracks?.Length ?? 0,
+            Views = e.Views
         });
 
         var json = JsonSerializer.Serialize(records, new JsonSerializerOptions
@@ -117,9 +117,9 @@ public static class Database
 
         var searchResultModels = searchResultFiles
             .Select(path => JsonSerializer.Deserialize<SearchResultsModel>(File.ReadAllText(path)))
-            .SelectMany(model => model.records)
+            .SelectMany(model => model.Records)
             .ToList();
 
-        var distinctSongs = searchResultModels.DistinctBy(e => e.songId).Select(e => e.songId);
+        var distinctSongs = searchResultModels.DistinctBy(e => e.SongId).Select(e => e.SongId);
     }
 }

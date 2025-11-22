@@ -19,10 +19,10 @@ public sealed partial class Beat
 
     public void Build(Voice voice, int index)
     {
-        ReversedNotes = notes;
+        ReversedNotes = Notes;
         Index = index;
         Voice = voice;
-        MusicalDuration = new Time(duration[0], duration[1]);
+        MusicalDuration = new Time(Duration[0], Duration[1]);
 
         var prevBeat = GetPrevious();
         RelativeBeatStartTime = Index == 0
@@ -33,12 +33,12 @@ public sealed partial class Beat
 
         if (!Part.IsPianoLike) // for piano we dont change the fuckin note order
         {
-            notes = notes.Reverse().ToArray();
+            Notes = Notes.Reverse().ToArray();
         }
 
-        for (var i = 0; i < notes.Length; i++)
+        for (var i = 0; i < Notes.Length; i++)
         {
-            notes[i].Build(this, i);
+            Notes[i].Build(this, i);
         }
     }
 

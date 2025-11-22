@@ -2,7 +2,7 @@
 
 public sealed class Newlyric
 {
-    public int line { get; set; }
-    public int offset { get; set; }
-    public string text { get; set; } = string.Empty;
+    public int Line { get; set; }
+    public int Offset { get; set; }
+    public string Text { get; set; } = string.Empty;
 }

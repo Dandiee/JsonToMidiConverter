@@ -2,6 +2,6 @@
 
 public sealed class Point
 {
-    public int position { get; set; }
-    public double tone { get; set; }
+    public int Position { get; set; }
+    public double Tone { get; set; }
 }

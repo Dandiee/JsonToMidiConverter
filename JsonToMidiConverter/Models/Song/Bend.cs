@@ -2,6 +2,6 @@
 
 public sealed class Bend
 {
-    public double tone { get; set; }
-    public Point[] points { get; set; } = Array.Empty<Point>();
+    public double Tone { get; set; }
+    public Point[] Points { get; set; } = Array.Empty<Point>();
 }

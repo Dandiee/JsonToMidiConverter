@@ -7,7 +7,7 @@ using Melanchall.DryWetMidi.Interaction;
 
 namespace JsonToMidiConverter.Models.Song;
 
-[DebuggerDisplay("N{Index} B{Beat.Index} M{Measure.Index} P{Part.Index} STR{StringNumber}/FRT{fret} NN{NoteNumber}")]
+[DebuggerDisplay("N{Index} B{Beat.Index} M{Measure.Index} P{Part.Index} STR{StringNumber}/FRT{Fret} NN{NoteNumber}")]
 public sealed partial class Nóta
 {
     [JsonIgnore] public int Index { get; private set; }
@@ -33,14 +33,14 @@ public sealed partial class Nóta
         NoteNumber = GetNoteNumber().To7();
         Channel = GetNoteChannel();
 
-        Slide = slideString?.ToSlide() ?? Slide.None;
+        Slide = SlideString?.ToSlide() ?? Slide.None;
 
-        RawDuration = staccato
+        RawDuration = Staccato
             ? beat.MusicalDuration.Clone() / 2
             : beat.MusicalDuration.Clone();
 
         var prevBeat = Beat.GetPrevious();
-        ActualDuration = prevBeat?.graceNote == "onBeat"
+        ActualDuration = prevBeat?.GraceNote == "onBeat"
             ? RawDuration - prevBeat.MusicalDuration
             : RawDuration;
 
@@ -52,14 +52,14 @@ public sealed partial class Nóta
     {
         var nextBeat = Beat.GetNext();
 
-        return nextBeat.notes[0];
+        return nextBeat.Notes[0];
 
         return null;
     }
 
     public Nóta GetTie()
     {
-        if (!tie) throw new Exception("The note is not tied.");
+        if (!Tie) throw new Exception("The note is not tied.");
 
         var measure = Measure;
 
@@ -72,7 +72,7 @@ public sealed partial class Nóta
             for (var b = beatStartIndex; b > -1; b--)
             {
                 var beat = measure.Beats[b];
-                foreach (var note in beat.notes)
+                foreach (var note in beat.Notes)
                 {
                     if (note.IsPitchEqual(this))
                     {
@@ -81,20 +81,20 @@ public sealed partial class Nóta
                 }
             }
 
-            measure = Part.measures[measure.Index - 1];
+            measure = Part.Measures[measure.Index - 1];
         }
     }
 
     public IEnumerable<Nóta> GetTies()
     {
-        if (!tie) throw new Exception("The note is not tied.");
+        if (!Tie) throw new Exception("The note is not tied.");
 
         var tieNote = this;
 
         while (true)
         {
             yield return tieNote;
-            if (tieNote.tie)
+            if (tieNote.Tie)
             {
                 tieNote = tieNote.GetTie();
             }
@@ -109,7 +109,7 @@ public sealed partial class Nóta
         var nextBeat = Beat.GetNext();
         while (true)
         {
-            var targetNote = nextBeat.notes.SingleOrDefault(e => e.tie && e.IsPitchEqual(this));
+            var targetNote = nextBeat.Notes.SingleOrDefault(e => e.Tie && e.IsPitchEqual(this));
             if (targetNote != null)
             {
                 return targetNote;
@@ -145,7 +145,7 @@ public sealed partial class Nóta
         var nextBeat = Beat.GetNext();
         while (true)
         {
-            var targetNote = nextBeat.notes.SingleOrDefault(e => e.StringNumber == StringNumber);
+            var targetNote = nextBeat.Notes.SingleOrDefault(e => e.StringNumber == StringNumber);
             if (targetNote != null)
             {
                 return targetNote;
@@ -194,16 +194,16 @@ public sealed partial class Nóta
         var nextBeat = Beat.GetNext();
         if (nextBeat == null) return false;
 
-        return nextBeat.notes.Any(e => e.tie && e.IsPitchEqual(this));
+        return nextBeat.Notes.Any(e => e.Tie && e.IsPitchEqual(this));
     }
 
     public bool IsInInbetweenTie()
     {
-        if (!tie) return false;
+        if (!Tie) return false;
 
-        for (var m = Measure.Index; m < Part.measures.Length; m++)
+        for (var m = Measure.Index; m < Part.Measures.Length; m++)
         {
-            var measure = Part.measures[m];
+            var measure = Part.Measures[m];
             var beatStartIndex = measure == Measure
                 ? Beat.Index + 1
                 : 0;
@@ -211,11 +211,11 @@ public sealed partial class Nóta
             for (var b = beatStartIndex; b < measure.Beats.Length; b++)
             {
                 var beat = measure.Beats[b];
-                foreach (var note in beat.notes)
+                foreach (var note in beat.Notes)
                 {
                     if ((int)note.StringNumber == (int)StringNumber)
                     {
-                        return note.tie && note.fret == fret;
+                        return note.Tie && note.Fret == Fret;
                     }
                 }
             }
@@ -224,7 +224,7 @@ public sealed partial class Nóta
         return false;
     }
 
-    public bool IsPitchEqual(Nóta note) => note.fret == fret && (int)note.StringNumber == (int)StringNumber;
+    public bool IsPitchEqual(Nóta note) => note.Fret == Fret && (int)note.StringNumber == (int)StringNumber;
 
 
 
@@ -236,18 +236,18 @@ public sealed partial class Nóta
 
     public int GetNoteNumber()
     {
-        if (Part.instrumentId == 1024 || (int)StringNumber == -1)
+        if (Part.InstrumentId == 1024 || (int)StringNumber == -1)
         {
-            return fret;
+            return Fret;
         }
 
-        int openStringPitch = Part.tuning.Length == 0
+        int openStringPitch = Part.Tuning.Length == 0
             ? (int)StringNumber // Fallback
-            : Part.tuning[(int)StringNumber];
+            : Part.Tuning[(int)StringNumber];
 
-        if (harmonic == "natural")
+        if (Harmonic == "natural")
         {
-            switch (fret) // Or note.harmonicFret
+            switch (Fret) // Or note.harmonicFret
             {
                 case 12: return (openStringPitch + 12);
                 case 7: return (openStringPitch + 19);
@@ -259,7 +259,7 @@ public sealed partial class Nóta
         }
 
         // 4. STANDARD FRETTED NOTE
-        return (openStringPitch + fret);
+        return (openStringPitch + Fret);
     }
 
     public SevenBitNumber GetSlideTargetPitch()
@@ -267,7 +267,7 @@ public sealed partial class Nóta
         if (Slide == Slide.Shift) return GetSlideTarget().NoteNumber;
         if (Slide == Slide.Downwards)
         {
-            var distanceToFret1 = fret - 1;
+            var distanceToFret1 = Fret - 1;
             return (SevenBitNumber)(NoteNumber - distanceToFret1);
         }
         if (Slide == Slide.Upwards)
@@ -281,25 +281,25 @@ public sealed partial class Nóta
 
     public FourBitNumber GetNoteChannel()
     {
-        if (Part.instrumentId == 71 || Part.instrumentId == 68 || Part.instrumentId == 27 || Part.instrumentId == 30 || Part.instrumentId == 29)
+        if (Part.InstrumentId == 71 || Part.InstrumentId == 68 || Part.InstrumentId == 27 || Part.InstrumentId == 30 || Part.InstrumentId == 29)
         {
             return (FourBitNumber)StringNumber;
         }
 
 
-        if (Part.instrumentId == 27) return 2.To4();
-        if (Part.instrumentId == 1024) return 9.To4();
+        if (Part.InstrumentId == 27) return 2.To4();
+        if (Part.InstrumentId == 1024) return 9.To4();
 
-        if (InstrumentChannels.TryGetValue(Part.instrumentId, out int assignedChannel))
+        if (InstrumentChannels.TryGetValue(Part.InstrumentId, out int assignedChannel))
         {
             return (FourBitNumber)assignedChannel;
         }
 
-        if (Part.instrumentId == 0 || Part.instrumentId == 48 || Part.instrumentId == 34) // piano and sampler
+        if (Part.InstrumentId == 0 || Part.InstrumentId == 48 || Part.InstrumentId == 34) // piano and sampler
         {
             return (FourBitNumber)(int)StringNumber;
         }
-        var id = Part.instrumentId;
+        var id = Part.InstrumentId;
 
         if (id >= 0 && id <= 7) return 0.To4(); // Piano -> Ch 1
         if (id >= 24 && id <= 34) return 1.To4(); // Guitar -> Ch 2

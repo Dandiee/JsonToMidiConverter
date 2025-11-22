@@ -5,31 +5,31 @@ namespace JsonToMidiConverter.Models.Song;
 [DebuggerDisplay("B{Index} M{Measure.Index} P{Part.Index}")]
 public partial class Beat
 {
-    public Nóta[] notes { get; set; } = Array.Empty<Nóta>();
-    public string velocity { get; set; } = string.Empty;
+    public Nóta[] Notes { get; set; } = Array.Empty<Nóta>();
+    public string Velocity { get; set; } = string.Empty;
 
     /// <summary>
     /// THIS IS ONYL FOR VISUAL REPRESENTATION ON THE MUSIC SHEET DONT LET IT CONFUSE YOU AGAIN!
     /// </summary>
-    public int type { get; set; }
-    public bool palmMute { get; set; }
-    public int[] duration { get; set; } = Array.Empty<int>();
-    public byte numerator => (byte)duration[0];
-    public byte denominator => (byte)duration[1];
-    public bool beamStart { get; set; }
-    public bool beamStop { get; set; }
-    public bool vibrato { get; set; }
-    public Text? text { get; set; }
-    public bool letRing { get; set; }
+    public int Type { get; set; }
+    public bool PalmMute { get; set; }
+    public int[] Duration { get; set; } = Array.Empty<int>();
+    public byte Numerator => (byte)Duration[0];
+    public byte Denominator => (byte)Duration[1];
+    public bool BeamStart { get; set; }
+    public bool BeamStop { get; set; }
+    public bool Vibrato { get; set; }
+    public Text? Text { get; set; }
+    public bool LetRing { get; set; }
 
     /// <summary>
     ///  THIS IS ALSO JUST HERE TO FUCK WITH ME, IGNORE THEFUCKER
     /// </summary>
-    public int dots { get; set; }
-    public bool rest { get; set; }
-    public bool tapping { get; set; }
-    public int tuplet { get; set; }
-    public bool tupletStart { get; set; }
-    public bool tupletStop { get; set; }
-    public string? graceNote { get; set; }
+    public int Dots { get; set; }
+    public bool Rest { get; set; }
+    public bool Tapping { get; set; }
+    public int Tuplet { get; set; }
+    public bool TupletStart { get; set; }
+    public bool TupletStop { get; set; }
+    public string? GraceNote { get; set; }
 }

@@ -16,9 +16,9 @@ public sealed partial class Voice
         Index = index;
         Measure = measure;
 
-        for (var i = 0; i < beats.Length; i++)
+        for (var i = 0; i < Beats.Length; i++)
         {
-            beats[i].Build(this, i);
+            Beats[i].Build(this, i);
         }
     }
 }

@@ -4,11 +4,11 @@ public sealed partial class Song
 {
     public void Build()
     {
-        parts = parts.OrderBy(e => e.partId).ToArray();
+        Parts = Parts.OrderBy(e => e.PartId).ToArray();
 
-        for (var i = 0; i < parts.Length; i++)
+        for (var i = 0; i < Parts.Length; i++)
         {
-            parts[i].Build(this, i);
+            Parts[i].Build(this, i);
         }
     }
 }

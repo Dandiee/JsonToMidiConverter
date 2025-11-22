@@ -15,24 +15,24 @@ public static class DebugShit
     {
         var sb = new StringBuilder();
 
-        foreach (var part in song.parts.OrderBy(e => e.partId))
+        foreach (var part in song.Parts.OrderBy(e => e.PartId))
         {
-            sb.AppendLine($"PartId: {part.partId.ToString().PadLeft(2)}, TempCount: {part.automations.tempo.Length}; Bal: {part.balance}; Vol: {part.volume}; Frets: {part.frets}, Strings: {part.strings}; MesCount: {part.measures.Length}; Name: {part.name}");
+            sb.AppendLine($"PartId: {part.PartId.ToString().PadLeft(2)}, TempCount: {part.Automations.Tempo.Length}; Bal: {part.Balance}; Vol: {part.Volume}; Frets: {part.Frets}, Strings: {part.Strings}; MesCount: {part.Measures.Length}; Name: {part.Name}");
 
-            for (var i = 0; i < part.measures.Length; i++)
+            for (var i = 0; i < part.Measures.Length; i++)
             {
-                var measure = part.measures[i];
-                var voice = measure.voices.Single();
-                if (measure.signature.Length != 0 && measure.signature.Length != 2) throw new Exception("Cant be");
-                var sign1 = measure.signature.Length == 2 ? measure.signature[0] : 0;
-                var sign2 = measure.signature.Length == 2 ? measure.signature[1] : 0;
+                var measure = part.Measures[i];
+                var voice = measure.Voices.Single();
+                if (measure.Signature.Length != 0 && measure.Signature.Length != 2) throw new Exception("Cant be");
+                var sign1 = measure.Signature.Length == 2 ? measure.Signature[0] : 0;
+                var sign2 = measure.Signature.Length == 2 ? measure.Signature[1] : 0;
 
-                sb.AppendLine($"\tMEASURE_{i.ToString().PadLeft(3)}; BeatsCount: {voice.beats.Length.ToString().PadLeft(2)}, Signiture: [{sign1}, {sign2}]; Rest: {measure.rest.ToString().PadLeft(5)}");
+                sb.AppendLine($"\tMEASURE_{i.ToString().PadLeft(3)}; BeatsCount: {voice.Beats.Length.ToString().PadLeft(2)}, Signiture: [{sign1}, {sign2}]; Rest: {measure.Rest.ToString().PadLeft(5)}");
 
-                for (var j = 0; j < voice.beats.Length; j++)
+                for (var j = 0; j < voice.Beats.Length; j++)
                 {
-                    var beat = voice.beats[j];
-                    if (beat.duration.Length != 2) throw new Exception("No");
+                    var beat = voice.Beats[j];
+                    if (beat.Duration.Length != 2) throw new Exception("No");
 
                     var beatJson = JsonSerializer.Serialize(beat, new JsonSerializerOptions(JsonSerializerDefaults.General)
                     {

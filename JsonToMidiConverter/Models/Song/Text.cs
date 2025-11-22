@@ -1,7 +1,10 @@
-﻿namespace JsonToMidiConverter.Models.Song;
+﻿using System.Text.Json.Serialization;
+
+namespace JsonToMidiConverter.Models.Song;
 
 public sealed class Text
 {
-    public string text { get; set; } = string.Empty;
-    public int width { get; set; }
+    [JsonPropertyName("text")]
+    public string Content { get; set; } = string.Empty;
+    public int Width { get; set; }
 }

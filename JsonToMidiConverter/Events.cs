@@ -60,7 +60,7 @@ public class Events : IEnumerable<TimedEvent>
             {
                 var refEvent = MidiConverter.ReferenceData[pid][TimedEvents.Count];
 
-                var TIIIME = refEvent.AbsoluteTime;
+                var tiiime = refEvent.AbsoluteTime;
                 var refType = refEvent.Event.EventType;
                 var ourType = midiEvent.EventType;
                 Debug.Assert(refType == ourType);
@@ -107,7 +107,7 @@ public class Events : IEnumerable<TimedEvent>
                     //var stepSize = note.GetShiftStepSizeTicks();
                 }
 
-                if (note.vibrato)
+                if (note.Vibrato)
                 {
 
                 }
@@ -117,7 +117,7 @@ public class Events : IEnumerable<TimedEvent>
                 var noteDuration = note.ActualDuration.Tick;
                 if (note.WillBeTied) noteDuration = note.GetForwardTies().Sum(e => e.ActualDuration.Tick);
                 if (note.Slide != Slide.None && note.Slide != Slide.Legato) noteDuration = note.GetShiftStepSizeTicks();
-                if (note.Slide == Slide.Legato) noteDuration = note.vibrato ? noteDuration / 2 : noteDuration;
+                if (note.Slide == Slide.Legato) noteDuration = note.Vibrato ? noteDuration / 2 : noteDuration;
                 //if (note.vibrato) noteDuration = 960;
 
                 var endTime = newEvent.Time + noteDuration;

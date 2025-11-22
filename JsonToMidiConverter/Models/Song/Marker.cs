@@ -2,6 +2,6 @@
 
 public sealed class Marker
 {
-    public string text { get; set; } = string.Empty;
-    public int width { get; set; }
+    public string Text { get; set; } = string.Empty;
+    public int Width { get; set; }
 }
