@@ -14,9 +14,11 @@ internal static class MidiConverter
     private const int PitchBendCenter = 8192;
 
     public static readonly SevenBitNumber DefaultVelocity = 112.To7();
+    public static List<(long AbsoluteTime, MidiEvent Event)>[] ReferenceData;
 
-    public static MidiFile Convert(Song song)
+    public static MidiFile Convert(Song song, string referenceMidiPath)
     {
+        ReferenceData = GetReferenceMidiData(referenceMidiPath);
         var midiFile = new MidiFile { TimeDivision = new TicksPerQuarterNoteTimeDivision(TicksPerQuarter) };
         Time.Map = song.parts[0].GetTempo(midiFile);
         midiFile.ReplaceTempoMap(Time.Map);
@@ -439,5 +441,31 @@ internal static class MidiConverter
         }
     }
 
-   
+    private static List<(long AbsoluteTime, MidiEvent Event)>[] GetReferenceMidiData(string referenceMidiFile)
+    {
+        var referenceMidi = MidiFile.Read(referenceMidiFile);
+        var results = new List<(long AbsoluteTime, MidiEvent Event)>[referenceMidi.Chunks.Count];
+
+        for (var i = 0; i < referenceMidi.Chunks.Count; i++)
+        {
+            results[i] = new List<(long AbsoluteTime, MidiEvent Event)>();
+            var time = 0l;
+            foreach (var midiEvent in (referenceMidi.Chunks[i] as TrackChunk)!.Events)
+            {
+
+                if (time == 0 && (midiEvent is TimeSignatureEvent || midiEvent is SetTempoEvent))
+                {
+                    continue;
+                }
+
+                time += midiEvent.DeltaTime;
+                results[i].Add(new(time, midiEvent));
+
+            }
+        }
+
+        return results;
+    }
+
+
 }
