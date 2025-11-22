@@ -126,11 +126,13 @@ public class Measure
     public Part Part { get; private set; }
     public Song Song => Part.Song;
     public Beat[] Beats => voices.Single().beats;
+    public Time StartTime { get; private set; }
 
     public void Build(Part part, int index)
     {
         Index = index;
         Part = part;
+        StartTime = new Time(Index, 0d);
 
         for (var i = 0; i < voices.Length; i++)
         {
@@ -221,6 +223,8 @@ public class Beat
     public Part Part => Measure.Part;
     public Song Song => Part.Song;
     public Time MusicalDuration { get; private set; }
+    public Time RelativeBeatStartTime { get; private set; }
+    public Time AbsoluteBeatStartTime { get; private set; }
 
     public Nóta[] ReversedNotes { get; set; }
 
@@ -230,6 +234,13 @@ public class Beat
         Index = index;
         Voice = voice;
         MusicalDuration = new Time(duration[0], duration[1]);
+
+        var prevBeat = GetPrevious();
+        RelativeBeatStartTime = Index == 0
+            ? new Time()
+            : prevBeat.RelativeBeatStartTime + prevBeat.MusicalDuration;
+
+        AbsoluteBeatStartTime = Measure.StartTime + RelativeBeatStartTime;
 
         if (!Part.IsPianoLike) // for piano we dont change the fuckin note order
         {
@@ -315,7 +326,8 @@ public class Nóta
     public SevenBitNumber NoteNumber { get; set; }
     public Time ActualDuration { get; private set; }
     public Time RawDuration { get; private set; }
-    
+    public bool WillBeTied { get; private set; }
+
     [JsonIgnore]
     public Slide Slide { get; private set; }
 
@@ -325,6 +337,7 @@ public class Nóta
         Beat = beat;
         NoteNumber = GetNoteNumber().To7();
         Channel  = GetNoteChannel();
+        
         Slide = slideString?.ToSlide() ?? Slide.None;
 
         RawDuration = staccato
@@ -335,6 +348,8 @@ public class Nóta
         ActualDuration = prevBeat?.graceNote == "onBeat"
             ? RawDuration - prevBeat.MusicalDuration
             : RawDuration;
+
+        WillBeTied = GetWillBeTied();
 
     }
 
@@ -392,6 +407,42 @@ public class Nóta
         }
     }
 
+    public Nóta GetForwardTie()
+    {
+        if (!WillBeTied) throw new Exception();
+
+        var nextBeat = Beat.GetNext();
+        while (true)
+        {
+            var targetNote = nextBeat.notes.SingleOrDefault(e => e.tie && e.IsPitchEqual(this));
+            if (targetNote != null)
+            {
+                return targetNote;
+            }
+            nextBeat = nextBeat.GetNext();
+        }
+    }
+
+    public IEnumerable<Nóta> GetForwardTies()
+    {
+        if (!WillBeTied) throw new Exception();
+
+        yield return this;
+
+        var nextTie = GetForwardTie();
+
+        while (true)
+        {
+            yield return nextTie;
+
+            if (nextTie.WillBeTied)
+            {
+                nextTie = nextTie.GetForwardTie();
+            }
+            else break;
+        }
+    }
+
     public Nóta GetSlideTarget()
     {
         if (Slide == Slide.None) throw new Exception("The not is not a slide.");
@@ -416,6 +467,11 @@ public class Nóta
         var targetPitch = GetSlideTargetPitch();
         var semitoneDistance = Math.Abs(targetPitch - NoteNumber);
 
+        if ((semitoneDistance == 1 && Slide == Slide.Shift) || Slide == Slide.Legato)
+        {
+            return ActualDuration.Tick;
+        }
+
         var isSlideOut = Slide == Slide.Downwards || Slide == Slide.Upwards;
 
         var totalTicks = ActualDuration;
@@ -435,7 +491,7 @@ public class Nóta
         return (finalDuration / denominator).Tick;
     }
 
-    public bool WillBeTied()
+    public bool GetWillBeTied()
     {
         var nextBeat = Beat.GetNext();
         if (nextBeat == null) return false;
