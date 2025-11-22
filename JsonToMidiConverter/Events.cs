@@ -12,7 +12,7 @@ namespace JsonToMidiConverter;
 public class Events : IEnumerable<TimedEvent>
 {
     public static readonly List<(long AbsoluteTime, MidiEvent Event)>[] ReferenceData = GetReferenceMidiData();
-    public static bool SuspenseValidation;
+    public static bool SuspendValidation;
     public List<TimedEvent> TimedEvents { get; private set; } = new();
     public IReadOnlyList<TimedEvent> Recap { get; private set; }
     public TimedEvent? LastEvent { get; private set; }
@@ -51,7 +51,7 @@ public class Events : IEnumerable<TimedEvent>
 
         var eventType = midiEvent.GetType();
 
-        if (!SuspenseValidation)
+        if (!SuspendValidation)
         {
             var pid = partId ?? note.Part.Index;
 
@@ -96,7 +96,7 @@ public class Events : IEnumerable<TimedEvent>
 
         var newEvent = new TimedEvent(midiEvent, time.Tick);
         TimedEvents.Add(newEvent);
-        if (note != null && !SuspenseValidation)
+        if (note != null && !SuspendValidation)
         {
             if (newEvent.Event is NoteOnEvent on)
             {

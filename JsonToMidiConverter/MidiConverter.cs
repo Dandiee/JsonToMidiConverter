@@ -5,7 +5,7 @@ using System.Diagnostics;
 
 namespace JsonToMidiConverter;
 
-internal static partial class MidiConverter
+internal static class MidiConverter
 {
     private const int TicksPerQuarterNote = 15360;
 
@@ -14,7 +14,7 @@ internal static partial class MidiConverter
     public static MidiFile Convert(Song song)
     {
         var midiFile = new MidiFile { TimeDivision = new TicksPerQuarterNoteTimeDivision(TicksPerQuarterNote) };
-        Time.Map = song.parts[0].GetTempo(midiFile); ;
+        Time.Map = song.parts[0].GetTempo(midiFile);
         song.Build();
 
         foreach (var part in song.parts)
@@ -25,25 +25,13 @@ internal static partial class MidiConverter
 
             if (part.partId == 10) continue;
 
-            var cursor = new Time();
-
             foreach (var measure in part.measures)
             {
-                var measureCursor = new Time(new BarBeatFractionTimeSpan(measure.Index));
-
-                events.Add(new MarkerEvent($"MEASURE_{measure.Index}"), measureCursor, null, null, part.partId);
-
-                var measureChange = part.automations.tempo.SingleOrDefault(e => e.measure == measure.Index);
-                if (measureChange != null && measure.Index != 0)
-                {
-                    events.Add(new SetTempoEvent(Tempo.FromBeatsPerMinute(measureChange.bpm).MicrosecondsPerQuarterNote), measureCursor, null, null, part.partId);
-                }
+                AddMeasure(events, measure);
 
                 foreach (var beat in measure.Beats)
                 {
-                    var beatCursor = measureCursor + beat.GetMeasureStartDuration(Time.Map);
-
-                    cursor = beatCursor;
+                    var cursor = beat.AbsoluteBeatStartTime;
 
                     foreach (var note in beat.notes.Take(1))
                     {
@@ -56,7 +44,6 @@ internal static partial class MidiConverter
                         cursor = AddAttackNote(events, note, cursor);
                         cursor = AddVibrato(events, note, cursor);
                         cursor = AddSlide(events, note, cursor);
-
                         cursor += 123;
                     }
 
@@ -90,8 +77,8 @@ internal static partial class MidiConverter
 
         var actualDuration = note.ActualDuration;
 
-        Events.SuspenseValidation = true;
-        var shiftBuffer = new Events();
+        Events.SuspendValidation = true;
+        var template = new Events();
 
         var targetPitch = note.GetSlideTargetPitch();
         var direction = targetPitch < note.NoteNumber ? -1 : 1;
@@ -105,15 +92,10 @@ internal static partial class MidiConverter
 
             cursor += actualDuration - slideDuration;
             actualDuration = slideDuration;
-            AddLegatoPitchBends(cursor, note, shiftBuffer, actualDuration);
+            AddLegatoPitchBends(cursor, note, template, actualDuration);
         }
         else
         {
-            if (note.Beat.Index == 11 && note.Measure.Index == 72 && note.Part.Index == 8)
-            {
-
-            }
-
             var totalSteps = semitoneDistance - 1;
             var stepSize = note.GetShiftStepSizeTicks();
 
@@ -129,63 +111,65 @@ internal static partial class MidiConverter
             var currentNote = note.NoteNumber;
             var nextNote = currentNote + direction;
 
-            shiftBuffer.Add(new PitchBendEvent(8192), cursor, note);
-            shiftBuffer.Add(new NoteOnEvent(nextNote.To7(), Velocity), cursor, note);
+            // Hold Note
+            template.Add(new PitchBendEvent(8192), cursor, note);
+            template.Add(new NoteOnEvent(nextNote.To7(), Velocity), cursor, note);
             if (note.tie)
             {
-                // CASE A: TIED SLIDE OUT (Up/Down) -> "Ghosting"
-                // Logic: Do NOT turn off the source note. It stays alive until the measure/beat ends.
                 if (note.Slide == Slide.Downwards || note.Slide == Slide.Upwards)
                 {
                     cursor += stepSize;
                 }
-                // CASE B: TIED SHIFT -> "Overlap"
-                // Logic: Advance time first, then kill (smooth transition).
                 else
                 {
                     cursor += stepSize;
-                    shiftBuffer.Add(new NoteOffEvent(currentNote, Velocity), cursor, note);
+                    template.Add(new NoteOffEvent(currentNote, Velocity), cursor, note);
                 }
             }
             else
             {
-                // CASE C: NO TIE (Any Slide) -> "Swap"
-                // Logic: Kill immediately, then advance (clean cut).
-                shiftBuffer.Add(new NoteOffEvent(currentNote, Velocity), cursor, note);
+                template.Add(new NoteOffEvent(currentNote, Velocity), cursor, note);
                 cursor += stepSize;
             }
 
-
+            // Bridge Notes
             var steps = (note.Slide == Slide.Downwards || note.Slide == Slide.Upwards) ? totalSteps + 1 : totalSteps;
             for (var i = 1; i < steps; i++)
             {
-                shiftBuffer.Add(new PitchBendEvent(8192), cursor, note);
+                template.Add(new PitchBendEvent(8192), cursor, note);
 
                 currentNote = (note.NoteNumber + i * direction).To7();
                 nextNote = (currentNote + direction).To7();
 
-                shiftBuffer.Add(new NoteOffEvent(currentNote, Velocity), cursor, note);
-                shiftBuffer.Add(new NoteOnEvent(nextNote.To7(), Velocity), cursor, note);
+                template.Add(new NoteOffEvent(currentNote, Velocity), cursor, note);
+                template.Add(new NoteOnEvent(nextNote.To7(), Velocity), cursor, note);
 
                 cursor += stepSize;
 
             }
         }
 
-        Events.SuspenseValidation = false;
+        Events.SuspendValidation = false;
+        
+        EnrichTemplate(events, template, note, semitoneDistance);
+
+        return cursor;
+
+    }
+
+    public static void EnrichTemplate(Events events, Events template, Nóta note, int semitoneDistance)
+    {
         if (note.Beat.notes.Length == 1)
         {
-            var osk = 0;
-            foreach (var bufferEvent in shiftBuffer)
+            foreach (var bufferEvent in template)
             {
                 events.Add(bufferEvent.Event, new Time(bufferEvent.Time), note.Beat.notes[0]);
-                osk++;
             }
         }
         else
         {
 
-            var chunks = shiftBuffer.Chunk(3).ToList();
+            var chunks = template.Chunk(3).ToList();
 
             var strumBase = -(123 * note.Beat.notes.Length);
             var stepStrum = 123 / 2;
@@ -211,9 +195,6 @@ internal static partial class MidiConverter
                 }
             }
         }
-
-        return cursor;
-
     }
 
 
@@ -328,6 +309,18 @@ internal static partial class MidiConverter
                 events.Add(new NoteOffEvent(noteNumber, Velocity), new Time(endsAt), sibling.Note);
                 beatLeftovers.Remove(sibling);
             }
+        }
+    }
+
+    public static void AddMeasure(Events events, Measure measure)
+    {
+        events.Add(new MarkerEvent($"MEASURE_{measure.Index}"), measure.StartTime, null, null, measure.Part.partId);
+
+        var measureChange = measure.Part.automations.tempo.SingleOrDefault(e => e.measure == measure.Index);
+        if (measureChange != null && measure.Index != 0)
+        {
+            var newTempo = Tempo.FromBeatsPerMinute(measureChange.bpm).MicrosecondsPerQuarterNote;
+            events.Add(new SetTempoEvent(newTempo), measure.StartTime, null, null, measure.Part.partId);
         }
     }
 
