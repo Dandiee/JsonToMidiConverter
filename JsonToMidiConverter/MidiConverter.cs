@@ -234,7 +234,7 @@ internal static partial class MidiConverter
 
                     CloseBeat(events, beat);
 
-                    
+
                 }
             }
 
@@ -291,31 +291,24 @@ internal static partial class MidiConverter
         {
             var note = beatLeftovers[0];
 
-            if (events.NoteOns.Count > 1)
+            var siblingNotes = events.NoteOns
+                .Where(e => e.Note.Beat == note.Note.Beat)
+                .OrderBy(e => !e.Note.tie)
+                .ThenBy(e => e.TimedEvent.As<NoteOnEvent>().Channel)
+
+                .ToList();
+
+            var endsAt = siblingNotes.Min(e => e.EndTick);
+
+            foreach (var sibling in siblingNotes)
             {
-                var siblingNotes = events.NoteOns
-                    .Where(e => e.Note.Beat == note.Note.Beat)
-                    .OrderBy(e => !e.Note.tie)
-                    .ThenBy(e => e.TimedEvent.As<NoteOnEvent>().Channel)
-
-                    .ToList();
-
-                var endsAt = siblingNotes.Min(e => e.EndTick);
-
-                foreach (var sibling in siblingNotes)
-                {
-                    beatLeftovers.Remove(CloseNote(events, sibling, endsAt));
-                }
-            }
-            else
-            {
-                beatLeftovers.Remove(CloseNote(events, note, note.EndTick));
+                beatLeftovers.Remove(CloseNote(events, sibling, endsAt));
             }
         }
     }
 
-    public static (TimedEvent TimedEvent, Nóta Note, long EndTick)  CloseNote(
-            Events events, 
+    public static (TimedEvent TimedEvent, Nóta Note, long EndTick) CloseNote(
+            Events events,
             (TimedEvent TimedEvent, Nóta Note, long EndTick) note,
             long endsAt)
     {
