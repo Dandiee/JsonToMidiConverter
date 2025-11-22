@@ -34,8 +34,6 @@ public class Events : IEnumerable<TimedEvent>
         SevenBitNumber? noteNumberOverride = null)
     {
 
-        
-
         var origNoteNumber = note?.NoteNumber;
         if (noteNumberOverride != null)
         {

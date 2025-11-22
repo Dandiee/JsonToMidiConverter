@@ -11,7 +11,7 @@ var songPairs = new Dictionary<string, string>
     [@"References\Nirvana.mid"] = "Come as you are",
 };
 
-var pair = songPairs.ElementAt(1);
+var pair = songPairs.ElementAt(0);
 
 var match = Database.Search(pair.Value).First();
 var data = Database.GetMidiData(match.SongId);

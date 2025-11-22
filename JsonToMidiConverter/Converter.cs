@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using JsonToMidiConverter.Context;
 using JsonToMidiConverter.Models.Song;
 using Melanchall.DryWetMidi.Common;
@@ -50,7 +51,7 @@ internal static class Converter
 
                         currentTime = AddNoteAttack(trackEvents, noteGroup, currentTime);
                         currentTime = AddVibrato(trackEvents, noteGroup, currentTime);
-                        currentTime = AddSlides(trackEvents, noteGroup, currentTime);
+                        currentTime = AddShift(trackEvents, noteGroup, currentTime);
 
                         currentTime += StrumOffsetTicks;
                     }
@@ -102,20 +103,9 @@ internal static class Converter
         }
     }
 
-    public static Time AddSlides(Events events, Nóta note, Time currentTime)
-    {
-        if (note.Slide == Slide.None) return currentTime;
-
-        // Note: AddShift handles "Shift", "Downwards", and "Upwards"
-        currentTime = AddLegato(events, note, currentTime);
-        currentTime = AddShift(events, note, currentTime);
-
-        return currentTime;
-    }
-
     public static Time AddShift(Events events, Nóta note, Time currentTime)
     {
-        if (note.Slide == Slide.None || note.Slide == Slide.Legato) return currentTime;
+        if (note.Slide == Slide.None) return currentTime;
 
         var fullDuration = note.ActualDuration;
 
@@ -126,7 +116,6 @@ internal static class Converter
         var targetPitch = note.GetSlideTargetPitch();
         var direction = targetPitch < note.NoteNumber ? -1 : 1;
         var semitoneDistance = Math.Abs(targetPitch - note.NoteNumber);
-
 
         // --- CASE 1: CONTINUOUS SLIDE (1 Semitone or Legato Logic) ---
         if (semitoneDistance <= 1)
@@ -140,11 +129,15 @@ internal static class Converter
             currentTime += fullDuration - slideTailDuration;
             fullDuration = slideTailDuration;
 
+            Debug.WriteLine($"P{note.Part.Index}, M{note.Measure.Index}, B{note.Beat.Index}, N{note.Index} S{note.Slide} T{note.Tie} V{note.Vibrato}: PitchBends");
+
             // Generate the Pitch Bend Ramp
             AddLegatoPitchBends(currentTime, note, slideTemplate, fullDuration);
         }
         else // --- CASE 2: STEPPED SLIDE (> 1 Semitone) ---
         {
+            Debug.WriteLine($"P{note.Part.Index}, M{note.Measure.Index}, B{note.Beat.Index}, N{note.Index} S{note.Slide} T{note.Tie} V{note.Vibrato}: SteppedSlide");
+
             var totalSteps = semitoneDistance - 1;
             var stepSizeTicks = note.GetShiftStepSizeTicks(); // Assuming this uses our Unified Logic
 
@@ -264,11 +257,19 @@ internal static class Converter
 
         if (!note.Tie && note.Slide == Slide.Legato)
         {
+            Debug.WriteLine($"");
+
             if (!note.Vibrato)
             {
+                Debug.WriteLine($"P{note.Part.Index}, M{note.Measure.Index}, B{note.Beat.Index}, N{note.Index} S{note.Slide} T{note.Tie} V{note.Vibrato}: PitchBends");
+
                 // Split note 50/50 if no vibrato
                 remainingDuration /= 2;
                 currentTime += remainingDuration;
+            }
+            else
+            {
+                Debug.WriteLine($"P{note.Part.Index}, M{note.Measure.Index}, B{note.Beat.Index}, N{note.Index} S{note.Slide} T{note.Tie} V{note.Vibrato}: PitchBends");
             }
 
             AddLegatoPitchBends(currentTime, note, events, remainingDuration);
