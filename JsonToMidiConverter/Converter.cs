@@ -107,15 +107,19 @@ internal static class Converter
         if (note.Slide == Slide.None) return currentTime;
 
         // Note: AddShift handles "Shift", "Downwards", and "Upwards"
-        currentTime = AddLegato(events, note, currentTime);
         currentTime = AddShift(events, note, currentTime);
+        currentTime = AddLegato(events, note, currentTime);
+        
 
         return currentTime;
     }
 
     public static Time AddShift(Events events, Nóta note, Time currentTime)
     {
-        if (note.Slide == Slide.None || note.Slide == Slide.Legato) return currentTime;
+        if (note.Slide == Slide.None) return currentTime;
+
+        
+
 
         var fullDuration = note.ActualDuration;
 
@@ -127,6 +131,13 @@ internal static class Converter
         var direction = targetPitch < note.NoteNumber ? -1 : 1;
         var semitoneDistance = Math.Abs(targetPitch - note.NoteNumber);
 
+        if (note.Slide == Slide.Legato)
+        {
+            if (semitoneDistance == 1)
+            {
+                return currentTime;
+            }
+        }
 
         // --- CASE 1: CONTINUOUS SLIDE (1 Semitone or Legato Logic) ---
         if (semitoneDistance <= 1)
@@ -145,8 +156,10 @@ internal static class Converter
         }
         else // --- CASE 2: STEPPED SLIDE (> 1 Semitone) ---
         {
+
             var totalSteps = semitoneDistance - 1;
             var stepSizeTicks = note.GetShiftStepSizeTicks(); // Assuming this uses our Unified Logic
+
 
             var firstNoteHoldDuration = fullDuration - (totalSteps * stepSizeTicks);
 
@@ -258,20 +271,31 @@ internal static class Converter
 
     public static Time AddLegato(Events events, Nóta note, Time currentTime)
     {
+        // 1. Guard Clauses
         if (note.Slide != Slide.Legato) return currentTime;
 
-        var remainingDuration = note.ActualDuration;
-
-        if (!note.Tie && note.Slide == Slide.Legato)
+        // We only process if it's NOT a tie (Ties usually just extend the previous note)
+        if (!note.Tie)
         {
+            note.Is(0,4,11,0);
+            // 2. Calculate the Unified Slide Duration
+            // This is the single source of truth now.
+            var slideDurationTicks = note.NewGetSlideDurationTicks();
+
+            // 3. Handle The "Hold" Phase
+            // If there's no vibrato, we need to advance the cursor past the "Hold" part.
+            // If there IS vibrato, we assume the vibrato logic handles the timing or starts immediately.
             if (!note.Vibrato)
             {
-                // Split note 50/50 if no vibrato
-                remainingDuration /= 2;
-                currentTime += remainingDuration;
+                // Hold Duration = Total - Slide
+                // We advance 'currentTime' to the exact moment the slide starts.
+                currentTime += (note.ActualDuration.Tick - slideDurationTicks);
             }
 
-            AddLegatoPitchBends(currentTime, note, events, remainingDuration);
+            // 4. Generate the Bends
+            // Pass the calculated 'slideDurationTicks' explicitly.
+            // (Assuming AddLegatoPitchBends takes a Time object or long)
+            AddLegatoPitchBends(currentTime, note, events, new Time(slideDurationTicks));
         }
 
         return currentTime;

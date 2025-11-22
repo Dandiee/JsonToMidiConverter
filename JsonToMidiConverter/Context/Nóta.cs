@@ -154,8 +154,6 @@ public sealed partial class Nóta
         }
     }
 
-
-
     public long GetShiftStepSizeTicks()
     {
         var targetPitch = GetSlideTargetPitch();
@@ -172,8 +170,6 @@ public sealed partial class Nóta
             ? (totalTicks * 3) / 4  // 75% Cap
             : totalTicks / 2;       // 50% Cap
 
-
-
         // var idealDuration = new Time(semitoneDistance - 1) * 960;
         var idealDuration = isSlideOut
             ? new Time(semitoneDistance) * 960
@@ -185,7 +181,62 @@ public sealed partial class Nóta
             ? semitoneDistance
             : semitoneDistance - 1;
 
-        return (finalDuration / denominator).Tick;
+        var originalValue = (finalDuration / denominator).Tick;
+
+        var suggestedImplValue = NewGetShiftStepSizeTicks();
+        Debug.Assert(suggestedImplValue == originalValue);
+
+        return originalValue;
+    }
+
+    public long NewGetShiftStepSizeTicks()
+    {
+        // 1. Get the unified duration
+        var slideDuration = NewGetSlideDurationTicks();
+
+        // 2. Determine the Denominator (Step Count)
+        var targetPitch = GetSlideTargetPitch();
+        var semitoneDistance = Math.Abs(targetPitch - NoteNumber);
+        var isSlideOut = Slide == Slide.Downwards || Slide == Slide.Upwards;
+
+        long denominator = isSlideOut
+            ? semitoneDistance
+            : Math.Max(1, semitoneDistance - 1);
+
+        // 3. Return the Step Size
+        return slideDuration / denominator;
+    }
+
+    public long NewGetSlideDurationTicks()
+    {
+        // 1. Basic Setup
+        var targetPitch = GetSlideTargetPitch();
+        var semitoneDistance = Math.Abs(targetPitch - NoteNumber);
+        var totalTicks = ActualDuration.Tick;
+        var isSlideOut = Slide == Slide.Downwards || Slide == Slide.Upwards;
+
+        // 2. Define the "Workload" (How many transitions do we need to make?)
+        // SlideOut: We slide through every semitone (Distance = Steps).
+        // Shift/Legato: We slide TO the target. The target itself is the destination.
+        //               (Distance 4 means 3 moves: 0->1, 1->2, 2->3. Arrive at 4).
+        //               We use Math.Max(1, ...) to ensure 1-semitone shifts still have a duration.
+        long transitions = isSlideOut
+            ? semitoneDistance
+            : Math.Max(1, semitoneDistance - 1);
+
+        // 3. Define the Constraints (Caps)
+        var maxDuration = isSlideOut
+            ? (totalTicks * 3) / 4  // 75% Cap for Slide Outs
+            : totalTicks / 2;       // 50% Cap for Standard Shifts/Legato
+
+        // 4. Calculate Ideal Duration (The Unified "Speed Limit")
+        // 960 ticks (1/64th note in your grid? Or Quarter Note?) per transition.
+        // Based on your original code: new Time(semitoneDistance) * 960
+        var idealDuration = transitions * 960;
+
+        // 5. The Verdict
+        // If we have room, take the ideal time. If not, clamp to the Cap.
+        return Math.Min(idealDuration, maxDuration);
     }
 
     public bool GetWillBeTied()
@@ -224,7 +275,6 @@ public sealed partial class Nóta
     }
 
     public bool IsPitchEqual(Nóta note) => note.Fret == Fret && (int)note.StringNumber == (int)StringNumber;
-
 
 
     public void Is(int noteIndex, int beatIndex, int measureIndex, int? partIndex = null)
@@ -273,7 +323,8 @@ public sealed partial class Nóta
         {
             return (SevenBitNumber)(NoteNumber + 9);
         }
-        if (Slide == Slide.Legato) return 1.To7();
+        if (Slide == Slide.Legato) return GetSlideTarget().NoteNumber;
+        //return 1.To7();
 
         throw new Exception("what slide");
     }

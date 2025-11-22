@@ -70,6 +70,8 @@ public class Events : IEnumerable<TimedEvent>
                     var diff = refEvent.AbsoluteTime - time.Tick;
                     if (Math.Abs(diff) > 9)
                     {
+                        var current = note;
+                        var type = midiEvent.EventType;
                         Debug.Assert(refEvent.AbsoluteTime == time.Tick);
                     }
                 }
