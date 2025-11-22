@@ -13,7 +13,7 @@ internal static class MidiConverter
     // Standard MIDI Values
     private const int PitchBendCenter = 8192;
 
-    public static readonly SevenBitNumber DefaultVelocity = 9.To7();
+    public static readonly SevenBitNumber DefaultVelocity = 112.To7();
 
     public static MidiFile Convert(Song song)
     {
