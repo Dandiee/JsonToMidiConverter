@@ -55,31 +55,7 @@ internal static partial class MidiConverter
                             continue;
                         }
 
-                        if (part.IsPianoLike) // for piano its different
-                        {
-                            foreach (var n in beat.notes.Where(e => !e.tie))
-                            {
-                                events.Add(new PitchBendEvent(8192), currentCursor, n);
-                            }
-
-                            foreach (var n in beat.notes.Where(e => !e.tie))
-                            {
-                                events.Add(new NoteOnEvent(n.NoteNumber, Velocity), currentCursor, n);
-                            }
-                        }
-                        else
-                        {
-                            foreach (var n in beat.notes.Where(e => !e.tie))
-                            {
-                                events.Add(new PitchBendEvent(8192), currentCursor, n);
-                                events.Add(new NoteOnEvent(n.NoteNumber, Velocity), currentCursor, n);
-
-                                if (beat.notes.Length > 1)
-                                {
-                                    currentCursor += 123;
-                                }
-                            }
-                        }
+                        currentCursor = AddAttackNote(events, note, currentCursor);
 
                         var actualDuration = note.ActualDuration.Clone();
 
@@ -333,9 +309,35 @@ internal static partial class MidiConverter
         return midiFile;
     }
 
-    public static void AddAttackNote()
+    public static Time AddAttackNote(Events events, Nóta note, Time cursor)
     {
+        if (note.Part.IsPianoLike) // for piano its different
+        {
+            foreach (var n in note.Beat.notes.Where(e => !e.tie))
+            {
+                events.Add(new PitchBendEvent(8192), cursor, n);
+            }
 
+            foreach (var n in note.Beat.notes.Where(e => !e.tie))
+            {
+                events.Add(new NoteOnEvent(n.NoteNumber, Velocity), cursor, n);
+            }
+        }
+        else
+        {
+            foreach (var n in note.Beat.notes.Where(e => !e.tie))
+            {
+                events.Add(new PitchBendEvent(8192), cursor, n);
+                events.Add(new NoteOnEvent(n.NoteNumber, Velocity), cursor, n);
+
+                if (note.Beat.notes.Length > 1)
+                {
+                    cursor += 123;
+                }
+            }
+        }
+
+        return cursor;
     }
 
     public static void BuildHeader(Part part, Events events)
