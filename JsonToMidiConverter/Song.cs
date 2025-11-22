@@ -331,6 +331,8 @@ public class Nóta
     [JsonIgnore]
     public Slide Slide { get; private set; }
 
+    public Queue<(MidiEvent Event, Time Time)> PendingEvents { get; private set; } = new();
+
     public void Build(Beat beat, int index)
     {
         Index = index;
@@ -473,15 +475,18 @@ public class Nóta
         }
 
         var isSlideOut = Slide == Slide.Downwards || Slide == Slide.Upwards;
-
         var totalTicks = ActualDuration;
         var maxDuration = isSlideOut
             ? (totalTicks * 3) / 4  // 75% Cap
             : totalTicks / 2;       // 50% Cap
 
-        
 
-        var idealDuration = new Time(semitoneDistance - 1) * 960;
+
+        // var idealDuration = new Time(semitoneDistance - 1) * 960;
+        var idealDuration = isSlideOut
+            ? new Time(semitoneDistance) * 960
+            : new Time(semitoneDistance - 1) * 960;
+
         var finalDuration = idealDuration < maxDuration ? idealDuration : maxDuration;
 
         long denominator = isSlideOut
@@ -576,6 +581,8 @@ public class Nóta
         {
             return (SevenBitNumber)(NoteNumber + 9);
         }
+        if (Slide == Slide.Legato) return 1.To7();
+
         throw new Exception("what slide");
     }
 

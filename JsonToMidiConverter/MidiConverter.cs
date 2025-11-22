@@ -10,7 +10,7 @@ namespace JsonToMidiConverter;
 internal static partial class MidiConverter
 {
     private const int TicksPerQuarterNote = 15360;
-    
+
     public static readonly SevenBitNumber Velocity = 9.To7();
 
     public static MidiFile Convert(Song song)
@@ -85,7 +85,7 @@ internal static partial class MidiConverter
 
 
                         // Sliding nightmare
-                        if (note.Slide == Slide.Shift|| note.Slide == Slide.Downwards || note.Slide == Slide.Upwards)
+                        if (note.Slide == Slide.Shift || note.Slide == Slide.Downwards || note.Slide == Slide.Upwards)
                         {
                             if (note.Part.Index == 8 && note.Measure.Index == 60)
                             {
@@ -111,7 +111,7 @@ internal static partial class MidiConverter
                             }
                             else
                             {
-                                if (note.Beat.Index == 7 && note.Measure.Index == 72 && note.Part.Index == 8)
+                                if (note.Beat.Index == 11 && note.Measure.Index == 72 && note.Part.Index == 8)
                                 {
 
                                 }
@@ -215,6 +215,7 @@ internal static partial class MidiConverter
                             }
                         }
 
+                        bool isCleanSlide = note.Slide == Slide.Shift || note.Slide == Slide.Legato;
                         if (note.vibrato)
                         {
                             events.Add(new ControlChangeEvent(1.To7(), 64.To7()), currentCursor, note);
@@ -223,7 +224,16 @@ internal static partial class MidiConverter
                                 currentCursor += actualDuration / 2;
                             else
                                 currentCursor += actualDuration;
-                            events.Add(new ControlChangeEvent(1.To7(), 0.To7()), currentCursor, note);
+
+                            if (isCleanSlide)
+                            {
+                                events.Add(new ControlChangeEvent(1.To7(), 0.To7()), currentCursor, note);
+                            }
+                            else
+                            {
+                                note.PendingEvents.Enqueue(new(new ControlChangeEvent(1.To7(), 0.To7()), currentCursor));
+                            }
+
                         }
 
                         // Legato
@@ -237,6 +247,11 @@ internal static partial class MidiConverter
 
                             AddLegatoPitchBends(currentCursor, note, events, actualDuration);
                         }
+
+                        //if (!isCleanSlide && note.vibrato)
+                        //{
+                        //    events.Add(new ControlChangeEvent(1.To7(), 0.To7()), currentCursor, note);
+                        //}
 
                         currentCursor += 123;
                     }
@@ -256,9 +271,9 @@ internal static partial class MidiConverter
                         .OrderByDescending(e => e.Note.tie)
                         .ToList();
 
-                    
-                        
-                    
+
+
+
                     if (part.Index == 8 && measure.Index == 47 && beat.Index == 5)
                     {
 
@@ -267,30 +282,44 @@ internal static partial class MidiConverter
                     while (beatLeftovers.Count > 0)
                     {
                         var note = beatLeftovers[0];
-                        
+
                         if (events.NoteOns.Count > 1)
                         {
                             var siblingNotes = events.NoteOns
                                 .Where(e => e.Note.Beat == note.Note.Beat)
                                 .OrderBy(e => !e.Note.tie)
                                 .ThenBy(e => e.TimedEvent.As<NoteOnEvent>().Channel)
-                                
+
                                 .ToList();
 
                             var endsAt = siblingNotes.Min(e => e.EndTick);
 
                             foreach (var sibling in siblingNotes)
                             {
+                                while (sibling.Note.PendingEvents.TryDequeue(out var pendingEvent))
+                                {
+                                    events.Add(pendingEvent.Event, new Time(sibling.EndTick), sibling.Note);
+                                }
+
                                 var noteNumber = sibling.TimedEvent.As<NoteOnEvent>().NoteNumber;
                                 events.Add(new NoteOffEvent(noteNumber, Velocity), new Time(endsAt), sibling.Note);
                                 beatLeftovers.Remove(sibling);
+
+                                
                             }
                         }
                         else
                         {
+                            while (note.Note.PendingEvents.TryDequeue(out var pendingEvent))
+                            {
+                                events.Add(pendingEvent.Event, new Time(note.EndTick), note.Note);
+                            }
+
                             var noteNumber = note.TimedEvent.As<NoteOnEvent>().NoteNumber;
                             events.Add(new NoteOffEvent(noteNumber, Velocity), new Time(note.EndTick), note.Note);
                             beatLeftovers.Remove(note);
+
+                            
                         }
                     }
                 }
@@ -334,7 +363,7 @@ internal static partial class MidiConverter
         for (var i = 0; i < 9; i++)
         {
             // RPN Pitch Range Setup (Your 4 events)
-            events.Add(new ControlChangeEvent(101.To7(),0.To7()), timeZero, null, i, part.partId);
+            events.Add(new ControlChangeEvent(101.To7(), 0.To7()), timeZero, null, i, part.partId);
             events.Add(new ControlChangeEvent(100.To7(), 0.To7()), timeZero, null, i, part.partId);
             events.Add(new ControlChangeEvent(6.To7(), 24.To7()), timeZero, null, i, part.partId);
             events.Add(new ControlChangeEvent(38.To7(), 0.To7()), timeZero, null, i, part.partId);
