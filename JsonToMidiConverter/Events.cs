@@ -87,7 +87,10 @@ public class Events : IEnumerable<TimedEvent>
                         {
                             if (!(propName == "PitchValue" && actualValue.ToString() == "8888"))
                             {
+                                
+
                                 Debug.Assert(referenceValue.ToString() == actualValue.ToString(), propName);
+                                var askjdhskdjfh = note?.GetNoteChannel();
                             }
                         }
                     }

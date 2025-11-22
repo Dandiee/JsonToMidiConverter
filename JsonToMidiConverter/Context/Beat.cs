@@ -33,6 +33,8 @@ public sealed partial class Beat
 
         AbsoluteBeatStartTime = Measure.StartTime + RelativeBeatStartTime;
 
+        Notes = Notes.OrderBy(e => e.StringNumber).ToArray();
+
         if (!Part.IsPianoLike) // for piano we dont change the fuckin note order
         {
             Notes = Notes.Reverse().ToArray();

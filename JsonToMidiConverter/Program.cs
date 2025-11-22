@@ -29,7 +29,5 @@ song.Build();
 DebugShit.CheckConsistency(pair.Key, song);
 DebugShit.WriteDebugFile(song);
 
-return;
 var midiFile = Converter.Convert(song, pair.Key);
-
 midiFile.Write("Output.mid", overwriteFile: true);
