@@ -1,6 +1,4 @@
 using Melanchall.DryWetMidi.Core;
-using System;
-using System.Linq;
 
 class DetailedCompare
 {

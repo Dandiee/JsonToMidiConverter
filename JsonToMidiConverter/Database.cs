@@ -1,8 +1,4 @@
 ﻿using JsonToMidiConverter.Models;
-using Melanchall.DryWetMidi.Common;
-using Melanchall.DryWetMidi.Core;
-using Melanchall.DryWetMidi.Interaction;
-using System.IO;
 using System.IO.Compression;
 using System.Text.Json;
 

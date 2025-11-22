@@ -1,5 +1,3 @@
-using System;
-using System.Linq;
 using Melanchall.DryWetMidi.Core;
 
 internal static class MidiDiff

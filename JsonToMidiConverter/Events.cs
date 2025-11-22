@@ -4,6 +4,8 @@ using Melanchall.DryWetMidi.Interaction;
 using System.Collections;
 using System.Diagnostics;
 using System.Reflection;
+using JsonToMidiConverter.Context;
+using JsonToMidiConverter.Models.Song;
 
 namespace JsonToMidiConverter;
 
