@@ -232,72 +232,9 @@ internal static partial class MidiConverter
                         currentCursor += 123;
                     }
 
-                    if (measure.Index == 23)
-                    {
+                    CloseBeat(events, beat);
 
-                    }
-
-                    var beatStart = beatCursor;
-                    var beatEnd = beatStart + beat.MusicalDuration;
-                    var nextMeasureStart = new Time(new BarBeatFractionTimeSpan(measure.Index + 1));
-
-                    var beatLeftovers = events.NoteOns
-                        .Where(e => e.EndTick >= beatStart.Tick)
-                        .Where(e => e.EndTick <= beatEnd.Tick)
-                        .OrderByDescending(e => e.Note.tie)
-                        .ToList();
-
-
-
-
-                    if (part.Index == 8 && measure.Index == 47 && beat.Index == 5)
-                    {
-
-                    }
-
-                    while (beatLeftovers.Count > 0)
-                    {
-                        var note = beatLeftovers[0];
-
-                        if (events.NoteOns.Count > 1)
-                        {
-                            var siblingNotes = events.NoteOns
-                                .Where(e => e.Note.Beat == note.Note.Beat)
-                                .OrderBy(e => !e.Note.tie)
-                                .ThenBy(e => e.TimedEvent.As<NoteOnEvent>().Channel)
-
-                                .ToList();
-
-                            var endsAt = siblingNotes.Min(e => e.EndTick);
-
-                            foreach (var sibling in siblingNotes)
-                            {
-                                while (sibling.Note.PendingEvents.TryDequeue(out var pendingEvent))
-                                {
-                                    events.Add(pendingEvent.Event, new Time(sibling.EndTick), sibling.Note);
-                                }
-
-                                var noteNumber = sibling.TimedEvent.As<NoteOnEvent>().NoteNumber;
-                                events.Add(new NoteOffEvent(noteNumber, Velocity), new Time(endsAt), sibling.Note);
-                                beatLeftovers.Remove(sibling);
-
-                                
-                            }
-                        }
-                        else
-                        {
-                            while (note.Note.PendingEvents.TryDequeue(out var pendingEvent))
-                            {
-                                events.Add(pendingEvent.Event, new Time(note.EndTick), note.Note);
-                            }
-
-                            var noteNumber = note.TimedEvent.As<NoteOnEvent>().NoteNumber;
-                            events.Add(new NoteOffEvent(noteNumber, Velocity), new Time(note.EndTick), note.Note);
-                            beatLeftovers.Remove(note);
-
-                            
-                        }
-                    }
+                    
                 }
             }
 
@@ -338,6 +275,59 @@ internal static partial class MidiConverter
         }
 
         return cursor;
+    }
+
+    public static void CloseBeat(Events events, Beat beat)
+    {
+        var beatStart = beat.AbsoluteBeatStartTime;
+        var beatEnd = beatStart + beat.MusicalDuration;
+        var beatLeftovers = events.NoteOns
+            .Where(e => e.EndTick >= beatStart.Tick)
+            .Where(e => e.EndTick <= beatEnd.Tick)
+            .OrderByDescending(e => e.Note.tie)
+            .ToList();
+
+        while (beatLeftovers.Count > 0)
+        {
+            var note = beatLeftovers[0];
+
+            if (events.NoteOns.Count > 1)
+            {
+                var siblingNotes = events.NoteOns
+                    .Where(e => e.Note.Beat == note.Note.Beat)
+                    .OrderBy(e => !e.Note.tie)
+                    .ThenBy(e => e.TimedEvent.As<NoteOnEvent>().Channel)
+
+                    .ToList();
+
+                var endsAt = siblingNotes.Min(e => e.EndTick);
+
+                foreach (var sibling in siblingNotes)
+                {
+                    beatLeftovers.Remove(CloseNote(events, sibling, endsAt));
+                }
+            }
+            else
+            {
+                beatLeftovers.Remove(CloseNote(events, note, note.EndTick));
+            }
+        }
+    }
+
+    public static (TimedEvent TimedEvent, Nóta Note, long EndTick)  CloseNote(
+            Events events, 
+            (TimedEvent TimedEvent, Nóta Note, long EndTick) note,
+            long endsAt)
+    {
+        while (note.Note.PendingEvents.TryDequeue(out var pendingEvent))
+        {
+            events.Add(pendingEvent.Event, new Time(endsAt), note.Note);
+        }
+
+        var noteNumber = note.TimedEvent.As<NoteOnEvent>().NoteNumber;
+        events.Add(new NoteOffEvent(noteNumber, Velocity), new Time(endsAt), note.Note);
+
+        return note;
     }
 
     public static void BuildHeader(Part part, Events events)
