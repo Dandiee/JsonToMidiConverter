@@ -17,7 +17,7 @@ public static class DebugShit
 
         foreach (var part in song.Parts.OrderBy(e => e.PartId))
         {
-            sb.AppendLine($"PartId: {part.PartId.ToString().PadLeft(2)}, TempCount: {part.Automations.Tempo.Length}; Bal: {part.Balance}; Vol: {part.Volume}; Frets: {part.Frets}, Strings: {part.Strings}; MesCount: {part.Measures.Length}; Name: {part.Name}");
+            sb.AppendLine($"Part{part.PartId.ToString().PadLeft(2)}, TempCount: {part.Automations.Tempo.Length}; Bal: {part.Balance}; Vol: {part.Volume}; Frets: {part.Frets}, Strings: {part.Strings}; MesCount: {part.Measures.Length}; Name: {part.Name}");
 
             for (var i = 0; i < part.Measures.Length; i++)
             {
@@ -77,9 +77,21 @@ public static class DebugShit
 
         sb.AppendLine($"Chunk count: {mid.Chunks.Count}");
         var chunkind = 0;
+
+        var typeMap = new Dictionary<MidiEventType, string>()
+        {
+            [MidiEventType.NoteOn] = "On",
+            [MidiEventType.NoteOff] = "Off",
+            [MidiEventType.PitchBend] = "Pitch",
+            [MidiEventType.Marker] = "Marker",
+            [MidiEventType.Marker] = "Program",
+        };
+        var attrExclusion = new []{ "Channel", "DeltaTime", "EventType", "NoteNumber" }.ToHashSet();
         foreach (var chunk in mid.Chunks.OfType<TrackChunk>())
         {
-            sb.AppendLine($"ChunkInd: {chunkind++}; EventCount: {chunk.Events.Count}");
+            sb.AppendLine();
+            sb.AppendLine();
+            sb.AppendLine($"Part{chunkind++}; EventCount: {chunk.Events.Count}");
 
             long currentTime = 0;
             var ind = 0;
@@ -88,21 +100,28 @@ public static class DebugShit
             {
                 currentTime += e.DeltaTime;
                 var type = e.GetType();
-                var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+                var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                    .Where(e => !attrExclusion.Contains(e.Name));
 
                 var attributes = string.Join("; ", properties.OrderBy(e => e.Name).Select(prop => $"{prop.Name}: {prop.GetValue(e)}"));
-                if (e is MarkerEvent)
+                if (e is MarkerEvent marker)
                 {
-                    sb.AppendLine($"\t[{ind}] {type.Name} [Time: {currentTime}]- {attributes}");
+                    sb.AppendLine();
+                    sb.AppendLine($"[{ind}] Part: {chunkind};  {marker.Text};    At: {currentTime}  -----------------------------------------------");
                 }
                 else
                 {
-                    sb.AppendLine($"\t\t[{ind}] {type.Name} [Time: {currentTime}]- {attributes}");
+                    if (!typeMap.TryGetValue(e.EventType, out var niceName))
+                    {
+                        niceName = type.Name;
+                    }
+
+                    
+                    var ch = (e as ChannelEvent)?.Channel.ToString() ?? string.Empty;
+                    var nn = (e as NoteEvent)?.NoteNumber.ToString() ?? string.Empty;
+
+                    sb.AppendLine($"\t[{ind}] {niceName.PadRight(10)} Note: {nn.PadLeft(2)}; At: {currentTime}; Ch: {ch}; Delta: {e.DeltaTime.ToString().PadLeft(6)} {attributes}");
                 }
-
-
-
-
 
                 ind++;
             }
