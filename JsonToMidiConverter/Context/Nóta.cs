@@ -273,7 +273,7 @@ public sealed partial class Nóta
         {
             return (SevenBitNumber)(NoteNumber + 9);
         }
-        if (Slide == Slide.Legato) return 1.To7();
+        if (Slide == Slide.Legato) return GetSlideTarget().NoteNumber;
 
         throw new Exception("what slide");
     }
