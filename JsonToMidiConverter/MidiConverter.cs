@@ -24,9 +24,6 @@ internal static class MidiConverter
 
         foreach (var part in song.parts)
         {
-            // Skip Drum Track (Part 10) for now
-            if (part.partId == 10) continue;
-
             var trackEvents = new Events();
             AddTrackHeader(trackEvents, part);
 
@@ -398,25 +395,29 @@ internal static class MidiConverter
     {
         var timeZero = new Time();
 
-        for (var i = 0; i < 9; i++)
+        var channels = part.instrumentId == 1024
+            ? [9]
+            : Enumerable.Range(0, 9).ToArray();
+
+        foreach(var i in channels)
         {
             // Program Change
             events.Add(new ProgramChangeEvent(part.instrumentId.To7()), timeZero, null, i, part.partId);
         }
 
-        for (var i = 0; i < 9; i++)
+        foreach (var i in channels)
         {
             // Mod Wheel Reset
             events.Add(new ControlChangeEvent(1.To7(), 0.To7()), timeZero, null, i, part.partId);
         }
 
-        for (var i = 0; i < 9; i++)
+        foreach (var i in channels)
         {
             // Pitch Bend Reset
             events.Add(new PitchBendEvent(8192), timeZero, null, i, part.partId);
         }
 
-        for (var i = 0; i < 9; i++)
+        foreach (var i in channels)
         {
             // RPN Pitch Range Setup (Your 4 events)
             events.Add(new ControlChangeEvent(101.To7(), 0.To7()), timeZero, null, i, part.partId);

@@ -55,7 +55,7 @@ public class Events : IEnumerable<TimedEvent>
         {
             var pid = partId ?? note.Part.Index;
 
-            if (pid < 10)
+            //if (pid < 10)
             {
                 var refEvent = ReferenceData[pid][TimedEvents.Count];
 

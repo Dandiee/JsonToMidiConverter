@@ -93,7 +93,7 @@ public class Part
         return tempoMapManager.TempoMap;
     }
 
-    public static readonly HashSet<int> PianoLikeInstruments = new() { 0, 48 };
+    public static readonly HashSet<int> PianoLikeInstruments = new() { 0, 48, 1024 };
 }
 
 public class Automations
