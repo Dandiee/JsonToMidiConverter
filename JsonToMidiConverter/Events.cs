@@ -43,6 +43,7 @@ public class Events : IEnumerable<TimedEvent>
 
         if (midiEvent is ChannelEvent channelEvent)
         {
+            var w = note?.GetNoteChannel();
             channelEvent.Channel = (channelOverride ?? note.Channel).To4();
         }
 

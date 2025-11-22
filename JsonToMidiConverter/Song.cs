@@ -588,10 +588,11 @@ public class Nóta
 
     public FourBitNumber GetNoteChannel()
     {
-        if (Part.instrumentId == 71 || Part.instrumentId == 68 || Part.instrumentId == 27 || Part.instrumentId == 30)
+        if (Part.instrumentId == 71 || Part.instrumentId == 68 || Part.instrumentId == 27 || Part.instrumentId == 30 || Part.instrumentId == 29)
         {
             return (FourBitNumber)StringNumber;
         }
+
 
         if (Part.instrumentId == 27) return 2.To4();
         if (Part.instrumentId == 1024) return 9.To4();
