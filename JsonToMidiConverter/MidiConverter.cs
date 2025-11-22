@@ -60,7 +60,7 @@ internal static partial class MidiConverter
                         currentCursor = AddVibrato(events, note, currentCursor);
 
                         currentCursor = AddSlide(events, note, currentCursor);
-                        
+
 
                         currentCursor += 123;
                     }
@@ -83,9 +83,18 @@ internal static partial class MidiConverter
     {
         if (note.Slide == Slide.None) return currentCursor;
 
+        currentCursor = AddLegato(events, note, currentCursor);
+        currentCursor = AddShift(events, note, currentCursor);
+
+        return currentCursor;
+    }
+
+    public static Time AddShift(Events events, Nóta note, Time currentCursor)
+    {
+        if (note.Slide == Slide.None || note.Slide == Slide.Legato) return currentCursor;
+
         var actualDuration = note.ActualDuration;
 
-        // Sliding nightmare
         if (note.Slide == Slide.Shift || note.Slide == Slide.Downwards || note.Slide == Slide.Upwards)
         {
             Events.SuspenseValidation = true;
@@ -211,13 +220,11 @@ internal static partial class MidiConverter
             }
         }
 
-
-        // Legato
-
-        currentCursor = AddLegato(events, note, currentCursor);
-
         return currentCursor;
+
     }
+
+
 
     public static Time AddLegato(Events events, Nóta note, Time cursor)
     {
@@ -262,7 +269,7 @@ internal static partial class MidiConverter
         return cursor;
     }
 
-    
+
 
     public static Time AddAttackNote(Events events, Nóta note, Time cursor)
     {
