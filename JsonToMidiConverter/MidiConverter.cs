@@ -57,11 +57,9 @@ internal static partial class MidiConverter
 
                         currentCursor = AddAttackNote(events, note, currentCursor);
 
-                        var actualDuration = note.ActualDuration.Clone();
-
                         currentCursor = AddVibrato(events, note, currentCursor);
 
-                        currentCursor = AddSlide(events, note, currentCursor, actualDuration);
+                        currentCursor = AddSlide(events, note, currentCursor);
                         
 
                         currentCursor += 123;
@@ -81,8 +79,12 @@ internal static partial class MidiConverter
         return midiFile;
     }
 
-    public static Time AddSlide(Events events, Nóta note, Time currentCursor, Time actualDuration)
+    public static Time AddSlide(Events events, Nóta note, Time currentCursor)
     {
+        if (note.Slide == Slide.None) return currentCursor;
+
+        var actualDuration = note.ActualDuration;
+
         // Sliding nightmare
         if (note.Slide == Slide.Shift || note.Slide == Slide.Downwards || note.Slide == Slide.Upwards)
         {
@@ -210,20 +212,31 @@ internal static partial class MidiConverter
         }
 
 
-
         // Legato
-        if (!note.tie && note.Slide == Slide.Legato)
-        {
-            if (!note.vibrato) // vibrato already took care of the cursor
-            {
-                actualDuration /= 2;
-                currentCursor += actualDuration;
-            }
 
-            AddLegatoPitchBends(currentCursor, note, events, actualDuration);
-        }
+        currentCursor = AddLegato(events, note, currentCursor);
 
         return currentCursor;
+    }
+
+    public static Time AddLegato(Events events, Nóta note, Time cursor)
+    {
+        if (note.Slide != Slide.Legato) return cursor;
+
+        var actualDuration = note.ActualDuration;
+
+        if (!note.tie && note.Slide == Slide.Legato)
+        {
+            if (!note.vibrato)
+            {
+                actualDuration /= 2;
+                cursor += actualDuration;
+            }
+
+            AddLegatoPitchBends(cursor, note, events, actualDuration);
+        }
+
+        return cursor;
     }
 
     public static Time AddVibrato(Events events, Nóta note, Time cursor)
