@@ -23,8 +23,7 @@ public sealed partial class Nóta
     [JsonIgnore] public Time RawDuration { get; private set; }
     [JsonIgnore] public bool WillBeTied { get; private set; }
     [JsonIgnore] public Slide Slide { get; private set; }
-
-    public Queue<(MidiEvent Event, Time Time)> PendingEvents { get; private set; } = new();
+    [JsonIgnore] public Queue<(MidiEvent Event, Time Time)> PendingEvents { get; private set; } = new();
 
     public void Build(Beat beat, int index)
     {
