@@ -1,9 +1,7 @@
 using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
-using Melanchall.DryWetMidi.MusicTheory;
 using System.Diagnostics;
-using Note = Melanchall.DryWetMidi.Interaction.Note;
 
 namespace JsonToMidiConverter;
 
@@ -27,7 +25,7 @@ internal static partial class MidiConverter
 
             if (part.partId == 10) continue;
 
-            var currentCursor = new Time();
+            var cursor = new Time();
 
             foreach (var measure in part.measures)
             {
@@ -45,24 +43,21 @@ internal static partial class MidiConverter
                 {
                     var beatCursor = measureCursor + beat.GetMeasureStartDuration(Time.Map);
 
-                    currentCursor = beatCursor;
+                    cursor = beatCursor;
 
                     foreach (var note in beat.notes.Take(1))
                     {
                         if (note.rest)
                         {
-                            currentCursor += beat.MusicalDuration;
+                            cursor += beat.MusicalDuration;
                             continue;
                         }
 
-                        currentCursor = AddAttackNote(events, note, currentCursor);
+                        cursor = AddAttackNote(events, note, cursor);
+                        cursor = AddVibrato(events, note, cursor);
+                        cursor = AddSlide(events, note, cursor);
 
-                        currentCursor = AddVibrato(events, note, currentCursor);
-
-                        currentCursor = AddSlide(events, note, currentCursor);
-
-
-                        currentCursor += 123;
+                        cursor += 123;
                     }
 
                     CloseBeat(events, beat);
@@ -79,148 +74,145 @@ internal static partial class MidiConverter
         return midiFile;
     }
 
-    public static Time AddSlide(Events events, Nóta note, Time currentCursor)
+    public static Time AddSlide(Events events, Nóta note, Time cursor)
     {
-        if (note.Slide == Slide.None) return currentCursor;
+        if (note.Slide == Slide.None) return cursor;
 
-        currentCursor = AddLegato(events, note, currentCursor);
-        currentCursor = AddShift(events, note, currentCursor);
+        cursor = AddLegato(events, note, cursor);
+        cursor = AddShift(events, note, cursor);
 
-        return currentCursor;
+        return cursor;
     }
 
-    public static Time AddShift(Events events, Nóta note, Time currentCursor)
+    public static Time AddShift(Events events, Nóta note, Time cursor)
     {
-        if (note.Slide == Slide.None || note.Slide == Slide.Legato) return currentCursor;
+        if (note.Slide == Slide.None || note.Slide == Slide.Legato) return cursor;
 
         var actualDuration = note.ActualDuration;
 
-        if (note.Slide == Slide.Shift || note.Slide == Slide.Downwards || note.Slide == Slide.Upwards)
+        Events.SuspenseValidation = true;
+        var shiftBuffer = new Events();
+
+        var targetPitch = note.GetSlideTargetPitch();
+        var direction = targetPitch < note.NoteNumber ? -1 : 1;
+        var semitoneDistance = Math.Abs(targetPitch - note.NoteNumber);
+
+        if (semitoneDistance <= 1)
         {
-            Events.SuspenseValidation = true;
-            var shiftBuffer = new Events();
+            var slideDuration = actualDuration % 960 == 0
+                ? new Time(960)
+                : actualDuration / 4;
 
-            var targetPitch = note.GetSlideTargetPitch();
-            var direction = targetPitch < note.NoteNumber ? -1 : 1;
-            var semitoneDistance = Math.Abs(targetPitch - note.NoteNumber);
-
-            if (semitoneDistance <= 1)
+            cursor += actualDuration - slideDuration;
+            actualDuration = slideDuration;
+            AddLegatoPitchBends(cursor, note, shiftBuffer, actualDuration);
+        }
+        else
+        {
+            if (note.Beat.Index == 11 && note.Measure.Index == 72 && note.Part.Index == 8)
             {
-                var slideDuration = actualDuration % 960 == 0
-                    ? new Time(960)
-                    : actualDuration / 4;
 
-                currentCursor += actualDuration - slideDuration;
-                actualDuration = slideDuration;
-                AddLegatoPitchBends(currentCursor, note, shiftBuffer, actualDuration);
             }
-            else
+
+            var totalSteps = semitoneDistance - 1;
+            var stepSize = note.GetShiftStepSizeTicks();
+
+            var firstNoteDuration = actualDuration - (totalSteps * stepSize);
+
+            if (note.Slide == Slide.Upwards || (note.tie && (note.Slide == Slide.Downwards)))
             {
-                if (note.Beat.Index == 11 && note.Measure.Index == 72 && note.Part.Index == 8)
+                cursor -= stepSize;
+            }
+
+            cursor += firstNoteDuration;
+
+            var currentNote = note.NoteNumber;
+            var nextNote = currentNote + direction;
+
+            shiftBuffer.Add(new PitchBendEvent(8192), cursor, note);
+            shiftBuffer.Add(new NoteOnEvent(nextNote.To7(), Velocity), cursor, note);
+            if (note.tie)
+            {
+                // CASE A: TIED SLIDE OUT (Up/Down) -> "Ghosting"
+                // Logic: Do NOT turn off the source note. It stays alive until the measure/beat ends.
+                if (note.Slide == Slide.Downwards || note.Slide == Slide.Upwards)
                 {
-
+                    cursor += stepSize;
                 }
-
-                var totalSteps = semitoneDistance - 1;
-                var stepSize = note.GetShiftStepSizeTicks();
-
-                var firstNoteDuration = actualDuration - (totalSteps * stepSize);
-
-                if (note.Slide == Slide.Upwards || (note.tie && (note.Slide == Slide.Downwards)))
-                {
-                    currentCursor -= stepSize;
-                }
-
-                currentCursor += firstNoteDuration;
-
-                var currentNote = note.NoteNumber;
-                var nextNote = currentNote + direction;
-
-                shiftBuffer.Add(new PitchBendEvent(8192), currentCursor, note);
-                shiftBuffer.Add(new NoteOnEvent(nextNote.To7(), Velocity), currentCursor, note);
-                if (note.tie)
-                {
-                    // CASE A: TIED SLIDE OUT (Up/Down) -> "Ghosting"
-                    // Logic: Do NOT turn off the source note. It stays alive until the measure/beat ends.
-                    if (note.Slide == Slide.Downwards || note.Slide == Slide.Upwards)
-                    {
-                        currentCursor += stepSize;
-                    }
-                    // CASE B: TIED SHIFT -> "Overlap"
-                    // Logic: Advance time first, then kill (smooth transition).
-                    else
-                    {
-                        currentCursor += stepSize;
-                        shiftBuffer.Add(new NoteOffEvent(currentNote, Velocity), currentCursor, note);
-                    }
-                }
+                // CASE B: TIED SHIFT -> "Overlap"
+                // Logic: Advance time first, then kill (smooth transition).
                 else
                 {
-                    // CASE C: NO TIE (Any Slide) -> "Swap"
-                    // Logic: Kill immediately, then advance (clean cut).
-                    shiftBuffer.Add(new NoteOffEvent(currentNote, Velocity), currentCursor, note);
-                    currentCursor += stepSize;
-                }
-
-
-                var steps = (note.Slide == Slide.Downwards || note.Slide == Slide.Upwards) ? totalSteps + 1 : totalSteps;
-                for (var i = 1; i < steps; i++)
-                {
-                    shiftBuffer.Add(new PitchBendEvent(8192), currentCursor, note);
-
-                    currentNote = (note.NoteNumber + i * direction).To7();
-                    nextNote = (currentNote + direction).To7();
-
-                    shiftBuffer.Add(new NoteOffEvent(currentNote, Velocity), currentCursor, note);
-                    shiftBuffer.Add(new NoteOnEvent(nextNote.To7(), Velocity), currentCursor, note);
-
-                    currentCursor += stepSize;
-
-                }
-            }
-
-            Events.SuspenseValidation = false;
-            if (note.Beat.notes.Length == 1)
-            {
-                var osk = 0;
-                foreach (var bufferEvent in shiftBuffer)
-                {
-                    events.Add(bufferEvent.Event, new Time(bufferEvent.Time), note.Beat.notes[0]);
-                    osk++;
+                    cursor += stepSize;
+                    shiftBuffer.Add(new NoteOffEvent(currentNote, Velocity), cursor, note);
                 }
             }
             else
             {
+                // CASE C: NO TIE (Any Slide) -> "Swap"
+                // Logic: Kill immediately, then advance (clean cut).
+                shiftBuffer.Add(new NoteOffEvent(currentNote, Velocity), cursor, note);
+                cursor += stepSize;
+            }
 
-                var chunks = shiftBuffer.Chunk(3).ToList();
 
-                var strumBase = -(123 * note.Beat.notes.Length);
-                var stepStrum = 123 / 2;
-                var strumDecay = 10;
+            var steps = (note.Slide == Slide.Downwards || note.Slide == Slide.Upwards) ? totalSteps + 1 : totalSteps;
+            for (var i = 1; i < steps; i++)
+            {
+                shiftBuffer.Add(new PitchBendEvent(8192), cursor, note);
 
-                for (var stepIndex = 0; stepIndex < semitoneDistance - 1; stepIndex++)
+                currentNote = (note.NoteNumber + i * direction).To7();
+                nextNote = (currentNote + direction).To7();
+
+                shiftBuffer.Add(new NoteOffEvent(currentNote, Velocity), cursor, note);
+                shiftBuffer.Add(new NoteOnEvent(nextNote.To7(), Velocity), cursor, note);
+
+                cursor += stepSize;
+
+            }
+        }
+
+        Events.SuspenseValidation = false;
+        if (note.Beat.notes.Length == 1)
+        {
+            var osk = 0;
+            foreach (var bufferEvent in shiftBuffer)
+            {
+                events.Add(bufferEvent.Event, new Time(bufferEvent.Time), note.Beat.notes[0]);
+                osk++;
+            }
+        }
+        else
+        {
+
+            var chunks = shiftBuffer.Chunk(3).ToList();
+
+            var strumBase = -(123 * note.Beat.notes.Length);
+            var stepStrum = 123 / 2;
+            var strumDecay = 10;
+
+            for (var stepIndex = 0; stepIndex < semitoneDistance - 1; stepIndex++)
+            {
+                for (var noteIndex = 0; noteIndex < note.Beat.notes.Length; noteIndex++)
                 {
-                    for (var noteIndex = 0; noteIndex < note.Beat.notes.Length; noteIndex++)
+                    var pitchOffset = note.Beat.notes[noteIndex].NoteNumber - note.Beat.notes[0].NoteNumber;
+
+                    foreach (var stepEvent in chunks[stepIndex])
                     {
-                        var pitchOffset = note.Beat.notes[noteIndex].NoteNumber - note.Beat.notes[0].NoteNumber;
-
-                        foreach (var stepEvent in chunks[stepIndex])
+                        var strumEvent = stepEvent.Event.Clone();
+                        if (strumEvent is NoteEvent ne)
                         {
-                            var strumEvent = stepEvent.Event.Clone();
-                            if (strumEvent is NoteEvent ne)
-                            {
-                                ne.NoteNumber += pitchOffset.To7();
-                            }
-
-                            var strumTime = stepEvent.Time + strumBase + noteIndex * (stepStrum - (strumDecay - 1) * stepIndex);
-                            events.Add(strumEvent, new Time(strumTime), note.Beat.notes[noteIndex]);
+                            ne.NoteNumber += pitchOffset.To7();
                         }
+
+                        var strumTime = stepEvent.Time + strumBase + noteIndex * (stepStrum - (strumDecay - 1) * stepIndex);
+                        events.Add(strumEvent, new Time(strumTime), note.Beat.notes[noteIndex]);
                     }
                 }
             }
         }
 
-        return currentCursor;
+        return cursor;
 
     }
 
@@ -327,25 +319,16 @@ internal static partial class MidiConverter
 
             foreach (var sibling in siblingNotes)
             {
-                beatLeftovers.Remove(CloseNote(events, sibling, endsAt));
+                while (sibling.Note.PendingEvents.TryDequeue(out var pendingEvent))
+                {
+                    events.Add(pendingEvent.Event, new Time(endsAt), sibling.Note);
+                }
+
+                var noteNumber = sibling.TimedEvent.As<NoteOnEvent>().NoteNumber;
+                events.Add(new NoteOffEvent(noteNumber, Velocity), new Time(endsAt), sibling.Note);
+                beatLeftovers.Remove(sibling);
             }
         }
-    }
-
-    public static (TimedEvent TimedEvent, Nóta Note, long EndTick) CloseNote(
-            Events events,
-            (TimedEvent TimedEvent, Nóta Note, long EndTick) note,
-            long endsAt)
-    {
-        while (note.Note.PendingEvents.TryDequeue(out var pendingEvent))
-        {
-            events.Add(pendingEvent.Event, new Time(endsAt), note.Note);
-        }
-
-        var noteNumber = note.TimedEvent.As<NoteOnEvent>().NoteNumber;
-        events.Add(new NoteOffEvent(noteNumber, Velocity), new Time(endsAt), note.Note);
-
-        return note;
     }
 
     public static void BuildHeader(Part part, Events events)
