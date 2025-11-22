@@ -1,7 +1,6 @@
 using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
-using System.Diagnostics;
 
 namespace JsonToMidiConverter;
 
@@ -15,13 +14,14 @@ internal static class MidiConverter
     {
         var midiFile = new MidiFile { TimeDivision = new TicksPerQuarterNoteTimeDivision(TicksPerQuarterNote) };
         Time.Map = song.parts[0].GetTempo(midiFile);
+        midiFile.ReplaceTempoMap(Time.Map);
         song.Build();
 
         foreach (var part in song.parts)
         {
             var events = new Events();
 
-            BuildHeader(part, events);
+            AddHeader(events, part);
 
             if (part.partId == 10) continue;
 
@@ -53,11 +53,9 @@ internal static class MidiConverter
                 }
             }
 
-            var trackChunk = events.ToTrackChunk();
-            midiFile.Chunks.Add(trackChunk);
-            Debug.WriteLine($"Part {part.Index} finished without error!");
+            midiFile.Chunks.Add(events.ToTrackChunk());
         }
-        midiFile.ReplaceTempoMap(Time.Map);
+
         return midiFile;
     }
 
@@ -324,7 +322,7 @@ internal static class MidiConverter
         }
     }
 
-    public static void BuildHeader(Part part, Events events)
+    public static void AddHeader(Events events, Part part)
     {
         var timeZero = new Time();
 
@@ -401,17 +399,6 @@ internal static class MidiConverter
 
                     events.Add(new PitchBendEvent(8888), currentCursor, note);
                 }
-            }
-        }
-    }
-
-    public static TimedEvent GetLastNoteOnEvent(Events events, SevenBitNumber noteNumber)
-    {
-        for (var i = events.Count - 1; ; i--)
-        {
-            if (events[i].Event is NoteOnEvent noteOn)
-            {
-                return events[i];
             }
         }
     }
