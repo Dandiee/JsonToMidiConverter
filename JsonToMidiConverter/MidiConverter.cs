@@ -223,25 +223,22 @@ internal static partial class MidiConverter
 
     public static Time AddVibrato(Events events, Nóta note, Time cursor)
     {
-        bool isCleanSlide = note.Slide == Slide.Shift || note.Slide == Slide.Legato;
-        if (note.vibrato)
+        if (!note.vibrato) return cursor;
+
+        events.Add(new ControlChangeEvent(1.To7(), 64.To7()), cursor, note);
+
+        cursor += note.Slide != Slide.None
+            ? note.ActualDuration / 2
+            : note.ActualDuration;
+
+        var isCleanSlide = note.Slide == Slide.Shift || note.Slide == Slide.Legato;
+        if (isCleanSlide)
         {
-            events.Add(new ControlChangeEvent(1.To7(), 64.To7()), cursor, note);
-
-            if (note.Slide != Slide.None)
-                cursor += note.ActualDuration / 2;
-            else
-                cursor += note.ActualDuration;
-
-            if (isCleanSlide)
-            {
-                events.Add(new ControlChangeEvent(1.To7(), 0.To7()), cursor, note);
-            }
-            else
-            {
-                note.PendingEvents.Enqueue(new(new ControlChangeEvent(1.To7(), 0.To7()), cursor));
-            }
-
+            events.Add(new ControlChangeEvent(1.To7(), 0.To7()), cursor, note);
+        }
+        else
+        {
+            note.PendingEvents.Enqueue(new(new ControlChangeEvent(1.To7(), 0.To7()), cursor));
         }
 
         return cursor;
