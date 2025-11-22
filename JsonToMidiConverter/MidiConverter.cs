@@ -59,15 +59,9 @@ internal static partial class MidiConverter
 
                         var actualDuration = note.ActualDuration.Clone();
 
-
                         // Sliding nightmare
                         if (note.Slide == Slide.Shift || note.Slide == Slide.Downwards || note.Slide == Slide.Upwards)
                         {
-                            if (note.Part.Index == 8 && note.Measure.Index == 60)
-                            {
-
-                            }
-
                             Events.SuspenseValidation = true;
                             var shiftBuffer = new Events();
 
@@ -191,26 +185,7 @@ internal static partial class MidiConverter
                             }
                         }
 
-                        bool isCleanSlide = note.Slide == Slide.Shift || note.Slide == Slide.Legato;
-                        if (note.vibrato)
-                        {
-                            events.Add(new ControlChangeEvent(1.To7(), 64.To7()), currentCursor, note);
-
-                            if (note.Slide != Slide.None)
-                                currentCursor += actualDuration / 2;
-                            else
-                                currentCursor += actualDuration;
-
-                            if (isCleanSlide)
-                            {
-                                events.Add(new ControlChangeEvent(1.To7(), 0.To7()), currentCursor, note);
-                            }
-                            else
-                            {
-                                note.PendingEvents.Enqueue(new(new ControlChangeEvent(1.To7(), 0.To7()), currentCursor));
-                            }
-
-                        }
+                        currentCursor = AddVibrato(events, note, currentCursor);
 
                         // Legato
                         if (!note.tie && note.Slide == Slide.Legato)
@@ -244,6 +219,32 @@ internal static partial class MidiConverter
         }
         midiFile.ReplaceTempoMap(Time.Map);
         return midiFile;
+    }
+
+    public static Time AddVibrato(Events events, Nóta note, Time cursor)
+    {
+        bool isCleanSlide = note.Slide == Slide.Shift || note.Slide == Slide.Legato;
+        if (note.vibrato)
+        {
+            events.Add(new ControlChangeEvent(1.To7(), 64.To7()), cursor, note);
+
+            if (note.Slide != Slide.None)
+                cursor += note.ActualDuration / 2;
+            else
+                cursor += note.ActualDuration;
+
+            if (isCleanSlide)
+            {
+                events.Add(new ControlChangeEvent(1.To7(), 0.To7()), cursor, note);
+            }
+            else
+            {
+                note.PendingEvents.Enqueue(new(new ControlChangeEvent(1.To7(), 0.To7()), cursor));
+            }
+
+        }
+
+        return cursor;
     }
 
     public static Time AddAttackNote(Events events, Nóta note, Time cursor)
