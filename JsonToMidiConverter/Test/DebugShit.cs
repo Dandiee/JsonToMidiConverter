@@ -109,7 +109,8 @@ public static class DebugShit
         var attrExclusion = new[] { "Channel", "DeltaTime", "EventType", "NoteNumber" }.ToHashSet();
 
         var measureOptions = GetTypeExcludedJsonOptions<Measure>(nameof(Measure.Voices));
-        var beatOptions = GetTypeExcludedJsonOptions<Beat>(nameof(Beat.Notes));
+        var beatOptions = GetTypeExcludedJsonOptions<Beat>(nameof(Beat.Notes), nameof(Beat.Text));
+        //var noteOptions = GetTypeExcludedJsonOptions<Nóta>(nameof(Nóta.));
 
         foreach (var chunk in mid.Chunks.OfType<TrackChunk>())
         {
@@ -145,15 +146,15 @@ public static class DebugShit
 
                     if (measureIndex < part.Measures.Length)
                     {
-                        sb.AppendLine($"M{part.Measures[measureIndex].Index}: {JsonSerializer.Serialize(part.Measures[measureIndex], measureOptions)}");
+                        sb.AppendLine($"M{part.Measures[measureIndex].Index} {JsonSerializer.Serialize(part.Measures[measureIndex], measureOptions)}");
 
                         foreach (var b in part.Measures[measureIndex].Beats)
                         {
-                            sb.AppendLine($"\tB{b.Index}: {JsonSerializer.Serialize(b, beatOptions)}");
+                            sb.AppendLine($"\tB{b.Index} {JsonSerializer.Serialize(b, beatOptions)}");
                             foreach (var n in b.Notes)
                             {
                                 sb.AppendLine(
-                                    $"\t\tN{n.Index}: {JsonSerializer.Serialize(n, new JsonSerializerOptions(JsonSerializerDefaults.General)
+                                    $"\t\tN{n.Index} {JsonSerializer.Serialize(n, new JsonSerializerOptions(JsonSerializerDefaults.General)
                                     {
                                         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault })}");
                             }

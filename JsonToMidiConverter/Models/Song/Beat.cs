@@ -14,8 +14,6 @@ public partial class Beat
     public int Type { get; set; }
     public bool PalmMute { get; set; }
     public int[] Duration { get; set; } = Array.Empty<int>();
-    public byte Numerator => (byte)Duration[0];
-    public byte Denominator => (byte)Duration[1];
     public bool BeamStart { get; set; }
     public bool BeamStop { get; set; }
     public bool Vibrato { get; set; }

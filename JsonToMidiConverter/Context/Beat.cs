@@ -16,6 +16,8 @@ public sealed partial class Beat
     [JsonIgnore] public Time RelativeBeatStartTime { get; private set; }
     [JsonIgnore] public Time AbsoluteBeatStartTime { get; private set; }
     [JsonIgnore] public Nóta[] ReversedNotes { get; set; }
+    [JsonIgnore] public byte Numerator => (byte)Duration[0];
+    [JsonIgnore] public byte Denominator => (byte)Duration[1];
 
     public void Build(Voice voice, int index)
     {
