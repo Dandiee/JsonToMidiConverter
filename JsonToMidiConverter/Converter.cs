@@ -110,12 +110,15 @@ internal static class Converter
         var fullDuration = note.ActualDuration;
 
         // Temporarily disable validation to allow out-of-order insertion in the template
-        Events.SuspendValidation = true;
-        var slideTemplate = new Events();
 
         var targetPitch = note.GetSlideTargetPitch();
         var direction = targetPitch < note.NoteNumber ? -1 : 1;
         var semitoneDistance = Math.Abs(targetPitch - note.NoteNumber);
+
+        Events.SuspendValidation = note.Beat.IsAccord;
+        var buffer = note.Beat.IsAccord
+            ? new Events()
+            : events;
 
         // --- CASE 1: CONTINUOUS SLIDE (1 Semitone or Legato Logic) ---
         if (semitoneDistance <= 1)
@@ -132,7 +135,7 @@ internal static class Converter
             Debug.WriteLine($"P{note.Part.Index}, M{note.Measure.Index}, B{note.Beat.Index}, N{note.Index} S{note.Slide} T{note.Tie} V{note.Vibrato}: PitchBends");
 
             // Generate the Pitch Bend Ramp
-            AddLegatoPitchBends(currentTime, note, slideTemplate, fullDuration);
+            AddLegatoPitchBends(currentTime, note, buffer, fullDuration);
         }
         else // --- CASE 2: STEPPED SLIDE (> 1 Semitone) ---
         {
@@ -155,8 +158,8 @@ internal static class Converter
             var nextNoteNum = currentNoteNum + direction;
 
             // -- FIRST STEP --
-            slideTemplate.Add(new PitchBendEvent(PitchBendCenter), currentTime, note);
-            slideTemplate.Add(new NoteOnEvent(nextNoteNum.To7(), DefaultVelocity), currentTime, note);
+            buffer.Add(new PitchBendEvent(PitchBendCenter), currentTime, note);
+            buffer.Add(new NoteOnEvent(nextNoteNum.To7(), DefaultVelocity), currentTime, note);
 
             // Handle Tie Logic (Ghost Note vs Swap)
             if (note.Tie)
@@ -170,13 +173,13 @@ internal static class Converter
                 {
                     // Standard Tie: Overlap
                     currentTime += stepSizeTicks;
-                    slideTemplate.Add(new NoteOffEvent(currentNoteNum, DefaultVelocity), currentTime, note);
+                    buffer.Add(new NoteOffEvent(currentNoteNum, DefaultVelocity), currentTime, note);
                 }
             }
             else
             {
                 // No Tie: Clean Swap
-                slideTemplate.Add(new NoteOffEvent(currentNoteNum, DefaultVelocity), currentTime, note);
+                buffer.Add(new NoteOffEvent(currentNoteNum, DefaultVelocity), currentTime, note);
                 currentTime += stepSizeTicks;
             }
 
@@ -186,13 +189,13 @@ internal static class Converter
 
             for (var i = 1; i < loopCount; i++)
             {
-                slideTemplate.Add(new PitchBendEvent(PitchBendCenter), currentTime, note);
+                buffer.Add(new PitchBendEvent(PitchBendCenter), currentTime, note);
 
                 currentNoteNum = (note.NoteNumber + i * direction).To7();
                 nextNoteNum = (currentNoteNum + direction).To7();
 
-                slideTemplate.Add(new NoteOffEvent(currentNoteNum, DefaultVelocity), currentTime, note);
-                slideTemplate.Add(new NoteOnEvent(nextNoteNum.To7(), DefaultVelocity), currentTime, note);
+                buffer.Add(new NoteOffEvent(currentNoteNum, DefaultVelocity), currentTime, note);
+                buffer.Add(new NoteOnEvent(nextNoteNum.To7(), DefaultVelocity), currentTime, note);
 
                 currentTime += stepSizeTicks;
             }
@@ -201,7 +204,10 @@ internal static class Converter
         Events.SuspendValidation = false;
 
         // Apply the template to all strings in the chord (Strumming simulation)
-        EnrichTemplate(events, slideTemplate, note, semitoneDistance);
+        if (note.Beat.IsAccord)
+        {
+            EnrichTemplate(events, buffer, note, semitoneDistance);
+        }
 
         return currentTime;
     }

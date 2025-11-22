@@ -18,14 +18,14 @@ public sealed partial class Beat
     [JsonIgnore] public Nóta[] ReversedNotes { get; set; }
     [JsonIgnore] public byte Numerator => (byte)Duration[0];
     [JsonIgnore] public byte Denominator => (byte)Duration[1];
-
+    [JsonIgnore] public bool IsAccord { get; private set; }
     public void Build(Voice voice, int index)
     {
         ReversedNotes = Notes;
         Index = index;
         Voice = voice;
         MusicalDuration = new Time(Duration[0], Duration[1]);
-
+        IsAccord = Notes.Length > 1;
         var prevBeat = GetPrevious();
         RelativeBeatStartTime = Index == 0
             ? new Time()

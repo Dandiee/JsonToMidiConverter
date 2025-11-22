@@ -4,6 +4,7 @@ using JsonToMidiConverter.Context;
 using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
+using Melanchall.DryWetMidi.MusicTheory;
 
 namespace JsonToMidiConverter.Models.Song;
 
@@ -33,7 +34,7 @@ public sealed partial class Nóta
         Channel = GetNoteChannel();
 
         Slide = SlideString?.ToSlide() ?? Slide.None;
-
+        
         RawDuration = Staccato
             ? beat.MusicalDuration.Clone() / 2
             : beat.MusicalDuration.Clone();
