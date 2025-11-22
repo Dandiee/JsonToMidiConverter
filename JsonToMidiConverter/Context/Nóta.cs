@@ -280,7 +280,11 @@ public sealed partial class Nóta
 
     public FourBitNumber GetNoteChannel()
     {
-        if (Part.InstrumentId == 71 || Part.InstrumentId == 68 || Part.InstrumentId == 27 || Part.InstrumentId == 30 || Part.InstrumentId == 29)
+        if (Part.InstrumentId == 71 || Part.InstrumentId == 68 
+                                    || Part.InstrumentId == 27 
+                                    || Part.InstrumentId == 30
+                                    || Part.InstrumentId == 40 
+                                    || Part.InstrumentId == 29)
         {
             return (FourBitNumber)StringNumber;
         }

@@ -197,7 +197,7 @@ public static class DebugShit
         }
 
 
-        var fileName = Path.GetFileNameWithoutExtension(midiFile) + ".txt";
+        var fileName = "current-nightmare.txt";
 
         if (!File.Exists(fileName))
         {
