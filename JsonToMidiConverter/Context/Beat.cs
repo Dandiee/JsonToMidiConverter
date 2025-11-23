@@ -19,6 +19,9 @@ public sealed partial class Beat
     [JsonIgnore] public byte Numerator => (byte)Duration[0];
     [JsonIgnore] public byte Denominator => (byte)Duration[1];
     [JsonIgnore] public bool IsAccord { get; private set; }
+    [JsonIgnore] public int? MidiEventIndex { get; set; }
+    [JsonIgnore] public int? MidiEventCount { get; set; }
+
     public void Build(Voice voice, int index)
     {
         ReversedNotes = Notes;
@@ -76,4 +79,6 @@ public sealed partial class Beat
         => Measure.Beats
             .TakeWhile(e => e != this)
             .Sum(e => e.MusicalDuration.Tick);
+
+    public bool Is(int value) => value == int.Parse($"{Index}{Measure.Index}{Part.Index}");
 }

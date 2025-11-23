@@ -8,7 +8,7 @@ using Melanchall.DryWetMidi.Interaction;
 var songPairs = new Dictionary<string, string>
 {
     [@"References\LinkinPark.mid"] = "In the end",
-    //[@"References\Nirvana.mid"] = "Come as you are",
+    [@"References\Nirvana.mid"] = "Come as you are",
 };
 
 

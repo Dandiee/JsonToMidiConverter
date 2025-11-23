@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using JsonToMidiConverter.Context;
+using Melanchall.DryWetMidi.Interaction;
 
 namespace JsonToMidiConverter.Test;
 
@@ -76,52 +77,54 @@ public static class Dumper
                         sb.AppendLine($"\t\tN{note.Index} B{beat.Index} M{measure.Index} P{part.Index} S{note.StringNumber} F{note.Fret}" +
                                       $"{slideMarker}{tieMarker} Attr = [{GetAttributes(beat)}] Input = {GetJson(note)}");
 
-                        if (note.MidiEventIndex.HasValue)
+                        
+                    }
+
+                    if (beat.MidiEventIndex.HasValue)
+                    {
+                        var from = beat.MidiEventIndex.Value;
+                        var to = beat.MidiEventCount.HasValue
+                            ? beat.MidiEventCount.Value + from
+                            : events.Count;
+
+                        var pitchCounter = 0;
+
+                        for (var i = from; i < to; i++)
                         {
-                            var from = note.MidiEventIndex.Value;
-                            var to = note.MidiEventCount.HasValue
-                                ? note.MidiEventCount.Value + from
-                                : events.Count;
+                            var timedEvent = events[i];
+                            EventTypeNames.TryGetValue(timedEvent.Event.EventType, out var niceName);
 
-                            var pitchCounter = 0;
+                            var ch = (timedEvent.Event as ChannelEvent)?.Channel.ToString() ?? string.Empty;
+                            var nn = (timedEvent.Event as NoteEvent)?.NoteNumber.ToString() ?? string.Empty;
 
-                            for (var i = from; i < to; i++)
+                            var properties = timedEvent.Event
+                                .GetType()
+                                .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                                .Where(e => !ExcludedProperties.Contains(e.Name));
+
+                            var attributes = string.Join("; ", properties
+                                .OrderBy(e => e.Name)
+                                .Select(prop => $"{prop.Name}: {prop.GetValue(timedEvent.Event)}"));
+
+                            if (timedEvent.Event is PitchBendEvent)
                             {
-                                var timedEvent = events[i];
-                                EventTypeNames.TryGetValue(timedEvent.Event.EventType, out var niceName);
-
-                                var ch = (timedEvent.Event as ChannelEvent)?.Channel.ToString() ?? string.Empty;
-                                var nn = (timedEvent.Event as NoteEvent)?.NoteNumber.ToString() ?? string.Empty;
-
-                                var properties = timedEvent.Event
-                                    .GetType()
-                                    .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                                    .Where(e => !ExcludedProperties.Contains(e.Name));
-
-                                var attributes = string.Join("; ", properties
-                                    .OrderBy(e => e.Name)
-                                    .Select(prop => $"{prop.Name}: {prop.GetValue(timedEvent.Event)}"));
-
-                                if (timedEvent.Event is PitchBendEvent)
-                                {
-                                    pitchCounter++;
-                                }
-                                else pitchCounter = 0;
-
-                                if (pitchCounter == 3)
-                                {
-                                    sb.AppendLine($"\t\t\t..... More pitch bending");
-                                }
-                                else if (pitchCounter < 3)
-                                {
-                                    sb.AppendLine(
-                                        $"\t\t\t{i.ToString().PadLeft(5)} {(niceName ?? timedEvent.Event.EventType.ToString()).PadRight(10)} " +
-                                        $"Note: {nn.PadLeft(2)}; At: {timedEvent.Time}; Ch: {ch}; " +
-                                        $"Delta: {timedEvent.Event.DeltaTime.ToString().PadLeft(6)} {attributes}");
-                                }
+                                pitchCounter++;
                             }
+                            else pitchCounter = 0;
 
+                            if (pitchCounter == 3)
+                            {
+                                sb.AppendLine($"\t\t\t..... More pitch bending");
+                            }
+                            else if (pitchCounter < 3)
+                            {
+                                sb.AppendLine(
+                                    $"\t\t\t{i.ToString().PadLeft(5)} {(niceName ?? timedEvent.Event.EventType.ToString()).PadRight(10)} " +
+                                    $"Note: {nn.PadLeft(2)}; At: {timedEvent.Time}; Ch: {ch}; " +
+                                    $"Delta: {timedEvent.Event.DeltaTime.ToString().PadLeft(6)} {attributes}");
+                            }
                         }
+
                     }
                 }
             }
@@ -139,32 +142,23 @@ public static class Dumper
             var chunk = chunks[part.Index];
             var events = chunk.Events.ToList();
 
-            Nóta? lastMarkedNote = null;
-            if (part.Index == 1)
-            {
-
-            }
+            Beat? lastMarkedBeat = null;
             var cursor = 0;
 
             foreach (var measure in part.Measures)
             {
                 foreach (var beat in measure.Beats)
                 {
-                    foreach (var note in beat.Notes)
+                    if (beat.Rest || beat.Notes.All(e => e.Rest || e.Tie)) continue;
+
+                    beat.MidiEventIndex = GetBeatEventCursor(events, ref cursor, beat);
+
+                    if (lastMarkedBeat != null)
                     {
-                        if (!beat.Rest && !note.Rest && !note.Tie)
-                        {
-                            note.MidiEventIndex = GetNextAttackNoteEvent(events, ref cursor, note);
-
-                            if (lastMarkedNote != null)
-                            {
-                                lastMarkedNote.MidiEventCount = cursor - lastMarkedNote.MidiEventIndex!.Value;
-                            }
-
-                            lastMarkedNote = note;
-                            break;
-                        }
+                        lastMarkedBeat.MidiEventCount = cursor - lastMarkedBeat.MidiEventIndex!.Value;
                     }
+
+                    lastMarkedBeat = beat;
                 }
             }
         }
@@ -192,26 +186,42 @@ public static class Dumper
         return JsonSerializer.Serialize(model, options);
     }
 
-    public static int GetNextAttackNoteEvent(List<MidiEvent> events, ref int cursor, Nóta note)
+    public static int GetBeatEventCursor(List<MidiEvent> events, ref int cursor, Beat beat)
     {
+        if (beat.Is(1772))
+        {
+
+        }
+
         do
         {
             cursor++;
-        } while (!IsMatching(events, cursor, note));
+        } while (!IsMatchingBeat(events, cursor, beat));
 
-        if (!IsMatchingMeasure(events, cursor, note, out var measureIndex))
+        if (!IsMatchingMeasure(events, cursor, beat, out var m1))
         {
             Debugger.Break();
         }
 
         var result = cursor;
 
+        //foreach (var otherNote in note.Beat.Notes.Where(e => e != note && !e.Tie))
+        //{
+        //    do
+        //    {
+        //        cursor++;
+        //    } while (!IsMatchingBeat(events, cursor, otherNote));
 
+        //    if (!IsMatchingMeasure(events, cursor, note, out var m2))
+        //    {
+        //        Debugger.Break();
+        //    }
+        //}
 
         return result;
     }
 
-    public static bool IsMatchingMeasure(List<MidiEvent> events, int cursor, Nóta note, out int measureIndex)
+    public static bool IsMatchingMeasure(List<MidiEvent> events, int cursor, Beat beat, out int measureIndex)
     {
         var measureCursor = cursor;
         for (var i = measureCursor; ; i--)
@@ -220,22 +230,77 @@ public static class Dumper
             if (ev is MarkerEvent marker)
             {
                 measureIndex = int.Parse(string.Join("", marker.Text.Where(char.IsDigit)));
-                return measureIndex == note.Measure.Index;
+                return measureIndex == beat.Measure.Index;
             }
         }
     }
 
-    public static bool IsMatching(List<MidiEvent> events, int cursor, Nóta note)
+    public static bool IsMatchingBeat(List<MidiEvent> events, int cursor, Beat beat)
     {
-        var cursorEvent = events[cursor];
-        if (cursorEvent is not PitchBendEvent pitch) return false;
+        if (beat.Notes.Count(e => !e.Tie && !e.Rest) == 1)
+        {
+            var note = beat.Notes.Single(e => !e.Tie && !e.Rest);
+
+            if (!IsMatchingNote(events, cursor, note)) return false;
+            if (!IsPitchClearing(events, cursor - 1, note)) return false;
+        }
+        else
+        {
+            if (beat.Part.IsPianoLike)
+            {
+                for (var i = 0; i < beat.Notes.Length; i++)
+                {
+                    var noteOnIndex = cursor + i;
+                    var pitchClearIndex = noteOnIndex - beat.Notes.Length;
+
+                    if (!IsMatchingNote(events, noteOnIndex, beat.Notes[i])) return false;
+                    if (!IsPitchClearing(events, pitchClearIndex, beat.Notes[i])) return false;
+                }
+            }
+            else
+            {
+                var noteOffs = 0;
+
+                for (var i = 0; i < beat.Notes.Length; i++)
+                {
+                    var noteOnIndex = cursor + i * 2 + noteOffs;
+                    var pitchClearIndex = noteOnIndex - 1;
+
+                    var currentNoteOffs = 0;
+                    while (events[pitchClearIndex + currentNoteOffs] is NoteOffEvent)
+                    {
+                        currentNoteOffs++;
+                    }
+
+                    noteOffs += currentNoteOffs;
+                    noteOnIndex = cursor + i * 2 + noteOffs;
+                    pitchClearIndex = noteOnIndex - 1;
+
+                    if (!IsMatchingNote(events, noteOnIndex, beat.Notes[i])) return false;
+                    if (!IsPitchClearing(events, pitchClearIndex, beat.Notes[i])) return false;
+                }
+
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsPitchClearing(List<MidiEvent> events, int cursor, Nóta note)
+    {
+        var midiEvent = events[cursor];
+        if (midiEvent is not PitchBendEvent pitch) return false;
         if (pitch.PitchValue != 8192) return false;
+        if (pitch.Channel != note.Channel) return false;
 
-        var nextEvent = events[cursor + 1];
-        if (nextEvent is not NoteOnEvent on) return false;
+        return true;
+    }
 
-        if (on.DeltaTime != 0 ||
-            on.NoteNumber != note.NoteNumber) return false;
+    private static bool IsMatchingNote(List<MidiEvent> events, int cursor, Nóta note)
+    {
+        var midiEvent = events[cursor];
+        if (midiEvent is not NoteOnEvent on) return false;
+        if (on.DeltaTime != 0 || on.NoteNumber != note.NoteNumber) return false;
 
         return true;
     }

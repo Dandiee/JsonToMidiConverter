@@ -25,8 +25,6 @@ public sealed partial class Nóta
     [JsonIgnore] public bool WillBeTied { get; private set; }
     [JsonIgnore] public Slide Slide { get; private set; }
     [JsonIgnore] public Queue<(MidiEvent Event, Time Time)> PendingEvents { get; private set; } = new();
-    [JsonIgnore] public int? MidiEventIndex { get; set; }
-    [JsonIgnore] public int? MidiEventCount { get; set; }
 
     public void Build(Beat beat, int index)
     {
@@ -290,7 +288,8 @@ public sealed partial class Nóta
                                     || Part.InstrumentId == 30
                                     || Part.InstrumentId == 40 
                                     || Part.InstrumentId == 29
-                                    || Part.InstrumentId == 37)
+                                    || Part.InstrumentId == 37
+                                    || Part.InstrumentId == 67)
         {
             return (FourBitNumber)StringNumber;
         }
