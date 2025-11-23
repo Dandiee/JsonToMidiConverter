@@ -12,6 +12,116 @@ namespace JsonToMidiConverter.Test;
 
 public static class DebugShit
 {
+    public static void CollectSlideInformation()
+    {
+        var songPairs = new Dictionary<string, string>
+        {
+            [@"References\LinkinPark.mid"] = "In the end",
+            //[@"References\Nirvana.mid"] = "Come as you are",
+        };
+
+        foreach (var pair in songPairs)
+        {
+            var match = Database.Search(pair.Value).First();
+            var data = Database.GetMidiData(match.SongId);
+            var song = JsonSerializer.Deserialize<Song>(data, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            var outputMidi = new MidiFile { TimeDivision = new TicksPerQuarterNoteTimeDivision(15360) };
+            Time.Map = song.Parts[0].GetTempo(outputMidi);
+            outputMidi.ReplaceTempoMap(Time.Map);
+            song.Build();
+
+            var midi = MidiFile.Read(pair.Key);
+
+            var midiParts = midi.Chunks.OfType<TrackChunk>().ToList();
+
+            foreach (var part in song.Parts)
+            {
+                var midiPart = midiParts[part.Index];
+                var midiEvents = midiPart.Events.ToList();
+
+                var cursor = 0;
+
+                foreach (var measure in part.Measures)
+                {
+                    foreach (var beat in measure.Beats)
+                    {
+                        if (beat.Rest) continue;
+
+                        var leadNote = beat.Notes.FirstOrDefault(e => !e.Tie);
+                        if (leadNote == null) continue;
+                        cursor = GetNextAttackNoteEvent(midiEvents, cursor, leadNote);
+                    }
+                }
+            }
+        }
+    }
+
+    public static int GetNextAttackNoteEvent(List<MidiEvent> events, int cursor, Nóta note)
+    {
+
+
+        while (true)
+        {
+            // if (cursor >= events.Count - 2) return null;
+
+            cursor++;
+
+            var cursorEvent = events[cursor];
+            if (cursorEvent is PitchBendEvent pitch && pitch.PitchValue == 8192)
+            {
+                var nextEvent = events[cursor + 1];
+                if (nextEvent is NoteOnEvent on
+                    && on.DeltaTime == 0
+                    && on.Channel == note.Channel
+                    && on.NoteNumber == note.NoteNumber)
+                {
+
+                    var measureCursor = cursor;
+                    for (var i = measureCursor; ; i--)
+                    {
+                        var ev = events[i];
+                        if (ev is MarkerEvent marker)
+                        {
+                            var measureIndex = int.Parse(string.Join("", marker.Text.Where(char.IsDigit)));
+                            if (measureIndex != note.Measure.Index)
+                            {
+                                break;
+                            }
+                            else break;
+                        }
+                    }
+
+
+
+                    return cursor + 1;
+                }
+            }
+        }
+    }
+
+    public static List<List<MidiEvent>> GetMidiMeasures(ICollection<MidiEvent> events)
+    {
+        var retval = new List<List<MidiEvent>>();
+        List<MidiEvent> currentMeasure = null;
+
+        foreach (var midiEvent in events)
+        {
+            currentMeasure?.Add(midiEvent);
+
+            if (midiEvent is MarkerEvent)
+            {
+                currentMeasure = new List<MidiEvent>();
+                retval.Add(currentMeasure);
+            }
+        }
+
+        return retval;
+    }
+
     public static void WriteDebugFile(Song song)
     {
         var sb = new StringBuilder();
@@ -156,7 +266,8 @@ public static class DebugShit
                                 sb.AppendLine(
                                     $"\t\tN{n.Index} {JsonSerializer.Serialize(n, new JsonSerializerOptions(JsonSerializerDefaults.General)
                                     {
-                                        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault })}");
+                                        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
+                                    })}");
                             }
                         }
 
