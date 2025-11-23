@@ -11,8 +11,6 @@ var songPairs = new Dictionary<string, string>
     [@"References\Nirvana.mid"] = "Come as you are",
 };
 
-DebugShit.CollectSlideInformation();
-return;
 
 var pair = songPairs.ElementAt(0);
 
@@ -28,9 +26,6 @@ Time.Map = song.Parts[0].GetTempo(mid);
 mid.ReplaceTempoMap(Time.Map);
 song.Build();
 
-
-DebugShit.CheckConsistency(pair.Key, song);
-DebugShit.WriteDebugFile(song);
-
 var midiFile = Converter.Convert(song, pair.Key);
 midiFile.Write("Output.mid", overwriteFile: true);
+Dumper.Dump(song, pair.Key);
