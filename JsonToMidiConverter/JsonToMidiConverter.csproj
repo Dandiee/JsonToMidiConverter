@@ -20,6 +20,9 @@
     <None Update="References\LinkinPark.mid">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="References\Metallica.mid">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="References\Nirvana.mid">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

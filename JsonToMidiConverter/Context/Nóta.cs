@@ -286,10 +286,15 @@ public sealed partial class Nóta
             : 0;
 
         randomOffset = 0;
-
+        // 55 a target
         if (Part.InstrumentId == 30)
         {
             //if (Fret == 12 && StringNumber == 4) return 45;
+        }
+
+        if (Part.InstrumentId == 27)
+        {
+            return openStringPitch + Fret + 0;
         }
 
         return (openStringPitch + Fret + (int)HarmonicFret) + randomOffset;

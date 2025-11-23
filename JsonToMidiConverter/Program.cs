@@ -7,10 +7,11 @@ using Melanchall.DryWetMidi.Interaction;
 
 var songPairs = new Dictionary<string, string>
 {
-    //[@"References\LinkinPark.mid"] = "In the end",
-    //[@"References\Nirvana.mid"] = "Come as you are",
+    [@"References\LinkinPark.mid"] = "In the end",
+    [@"References\Nirvana.mid"] = "Come as you are",
     //[@"References\LedZeppelin.mid"] = "Stairway to heaven",
     [@"References\Tool.mid"] = "Pneuma",
+    //[@"References\Metallica.mid"] = "Nothing else matters",
     //[@"References\Blink182.mid"] = "What's my age",
 };
 
@@ -30,12 +31,11 @@ song.Build();
 
 //Dumper.DumpJsonInputs(match.SongId, @"References\Tool.mid");
 
-//foreach (var asd in songPairs)
-//{
-
-//    var dumpMatch = Database.Search(asd.Value).First();
-//    Dumper.DumpJsonInputs(dumpMatch.SongId, asd.Key);
-//}
+foreach (var asd in songPairs)
+{
+    var dumpMatch = Database.Search(asd.Value).First();
+    Dumper.DumpJsonInputs(dumpMatch.SongId, asd.Key);
+}
 
 
 foreach (var kvp in songPairs)

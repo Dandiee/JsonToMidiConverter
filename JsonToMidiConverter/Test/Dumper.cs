@@ -255,12 +255,33 @@ public static class Dumper
         return JsonSerializer.Serialize(model, options);
     }
 
+    private static bool IsPitchClearing(List<MidiEvent> events, int cursor, Nóta note)
+    {
+        var midiEvent = events[cursor];
+        if (midiEvent is not PitchBendEvent pitch) return false;
+        if (pitch.PitchValue != 8192) return false;
+        if (pitch.Channel != note.Channel) return false;
 
+        var q = note.GetNoteChannel();
+
+        return true;
+    }
+
+    private static bool IsMatchingNote(List<MidiEvent> events, int cursor, Nóta note)
+    {
+        var midiEvent = events[cursor];
+        if (midiEvent is not NoteOnEvent on) return false;
+        if (on.DeltaTime != 0 || on.NoteNumber != note.NoteNumber) return false;
+
+        var w = note.GetNoteNumber();
+
+        return true;
+    }
 
     public static int? GetBeatEventCursor(List<MidiEvent> events, ref int cursor, Beat beat)
     {
         //if (beat.Part.Index == 1)
-        if (beat.Is("116910"))
+        if (beat.Is("0485"))
         {
 
         }
@@ -402,28 +423,7 @@ public static class Dumper
 
 
 
-    private static bool IsPitchClearing(List<MidiEvent> events, int cursor, Nóta note)
-    {
-        var midiEvent = events[cursor];
-        if (midiEvent is not PitchBendEvent pitch) return false;
-        if (pitch.PitchValue != 8192) return false;
-        if (pitch.Channel != note.Channel) return false;
-
-        var q = note.GetNoteChannel();
-
-        return true;
-    }
-
-    private static bool IsMatchingNote(List<MidiEvent> events, int cursor, Nóta note)
-    {
-        var midiEvent = events[cursor];
-        if (midiEvent is not NoteOnEvent on) return false;
-        if (on.DeltaTime != 0 || on.NoteNumber != note.NoteNumber) return false;
-
-        var w = note.GetNoteNumber();
-
-        return true;
-    }
+  
 
     private static JsonSerializerOptions GetTypeExcludedJsonOptions(params string[] excludedProperties)
     {
