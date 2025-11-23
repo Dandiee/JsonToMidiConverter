@@ -194,52 +194,50 @@ public static class Dumper
 
     public static int GetNextAttackNoteEvent(List<MidiEvent> events, ref int cursor, Nóta note)
     {
-        if (note.Is(00502))
-        {
-
-        }
-
-        while (true)
+        do
         {
             cursor++;
-            var cursorEvent = events[cursor];
-            if (cursorEvent is PitchBendEvent pitch && pitch.PitchValue == 8192)
+        } while (!IsMatching(events, cursor, note));
+
+        if (!IsMatchingMeasure(events, cursor, note, out var measureIndex))
+        {
+            Debugger.Break();
+        }
+
+        var result = cursor;
+
+
+
+        return result;
+    }
+
+    public static bool IsMatchingMeasure(List<MidiEvent> events, int cursor, Nóta note, out int measureIndex)
+    {
+        var measureCursor = cursor;
+        for (var i = measureCursor; ; i--)
+        {
+            var ev = events[i];
+            if (ev is MarkerEvent marker)
             {
-                var nextEvent = events[cursor + 1];
-                if (nextEvent is NoteOnEvent on
-                    && on.DeltaTime == 0
-                    //&& on.Channel == note.Channel
-                    && on.NoteNumber == note.NoteNumber)
-                {
-
-                    var measureCursor = cursor;
-                    for (var i = measureCursor; ; i--)
-                    {
-                        var ev = events[i];
-                        if (ev is MarkerEvent marker)
-                        {
-                            var measureIndex = int.Parse(string.Join("", marker.Text.Where(char.IsDigit)));
-                            if (measureIndex != note.Measure.Index)
-                            {
-                                Debugger.Break();
-                            }
-
-                            break;
-                        }
-                    }
-
-                    var result = cursor;
-
-                    if (note.Beat.Notes.Length > 1)
-                    {
-                        var otherNotes = note.Beat.Notes.Skip(1);
-
-                    }
-
-                    return result;
-                }
+                measureIndex = int.Parse(string.Join("", marker.Text.Where(char.IsDigit)));
+                return measureIndex == note.Measure.Index;
             }
         }
+    }
+
+    public static bool IsMatching(List<MidiEvent> events, int cursor, Nóta note)
+    {
+        var cursorEvent = events[cursor];
+        if (cursorEvent is not PitchBendEvent pitch) return false;
+        if (pitch.PitchValue != 8192) return false;
+
+        var nextEvent = events[cursor + 1];
+        if (nextEvent is not NoteOnEvent on) return false;
+
+        if (on.DeltaTime != 0 ||
+            on.NoteNumber != note.NoteNumber) return false;
+
+        return true;
     }
 
     private static JsonSerializerOptions GetTypeExcludedJsonOptions(params string[] excludedProperties)
