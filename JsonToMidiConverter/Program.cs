@@ -27,5 +27,23 @@ mid.ReplaceTempoMap(Time.Map);
 song.Build();
 
 var midiFile = Converter.Convert(song, pair.Key);
-midiFile.Write("Output.mid", overwriteFile: true);
-Dumper.Dump(song, pair.Key);
+
+foreach (var kvp in songPairs)
+{
+
+    var dumpMatch = Database.Search(kvp.Value).First();
+    var dumpData = Database.GetMidiData(dumpMatch.SongId);
+    var dumpSong = JsonSerializer.Deserialize<Song>(dumpData, new JsonSerializerOptions
+    {
+        PropertyNameCaseInsensitive = true
+    });
+
+    var dumpMid = new MidiFile { TimeDivision = new TicksPerQuarterNoteTimeDivision(15360) };
+    Time.Map = dumpSong.Parts[0].GetTempo(mid);
+    dumpMid.ReplaceTempoMap(Time.Map);
+    dumpSong.Build();
+    
+    midiFile.Write("Output.mid", overwriteFile: true);
+    Dumper.Dump(dumpSong, kvp.Key, dumpMatch.Artist!);
+}
+

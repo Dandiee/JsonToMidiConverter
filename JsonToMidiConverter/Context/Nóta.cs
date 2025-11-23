@@ -229,6 +229,8 @@ public sealed partial class Nóta
     public bool IsPitchEqual(Nóta note) => note.Fret == Fret && (int)note.StringNumber == (int)StringNumber;
 
 
+    public bool Is(int value) => value == int.Parse($"{Index}{Beat.Index}{Measure.Index}{Part.Index}");
+
 
     public void Is(int noteIndex, int beatIndex, int measureIndex, int? partIndex = null)
     {
@@ -287,7 +289,8 @@ public sealed partial class Nóta
                                     || Part.InstrumentId == 27 
                                     || Part.InstrumentId == 30
                                     || Part.InstrumentId == 40 
-                                    || Part.InstrumentId == 29)
+                                    || Part.InstrumentId == 29
+                                    || Part.InstrumentId == 37)
         {
             return (FourBitNumber)StringNumber;
         }

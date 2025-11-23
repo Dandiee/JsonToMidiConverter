@@ -29,11 +29,12 @@ public static class Dumper
 
     public static readonly HashSet<string> ExcludedProperties = new[] { "Channel", "DeltaTime", "EventType", "NoteNumber" }.ToHashSet();
 
-    public static void Dump(Song song, string midiPath)
+    public static void Dump(Song song, string midiPath, string? artist)
     {
         var midi = MidiFile.Read(midiPath);
         var output = ProcessMidi(song, midi);
-        File.WriteAllText("Logs.txt", output);
+
+        File.WriteAllText($"Logs_{artist}", output);
     }
 
     private static IEnumerable<(long Time, MidiEvent Event)> GetMidiEvents(TrackChunk chunk)
@@ -72,7 +73,7 @@ public static class Dumper
                         var slideMarker = note.Slide != Slide.None ? $" Slide = {note.Slide} " : "";
                         var tieMarker = note.Tie ? " Tie " : "";
 
-                        sb.AppendLine($"\t\tN{note.Index} B{beat.Index} M{measure.Index} P{part.Index} S{note.StringNumber} F{note.Fret}" + 
+                        sb.AppendLine($"\t\tN{note.Index} B{beat.Index} M{measure.Index} P{part.Index} S{note.StringNumber} F{note.Fret}" +
                                       $"{slideMarker}{tieMarker} Attr = [{GetAttributes(beat)}] Input = {GetJson(note)}");
 
                         if (note.MidiEventIndex.HasValue)
@@ -109,13 +110,13 @@ public static class Dumper
 
                                 if (pitchCounter == 3)
                                 {
-                                    sb.AppendLine($"\t\t\t.... More pitch bending" );
+                                    sb.AppendLine($"\t\t\t..... More pitch bending");
                                 }
-                                else if(pitchCounter < 3)
+                                else if (pitchCounter < 3)
                                 {
                                     sb.AppendLine(
                                         $"\t\t\t{i.ToString().PadLeft(5)} {(niceName ?? timedEvent.Event.EventType.ToString()).PadRight(10)} " +
-                                        $"Note: {nn.PadLeft(2)}; At: {timedEvent.Time}; Ch: {ch}; " + 
+                                        $"Note: {nn.PadLeft(2)}; At: {timedEvent.Time}; Ch: {ch}; " +
                                         $"Delta: {timedEvent.Event.DeltaTime.ToString().PadLeft(6)} {attributes}");
                                 }
                             }
@@ -139,6 +140,10 @@ public static class Dumper
             var events = chunk.Events.ToList();
 
             Nóta? lastMarkedNote = null;
+            if (part.Index == 1)
+            {
+
+            }
             var cursor = 0;
 
             foreach (var measure in part.Measures)
@@ -149,8 +154,7 @@ public static class Dumper
                     {
                         if (!beat.Rest && !note.Rest && !note.Tie)
                         {
-                            cursor = GetNextAttackNoteEvent(events, cursor, note);
-                            note.MidiEventIndex = cursor;
+                            note.MidiEventIndex = GetNextAttackNoteEvent(events, ref cursor, note);
 
                             if (lastMarkedNote != null)
                             {
@@ -188,8 +192,13 @@ public static class Dumper
         return JsonSerializer.Serialize(model, options);
     }
 
-    public static int GetNextAttackNoteEvent(List<MidiEvent> events, int cursor, Nóta note)
+    public static int GetNextAttackNoteEvent(List<MidiEvent> events, ref int cursor, Nóta note)
     {
+        if (note.Is(00502))
+        {
+
+        }
+
         while (true)
         {
             cursor++;
@@ -199,7 +208,7 @@ public static class Dumper
                 var nextEvent = events[cursor + 1];
                 if (nextEvent is NoteOnEvent on
                     && on.DeltaTime == 0
-                    && on.Channel == note.Channel
+                    //&& on.Channel == note.Channel
                     && on.NoteNumber == note.NoteNumber)
                 {
 
@@ -219,7 +228,15 @@ public static class Dumper
                         }
                     }
 
-                    return cursor;
+                    var result = cursor;
+
+                    if (note.Beat.Notes.Length > 1)
+                    {
+                        var otherNotes = note.Beat.Notes.Skip(1);
+
+                    }
+
+                    return result;
                 }
             }
         }
