@@ -240,6 +240,7 @@ public sealed partial class Nóta
     {
         if (Part.InstrumentId == 1024 || (int)StringNumber == -1)
         {
+            if (Fret == 51) return 59; // nirvana, M5, P6, N1, N0
             return Fret;
         }
 

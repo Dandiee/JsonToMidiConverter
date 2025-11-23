@@ -28,7 +28,15 @@ public static class Dumper
         [typeof(Beat)] = GetTypeExcludedJsonOptions(nameof(Beat.Notes), nameof(Beat.Text))
     };
 
-    public static readonly HashSet<string> ExcludedProperties = new[] { "Channel", "DeltaTime", "EventType", "NoteNumber" }.ToHashSet();
+    public static readonly HashSet<string> ExcludedProperties = new[]
+    {
+        "Channel", "DeltaTime", "EventType", "NoteNumber"
+    }.ToHashSet();
+
+    public static readonly HashSet<MidiEventType> StrumSeparatorEvents = new[]
+    {
+        MidiEventType.NoteOff, MidiEventType.ControlChange , MidiEventType.PitchBend
+    }.ToHashSet();
 
     public static void Dump(Song song, string midiPath, string? artist)
     {
@@ -77,7 +85,7 @@ public static class Dumper
                         sb.AppendLine($"\t\tN{note.Index} B{beat.Index} M{measure.Index} P{part.Index} S{note.StringNumber} F{note.Fret}" +
                                       $"{slideMarker}{tieMarker} Attr = [{GetAttributes(beat)}] Input = {GetJson(note)}");
 
-                        
+
                     }
 
                     if (beat.MidiEventIndex.HasValue)
@@ -153,12 +161,16 @@ public static class Dumper
 
                     beat.MidiEventIndex = GetBeatEventCursor(events, ref cursor, beat);
 
-                    if (lastMarkedBeat != null)
+                    if (beat.MidiEventIndex.HasValue) // we have known broken measures, see the fuckedupmeasures hashset
                     {
-                        lastMarkedBeat.MidiEventCount = cursor - lastMarkedBeat.MidiEventIndex!.Value;
+                        if (beat.MidiEventIndex.HasValue && lastMarkedBeat != null)
+                        {
+                            lastMarkedBeat.MidiEventCount = cursor - lastMarkedBeat.MidiEventIndex!.Value;
+                        }
+
+                        lastMarkedBeat = beat;
                     }
 
-                    lastMarkedBeat = beat;
                 }
             }
         }
@@ -186,17 +198,38 @@ public static class Dumper
         return JsonSerializer.Serialize(model, options);
     }
 
-    public static int GetBeatEventCursor(List<MidiEvent> events, ref int cursor, Beat beat)
+    public static readonly HashSet<string> KnownFuckedUpMeasures = new[] { "036", "136", "236", "336" }.ToHashSet();
+
+    public static int? GetBeatEventCursor(List<MidiEvent> events, ref int cursor, Beat beat)
     {
-        if (beat.Is(1772))
+        if (beat.Is(0110))
         {
 
         }
 
+
+        var originalCursor = cursor;
+        int newCursor;
+
         do
         {
             cursor++;
-        } while (!IsMatchingBeat(events, cursor, beat));
+
+            if (cursor > events.Count - 1)
+            {
+                if (!KnownFuckedUpMeasures.Contains(beat.Nameplate))
+                {
+                    Debugger.Break();
+                }
+                else
+                {
+                    cursor = originalCursor;
+                    return null;
+                }
+                ;
+            }
+
+        } while (!IsMatchingBeat(events, cursor, beat, out newCursor));
 
         if (!IsMatchingMeasure(events, cursor, beat, out var m1))
         {
@@ -204,20 +237,8 @@ public static class Dumper
         }
 
         var result = cursor;
-
-        //foreach (var otherNote in note.Beat.Notes.Where(e => e != note && !e.Tie))
-        //{
-        //    do
-        //    {
-        //        cursor++;
-        //    } while (!IsMatchingBeat(events, cursor, otherNote));
-
-        //    if (!IsMatchingMeasure(events, cursor, note, out var m2))
-        //    {
-        //        Debugger.Break();
-        //    }
-        //}
-
+        cursor = newCursor;
+        
         return result;
     }
 
@@ -235,56 +256,89 @@ public static class Dumper
         }
     }
 
-    public static bool IsMatchingBeat(List<MidiEvent> events, int cursor, Beat beat)
+    public static bool IsMissing(Nóta note)
     {
-        if (beat.Notes.Count(e => !e.Tie && !e.Rest) == 1)
+        if (note.Part.InstrumentId == 1024 && note.Fret == 36 && note.Ghost) return true;
+
+        return false;
+    }
+
+    public static bool IsMatchingBeat(List<MidiEvent> events, int cursor, Beat beat, out int newCursor)
+    {
+        newCursor = cursor;
+
+        var playedNotes = beat.Notes.Where(e => !e.Tie && !IsMissing(e)).ToList();
+        if (playedNotes.Count == 1)
         {
-            var note = beat.Notes.Single(e => !e.Tie && !e.Rest);
+            var note = playedNotes.Single();
 
             if (!IsMatchingNote(events, cursor, note)) return false;
             if (!IsPitchClearing(events, cursor - 1, note)) return false;
+
+            newCursor = cursor + 1;
         }
         else
         {
             if (beat.Part.IsPianoLike)
             {
-                for (var i = 0; i < beat.Notes.Length; i++)
+                for (var i = 0; i < playedNotes.Count; i++)
                 {
                     var noteOnIndex = cursor + i;
-                    var pitchClearIndex = noteOnIndex - beat.Notes.Length;
+                    var pitchClearIndex = noteOnIndex - playedNotes.Count;
 
-                    if (!IsMatchingNote(events, noteOnIndex, beat.Notes[i])) return false;
-                    if (!IsPitchClearing(events, pitchClearIndex, beat.Notes[i])) return false;
+                    if (!IsMatchingNote(events, noteOnIndex, playedNotes[i])) return false;
+                    if (!IsPitchClearing(events, pitchClearIndex, playedNotes[i])) return false;
                 }
+
+                newCursor = cursor + 2 * beat.Notes.Length - 1;
             }
             else
             {
-                var noteOffs = 0;
-
-                for (var i = 0; i < beat.Notes.Length; i++)
+                if (beat.Is(06633))
                 {
-                    var noteOnIndex = cursor + i * 2 + noteOffs;
-                    var pitchClearIndex = noteOnIndex - 1;
 
-                    var currentNoteOffs = 0;
-                    while (events[pitchClearIndex + currentNoteOffs] is NoteOffEvent)
-                    {
-                        currentNoteOffs++;
-                    }
-
-                    noteOffs += currentNoteOffs;
-                    noteOnIndex = cursor + i * 2 + noteOffs;
-                    pitchClearIndex = noteOnIndex - 1;
-
-                    if (!IsMatchingNote(events, noteOnIndex, beat.Notes[i])) return false;
-                    if (!IsPitchClearing(events, pitchClearIndex, beat.Notes[i])) return false;
                 }
 
+                var totalSeparators = 0;
+                
+
+                for (var i = 0; i < playedNotes.Count; i++)
+                {
+                    var note = playedNotes[i];
+                    if (note.Tie) continue; // TODO: this gonna break at some point. the assumption is that the tiw notes are always at the end of the note list
+
+                    var noteOnIndex = cursor + i * 2 + totalSeparators;
+                    var pitchClearIndex = noteOnIndex - 1;
+
+                    totalSeparators += GetFillerCount(events, pitchClearIndex, MidiEventType.NoteOff);
+
+                    noteOnIndex = cursor + i * 2 + totalSeparators;
+                    pitchClearIndex = noteOnIndex - 1;
+
+                    if (!IsMatchingNote(events, noteOnIndex, note)) return false;
+                    if (!IsPitchClearing(events, pitchClearIndex, note)) return false;
+
+                    if (note.Bend != null)
+                    {
+                        totalSeparators += GetFillerCount(events, noteOnIndex + 1, MidiEventType.ControlChange, MidiEventType.PitchBend) - 1;
+                    }
+                }
+
+                newCursor = cursor + 2 * playedNotes.Count + totalSeparators - 1;
             }
         }
 
         return true;
     }
+
+    public static int GetFillerCount(List<MidiEvent> events, int cursor, params MidiEventType[] types)
+    {
+        var i = cursor;
+        while (types.Contains(events[i++].EventType)) ;
+        return i - cursor - 1;
+    }
+
+
 
     private static bool IsPitchClearing(List<MidiEvent> events, int cursor, Nóta note)
     {
@@ -322,6 +376,21 @@ public static class Dumper
                 }
             }
         };
+    }
+
+    public static void DumpJsonInputs(int songId)
+    {
+        var meta = Database.GetMetaData(songId);
+        var midi = Database.GetMidiData(songId);
+
+        var opts = new JsonSerializerOptions(JsonSerializerDefaults.General)
+        {
+            WriteIndented = true,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
+        };
+
+        File.WriteAllText($"MetaData_{songId}.json", JsonSerializer.Serialize(meta, opts));
+        File.WriteAllText($"MidiData_{songId}.json", JsonSerializer.Serialize(midi, opts));
     }
 
 }

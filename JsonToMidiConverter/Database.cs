@@ -1,6 +1,7 @@
 ﻿using JsonToMidiConverter.Models;
 using System.IO.Compression;
 using System.Text.Json;
+using JsonToMidiConverter.Models.Song;
 
 namespace JsonToMidiConverter;
 
@@ -21,7 +22,7 @@ public static class Database
         SongsById = Songs.ToDictionary(e => e.SongId);
     }
 
-    public static string GetMidiData(int songId)
+    public static Song GetMidiData(int songId)
     {
         var record = SongsById[songId];
 
@@ -42,7 +43,12 @@ public static class Database
 
         streams.ForEach(s => s.Dispose());
 
-        return $"{{\"parts\":[{string.Join(", ", textContents)}]}}";
+        var content = $"{{\"parts\":[{string.Join(", ", textContents)}]}}";
+
+        return JsonSerializer.Deserialize<Song>(content, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        });
     }
 
     private static Stream DecompressGzip(string compressedFilePath)
@@ -62,6 +68,9 @@ public static class Database
                 (e.Artist != null && e.Artist.Contains(filter, StringComparison.OrdinalIgnoreCase)))
             .OrderByDescending(e => e.Views)
             .ToList();
+
+    public static SongMetaDataModel GetMetaData(int songId)
+        => JsonSerializer.Deserialize<SongMetaDataModel>(File.ReadAllText(Path.Combine(MetaPath, $"{songId}.json")));
 
     private static List<RecordModel> LoadDatabase()
     {
