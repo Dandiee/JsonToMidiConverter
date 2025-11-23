@@ -19,8 +19,6 @@ public sealed partial class Beat
     [JsonIgnore] public byte Numerator => (byte)Duration[0];
     [JsonIgnore] public byte Denominator => (byte)Duration[1];
     [JsonIgnore] public bool IsAccord { get; private set; }
-    [JsonIgnore] public int? MidiEventIndex { get; set; }
-    [JsonIgnore] public int? MidiEventCount { get; set; }
     [JsonIgnore] public string Nameplate => $"{Index}{Measure.Index}{Part.Index}";
 
     public void Build(Voice voice, int index)
