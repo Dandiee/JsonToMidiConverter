@@ -244,6 +244,9 @@ public sealed partial class Nóta
         if (Part.InstrumentId == 1024 || (int)StringNumber == -1)
         {
             if (Fret == 51) return 59; // nirvana, M5, P6, N1, N0
+            if (Fret == 98 && StringNumber == -0.5) return 57;
+            if (Fret  == 85 && StringNumber == -1.5) return 76;
+            if (Fret == 92 && StringNumber == -0.5) return 46;
             return Fret;
         }
 
@@ -264,11 +267,32 @@ public sealed partial class Nóta
             }
         }
 
+        if (Harmonic == "artificial")
+        {
+            switch ((int)HarmonicFret)
+            {
+                case 10: return openStringPitch + Fret + 12;
+                case 5: return openStringPitch + Fret + 24;
+            }
+        }
+
         var q = this;
         //if (Fret == 12) return openStringPitch;
         var w = HarmonicFret;
         // 4. STANDARD FRETTED NOTE
-        return (openStringPitch + Fret);
+
+        var randomOffset = Part.InstrumentId == 67
+            ? 10
+            : 0;
+
+        randomOffset = 0;
+
+        if (Part.InstrumentId == 30)
+        {
+            //if (Fret == 12 && StringNumber == 4) return 45;
+        }
+
+        return (openStringPitch + Fret + (int)HarmonicFret) + randomOffset;
     }
 
     public SevenBitNumber GetSlideTargetPitch()
@@ -296,7 +320,10 @@ public sealed partial class Nóta
                                     || Part.InstrumentId == 40 
                                     || Part.InstrumentId == 29
                                     || Part.InstrumentId == 37
-                                    || Part.InstrumentId == 67)
+                                    || Part.InstrumentId == 67
+                                    || Part.InstrumentId == 26
+                                    || Part.InstrumentId == 12
+                                    || Part.InstrumentId == 81)
         {
             return (FourBitNumber)StringNumber;
         }

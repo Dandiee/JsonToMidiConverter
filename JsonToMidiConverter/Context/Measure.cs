@@ -9,7 +9,7 @@ public sealed partial class Measure
     [JsonIgnore]public int Index { get; private set; }
     [JsonIgnore]public Part Part { get; private set; }
     [JsonIgnore]public Song Song => Part.Song;
-    [JsonIgnore]public Beat[] Beats => Voices.Single().Beats;
+    [JsonIgnore]public Beat[] Beats => Voices.First().Beats;
     [JsonIgnore] public Time StartTime { get; private set; }
 
     public void Build(Part part, int index)

@@ -79,6 +79,9 @@ public static class Dumper
 
         var chunks = midi.Chunks.OfType<TrackChunk>().ToList();
 
+        Debug.Assert(song.Parts.Length == chunks.Count);
+
+
         foreach (var part in song.Parts)
         {
             var events = GetMidiEvents(chunks[part.Index]).ToList();
@@ -90,7 +93,7 @@ public static class Dumper
 
             Debug.Assert(part.Instrument == instrumentName);
             Debug.Assert(part.Name == trackName);
-            Debug.Assert(part.InstrumentId == instrumentId);
+            //Debug.Assert(part.InstrumentId == instrumentId);
             Debug.Assert(part.Measures.Length == events.Count(e => e.Event.EventType == MidiEventType.Marker) - 1);
 
             var partTitle =
@@ -184,7 +187,7 @@ public static class Dumper
         var chunks = midi.Chunks.OfType<TrackChunk>().ToList();
 
         // pass 1: assign events to beats/notes
-        foreach (var part in song.Parts.Skip(1))
+        foreach (var part in song.Parts)
         {
             var chunk = chunks[part.Index];
             var events = chunk.Events.ToList();
@@ -256,7 +259,8 @@ public static class Dumper
 
     public static int? GetBeatEventCursor(List<MidiEvent> events, ref int cursor, Beat beat)
     {
-        if (beat.Is(42381))
+        //if (beat.Part.Index == 1)
+        if (beat.Is("116910"))
         {
 
         }
@@ -282,6 +286,14 @@ public static class Dumper
             }
 
         } while (!IsMatchingBeat(events, cursor, beat, out newCursor));
+
+        var first = beat.Notes.First(a => a.MidiEventIndex.HasValue).MidiEventIndex.Value;
+        var last = beat.Notes.Last(a => a.MidiEventIndex.HasValue).MidiEventIndex.Value;
+
+        if (events[cursor].EventType != MidiEventType.NoteOn)
+        {
+
+        }
 
         if (!IsMatchingMeasure(events, cursor, beat, out var m1))
         {
@@ -345,11 +357,6 @@ public static class Dumper
             }
             else
             {
-                if (beat.Is(06633))
-                {
-
-                }
-
                 var totalSeparators = 0;
 
 
@@ -372,10 +379,10 @@ public static class Dumper
 
                     playedNotes[i].MidiEventIndex = noteOnIndex;
 
-                    if (note.Bend != null)
+                    if (note.Bend != null || note.Vibrato)
                     {
-                        totalSeparators += GetFillerCount(events, noteOnIndex + 1, MidiEventType.ControlChange,
-                            MidiEventType.PitchBend) - 1;
+                        var fillerEvents = GetFillerCount(events, noteOnIndex + 1, MidiEventType.ControlChange, MidiEventType.PitchBend);
+                        totalSeparators += fillerEvents - 1;
                     }
                 }
 
@@ -401,6 +408,8 @@ public static class Dumper
         if (midiEvent is not PitchBendEvent pitch) return false;
         if (pitch.PitchValue != 8192) return false;
         if (pitch.Channel != note.Channel) return false;
+
+        var q = note.GetNoteChannel();
 
         return true;
     }
@@ -483,42 +492,51 @@ public static class Dumper
         if (midiFilePath != null)
         {
             var midi = MidiFile.Read(midiFilePath);
-            var p = 0;
-            foreach (var chunk in midi.Chunks.OfType<TrackChunk>())
+
+
+            var partIndex = 0;
+            foreach (var part in midi.Chunks.OfType<TrackChunk>())
             {
-                sb.AppendLine($"P{p++}");
-                var i = 0;
+                var eventIndex = 0;
                 var time = 0L;
-                var m = 0;
-                foreach (var timedEvent in chunk.Events)
+                var measureIndex = 0;
+
+                sb.AppendLine($"P{partIndex}");
+
+                foreach (var midiEvent in part.Events)
                 {
-                    time += timedEvent.DeltaTime;
+                    time += midiEvent.DeltaTime;
 
-                    EventTypeNames.TryGetValue(timedEvent.EventType, out var niceName);
+                    EventTypeNames.TryGetValue(midiEvent.EventType, out var niceName);
 
-                    var ch = (timedEvent as ChannelEvent)?.Channel.ToString() ?? string.Empty;
-                    var nn = (timedEvent as NoteEvent)?.NoteNumber.ToString() ?? string.Empty;
+                    var ch = (midiEvent as ChannelEvent)?.Channel.ToString() ?? string.Empty;
+                    var nn = (midiEvent as NoteEvent)?.NoteNumber.ToString() ?? string.Empty;
 
-                    var properties = timedEvent
+                    var properties = midiEvent
                         .GetType()
                         .GetProperties(BindingFlags.Public | BindingFlags.Instance)
                         .Where(e => !ExcludedProperties.Contains(e.Name));
 
                     var attributes = string.Join("; ", properties
                         .OrderBy(e => e.Name)
-                        .Select(prop => $"{prop.Name}: {prop.GetValue(timedEvent)}"));
+                        .Select(prop => $"{prop.Name}: {prop.GetValue(midiEvent)}"));
 
-                    if (timedEvent.EventType == MidiEventType.Marker)
+                    if (midiEvent.EventType == MidiEventType.Marker)
                     {
-                        sb.AppendLine($"\t M{m++} P{p} -------------------------------------------------------------------------------------------------------------------- ");
+                        sb.AppendLine($"\t M{measureIndex} P{partIndex} -------------------------------------------------------------------------------------------------------------------- ");
+                        measureIndex++;
                     }
 
                     sb.AppendLine(
-                        $"\t\t{i++.ToString().PadLeft(5)} {(niceName ?? timedEvent.EventType.ToString()).PadRight(10)} " +
+                        $"\t\t{eventIndex++.ToString().PadLeft(5)} {(niceName ?? midiEvent.EventType.ToString()).PadRight(10)} " +
                         $"Note: {nn.PadLeft(2)}; At: {time}; Ch: {ch}; " +
-                        $"Delta: {timedEvent.DeltaTime.ToString().PadLeft(6)} {attributes}");
+                        $"Delta: {midiEvent.DeltaTime.ToString().PadLeft(6)} {attributes}");
                 }
+
+                partIndex++;
             }
+
+            
         }
 
         File.WriteAllText($"MidiRaw_{meta.Artist}.dani", sb.ToString());

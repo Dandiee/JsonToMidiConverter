@@ -55,5 +55,5 @@ public sealed partial class Part
         return tempoMapManager.TempoMap;
     }
 
-    public static readonly HashSet<int> PianoLikeInstruments = new() { 0, 48, 1024 };
+    public static readonly HashSet<int> PianoLikeInstruments = new() { 0, 48, 1024, 67 };
 }
