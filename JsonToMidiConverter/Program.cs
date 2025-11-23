@@ -9,10 +9,12 @@ var songPairs = new Dictionary<string, string>
 {
     [@"References\LinkinPark.mid"] = "In the end",
     [@"References\Nirvana.mid"] = "Come as you are",
+    //[@"References\LedZeppeling.mid"] = "Stairway to heaven",
+    [@"References\Tool.mid"] = "Pneuma",
 };
 
 
-var pair = songPairs.ElementAt(1);
+var pair = songPairs.ElementAt(2);
 
 var match = Database.Search(pair.Value).First();
 var song = Database.GetMidiData(match.SongId);
@@ -25,7 +27,7 @@ song.Build();
 //var midiFile = Converter.Convert(song, pair.Key);
 //midiFile.Write("Output.mid", overwriteFile: true);
 
-Dumper.DumpJsonInputs(match.SongId);
+Dumper.DumpJsonInputs(match.SongId, @"References\Tool.mid");
 
 foreach (var kvp in songPairs)
 {

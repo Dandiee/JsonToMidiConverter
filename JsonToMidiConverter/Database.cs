@@ -1,6 +1,7 @@
 ﻿using JsonToMidiConverter.Models;
 using System.IO.Compression;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using JsonToMidiConverter.Models.Song;
 
 namespace JsonToMidiConverter;
@@ -15,6 +16,13 @@ public static class Database
 
     private static readonly IReadOnlyList<RecordModel> Songs;
     private static readonly IReadOnlyDictionary<int, RecordModel> SongsById;
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
+        WriteIndented = true
+    };
 
     static Database()
     {
@@ -45,10 +53,7 @@ public static class Database
 
         var content = $"{{\"parts\":[{string.Join(", ", textContents)}]}}";
 
-        return JsonSerializer.Deserialize<Song>(content, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        });
+        return JsonSerializer.Deserialize<Song>(content, JsonOptions);
     }
 
     private static Stream DecompressGzip(string compressedFilePath)
@@ -70,7 +75,19 @@ public static class Database
             .ToList();
 
     public static SongMetaDataModel GetMetaData(int songId)
-        => JsonSerializer.Deserialize<SongMetaDataModel>(File.ReadAllText(Path.Combine(MetaPath, $"{songId}.json")));
+    {
+        var path = Path.Combine(MetaPath, $"{songId}.json");
+
+        if (!File.Exists(path))
+        {
+            throw new Exception("Song not found");
+        }
+
+        var json = File.ReadAllText(path);
+        var model = JsonSerializer.Deserialize<SongMetaDataModel>(json, JsonOptions);
+
+        return model;
+    }
 
     private static List<RecordModel> LoadDatabase()
     {

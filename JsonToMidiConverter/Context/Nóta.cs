@@ -264,6 +264,9 @@ public sealed partial class Nóta
             }
         }
 
+        var q = this;
+        //if (Fret == 12) return openStringPitch;
+        var w = HarmonicFret;
         // 4. STANDARD FRETTED NOTE
         return (openStringPitch + Fret);
     }
