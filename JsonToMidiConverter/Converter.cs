@@ -18,6 +18,7 @@ internal static class Converter
 
     public static readonly SevenBitNumber DefaultVelocity = 112.To7();
     public static List<(long AbsoluteTime, MidiEvent Event)>[] ReferenceData;
+    public static readonly long StandardSlideStepSize = 960;
 
     public static MidiFile Convert(Song song, string referenceMidiPath)
     {

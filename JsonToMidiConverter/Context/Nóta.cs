@@ -1,10 +1,12 @@
-﻿using System.Diagnostics;
+﻿using System.ComponentModel;
+using System.Diagnostics;
 using System.Text.Json.Serialization;
 using JsonToMidiConverter.Context;
 using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using Melanchall.DryWetMidi.MusicTheory;
+using Note = Melanchall.DryWetMidi.Interaction.Note;
 
 namespace JsonToMidiConverter.Models.Song;
 
@@ -28,6 +30,9 @@ public sealed partial class Nóta
     [JsonIgnore] public int? MidiEventIndex { get; set; }
     [JsonIgnore] public int? MidiEventCount { get; set; }
 
+    [JsonIgnore] public TieContext TieDetails { get; private set; }
+    [JsonIgnore] public Tie TieType { get; private set; }
+
 
     public void Build(Beat beat, int index)
     {
@@ -48,7 +53,25 @@ public sealed partial class Nóta
             : RawDuration;
 
         WillBeTied = GetWillBeTied();
+        if (Tie && !WillBeTied)
+        {
+            TieDetails = new TieContext(this);
+            foreach (var tiedNote in TieDetails.FullChain)
+            {
+                tiedNote.TieDetails = TieDetails;
+                tiedNote.TieType = Models.Song.Tie.InBetween;
+            }
 
+            TieDetails.Source.TieType = Models.Song.Tie.Source;
+            TieDetails.Source.TieType = Models.Song.Tie.Destination;
+
+            // Move Slides to the SourceNote from the DestinationNote
+            if (TieDetails.Destination.Slide != Slide.None)
+            {
+                TieDetails.Source.Slide = TieDetails.Source.Slide;
+                TieDetails.Destination.Slide = Slide.None;
+            }
+        }
     }
 
     public Nóta GetNext()
@@ -158,6 +181,88 @@ public sealed partial class Nóta
         }
     }
 
+    public (Time holdDuration, Time slideDuration) GetSlideDurations()
+    {
+        if (Slide == Slide.None)
+            throw new Exception("Note is not a slide");
+
+        var totalTime = ActualDuration;
+        var targetPitch = GetSlideTargetPitch();
+        var semitoneDistance = Math.Abs(targetPitch - NoteNumber);
+
+        // RULE 1: Distance = 1 → 100% hold, 0% slide (pitch bend only)
+        if (semitoneDistance == 1)
+        {
+            return (totalTime, new Time(0));
+        }
+
+        // RULE 2: "upwards" slides use inverted 25%/75% split
+        if (Slide == Slide.Upwards)
+        {
+            var holdDuration = new Time((totalTime.Tick * 25) / 100);
+            var slideDuration = new Time(totalTime.Tick - holdDuration.Tick);
+            return (holdDuration, slideDuration);
+        }
+
+        // RULE 3: Calculate ideal slide duration
+        var isSlideOut = Slide == Slide.Downwards || Slide == Slide.Upwards;
+        var idealSlideDuration = isSlideOut
+            ? semitoneDistance * Converter.StandardSlideStepSize
+            : (semitoneDistance - 1) * Converter.StandardSlideStepSize;
+
+        var ratio = (double)totalTime.Tick / idealSlideDuration;
+
+        double holdPercent;
+
+        // Special case: WillBeTied + Downwards slides bump up one threshold
+        if (WillBeTied && Slide == Slide.Downwards)
+        {
+            if (ratio >= 16)
+            {
+                holdPercent = 0.9375;  // Already at max, can't go higher
+            }
+            else if (ratio >= 8)
+            {
+                holdPercent = 0.9375;  // Bump from 87.5% to 93.75%
+            }
+            else if (ratio >= 4)
+            {
+                holdPercent = 0.875;   // Bump from 75% to 87.5%
+            }
+            else if (ratio >= 2)
+            {
+                holdPercent = 0.625;   // Bump from 50% to 62.5%
+            }
+            else
+            {
+                holdPercent = 0.625;   // Use 62.5% for ratio < 2 as well?
+            }
+        }
+        else // Standard slides ("legato", "shift", or non-tied "downwards")
+        {
+            if (ratio >= 16)
+            {
+                holdPercent = 0.9375;  // 93.75% (15/16)
+            }
+            else if (ratio >= 8)
+            {
+                holdPercent = 0.875;   // 87.5% (7/8)
+            }
+            else if (ratio >= 4)
+            {
+                holdPercent = 0.75;    // 75% (3/4)
+            }
+            else // ratio >= 2 or ratio < 2
+            {
+                holdPercent = 0.50;    // 50% (1/2)
+            }
+        }
+
+        var calculatedHoldDuration = new Time((long)(totalTime.Tick * holdPercent));
+        var calculatedSlideDuration = new Time(totalTime.Tick - calculatedHoldDuration.Tick);
+
+        return (calculatedHoldDuration, calculatedSlideDuration);
+    }
 
 
     public long GetShiftStepSizeTicks()
@@ -189,7 +294,25 @@ public sealed partial class Nóta
             ? semitoneDistance
             : semitoneDistance - 1;
 
-        return (finalDuration / denominator).Tick;
+        var oldImpl = (finalDuration / denominator).Tick;
+
+        var (holdDuration, slideDuration) = GetSlideDurations();
+
+        long numberOfSteps = isSlideOut
+            ? semitoneDistance      // slideOut goes through ALL semitones including target
+            : semitoneDistance - 1; // normal slide stops before target
+
+        var newImpl = semitoneDistance == 1
+            ? Converter.StandardSlideStepSize
+            : slideDuration.Tick / numberOfSteps;
+
+        if (newImpl != oldImpl)
+        {
+            var q = this;
+            //Debugger.Break();
+        }
+
+        return oldImpl;
     }
 
     public bool GetWillBeTied()
@@ -370,4 +493,32 @@ public sealed partial class Nóta
         [119] = 8, // Reverse Cymbal -> Ch 9
         [122] = 8, // Seashore -> Ch 9
     };
+}
+
+public enum Tie
+{
+    None,
+    Source,
+    Destination,
+    InBetween
+}
+
+public sealed class TieContext
+{
+    public Nóta Source { get; }
+    public Nóta Destination { get; }
+    public IReadOnlyList<Nóta> InBetweenNotes { get; }
+    public IReadOnlyList<Nóta> FullChain { get; }
+    public Time FullDuration { get; }
+
+    public TieContext(Nóta destinationNote)
+    {
+        if (!destinationNote.Tie || destinationNote.WillBeTied) throw new Exception("no");
+
+        FullChain = destinationNote.GetTies().ToList();
+        Source = FullChain[0];
+        Destination = FullChain[^1];
+        InBetweenNotes = FullChain.Skip(1).Take(FullChain.Count - 2).ToList();
+        FullDuration = new Time(FullChain.Sum(e => e.ActualDuration.Tick));
+    }
 }

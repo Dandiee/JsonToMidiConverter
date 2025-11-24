@@ -105,7 +105,11 @@ public static class Dumper
 
 
 
-            
+            if (!(attackNote.Tie || attackNote.WillBeTied || targetNote.Tie || targetNote.WillBeTied))
+            {
+                continue;
+            }
+
 
             var slideEvents = GetSlideEvents(attackNote, targetNote, events).ToList();
             var holdTime = slideEvents[0].Off.Time - slideEvents[0].On.Time;
@@ -131,7 +135,7 @@ public static class Dumper
 
                 if (slideEvent == slideEvents[0])
                 {
-                    sb.AppendLine($"\t Attack note");
+                    sb.AppendLine($"\t Attack note: WillBeTied = {targetNote.WillBeTied}; JSON = {GetJson(attackNote)}");
                 }
                 else if (slideEvent != slideEvents[^1])
                 {
@@ -143,7 +147,7 @@ public static class Dumper
                 }
                 else
                 {
-                    sb.AppendLine($"\t Landing note");
+                    sb.AppendLine($"\t Landing note: WillBeTied = {targetNote.WillBeTied}; JSON = {GetJson(targetNote)}");
                     
                 }
 
