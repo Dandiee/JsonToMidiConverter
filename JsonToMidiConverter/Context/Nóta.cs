@@ -30,7 +30,7 @@ public sealed partial class Nóta
     [JsonIgnore] public int? MidiEventIndex { get; set; }
     [JsonIgnore] public int? MidiEventCount { get; set; }
 
-    [JsonIgnore] public TieContext TieDetails { get; private set; }
+    [JsonIgnore] public TieContext? TieDetails { get; private set; }
     [JsonIgnore] public Tie TieType { get; private set; }
 
 
@@ -63,12 +63,12 @@ public sealed partial class Nóta
             }
 
             TieDetails.Source.TieType = Models.Song.Tie.Source;
-            TieDetails.Source.TieType = Models.Song.Tie.Destination;
+            TieDetails.Destination.TieType = Models.Song.Tie.Destination;
 
             // Move Slides to the SourceNote from the DestinationNote
             if (TieDetails.Destination.Slide != Slide.None)
             {
-                TieDetails.Source.Slide = TieDetails.Source.Slide;
+                TieDetails.Source.Slide = TieDetails.Destination.Slide;
                 TieDetails.Destination.Slide = Slide.None;
             }
         }
