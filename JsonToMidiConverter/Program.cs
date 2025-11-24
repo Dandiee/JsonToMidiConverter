@@ -35,6 +35,8 @@ foreach (var asd in songPairs)
 {
     var dumpMatch = Database.Search(asd.Value).First();
     Dumper.DumpJsonInputs(dumpMatch.SongId, asd.Key);
+    
+    
 }
 
 
@@ -50,6 +52,7 @@ foreach (var kvp in songPairs)
     dumpSong.Build();
     
     
-    Dumper.Dump(dumpSong, kvp.Key, dumpMatch.Artist!);
+    //Dumper.Dump(dumpSong, kvp.Key, dumpMatch.Artist!);
+    Dumper.CollectSlide(dumpSong, kvp.Key, dumpMatch.Artist!);
 }
 
