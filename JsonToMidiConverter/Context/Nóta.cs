@@ -10,6 +10,9 @@ using Note = Melanchall.DryWetMidi.Interaction.Note;
 
 namespace JsonToMidiConverter.Models.Song;
 
+public record SlideInfo(int Steps, Time HoldDuration, Time SlideWindow, Time StepDuration);
+
+
 [DebuggerDisplay("N{Index} B{Beat.Index} M{Measure.Index} P{Part.Index} STR{StringNumber}/FRT{Fret} NN{NoteNumber}")]
 public sealed partial class Nóta
 {
@@ -179,75 +182,28 @@ public sealed partial class Nóta
         }
     }
 
-    public (Time holdDuration, Time slideDuration) GetSlideDurations()
+    
+    public SlideInfo GetSlideInfo()
     {
-        if (Slide == Slide.None)
-            throw new Exception("Note is not a slide");
+        if (Index > 0) throw new Exception("Works only for lead notes");
 
-        // Use full tied duration if this is a tied source note
-        var thi = this;
-        var totalTime = (TieType == Models.Song.Tie.Source && TieDetails != null)
-            ? TieDetails.FullDuration
-            : ActualDuration;
+        var landingNoteNumber = GetSlideTargetPitch();
 
-        var targetPitch = GetSlideTargetPitch();
-        var semitoneDistance = Math.Abs(targetPitch - NoteNumber);
+        var steps = Math.Abs(landingNoteNumber - NoteNumber) - 1;
+        var duration = TieDetails?.Destination.ActualDuration ?? ActualDuration;
 
-        // RULE 1: Distance = 1 → 100% hold, 0% slide (pitch bend only)
-        if (semitoneDistance == 1)
-        {
-            return (totalTime, new Time(0));
-        }
+        var defaultSlideWindow = Slide == Slide.Downwards || Slide == Slide.Upwards
+            ? 0.75 * duration.Tick
+            : Math.Min(steps * 960d, duration.Tick / 2d);
 
-        // RULE 2: "upwards" slides use inverted 25%/75% split
-        if (Slide == Slide.Upwards)
-        {
-            var holdDuration = new Time((totalTime.Tick * 25) / 100);
-            var slideDuration = new Time(totalTime.Tick - holdDuration.Tick);
-            return (holdDuration, slideDuration);
-        }
+        var vibratoMultiplier = Vibrato ? 1.33333 : 1.0;
+        var dotMultiplier = (2 - (1 / Math.Pow(2, Beat.Dots)));
+        var stepSize = Math.Min(960, defaultSlideWindow / steps) * dotMultiplier * vibratoMultiplier;
 
-        // RULE 3: Calculate ideal slide duration
-        var isSlideOut = Slide == Slide.Downwards || Slide == Slide.Upwards;
-        var idealSlideDuration = isSlideOut
-            ? semitoneDistance * Converter.StandardSlideStepSize
-            : (semitoneDistance - 1) * Converter.StandardSlideStepSize;
+        var slideWindow = new Time((long)(stepSize * steps));
+        var holdDuration = duration - slideWindow;
 
-        var ratio = (double)totalTime.Tick / idealSlideDuration;
-
-        double holdPercent;
-
-
-        if (ratio >= 16)
-        {
-            var slideDuration = new Time(idealSlideDuration);
-            var holdDuration = new Time(totalTime.Tick - idealSlideDuration);
-
-            return (holdDuration, slideDuration);
-        }
-
-
-        if (ratio >= 8)
-        {
-            holdPercent = 0.875;
-        }
-        else if (ratio >= 4)
-        {
-            holdPercent = 0.75;
-        }
-        else if (ratio >= 2)
-        {
-            holdPercent = isSlideOut ? 0.625 : 0.50;  // Slideouts get 62.5%
-        }
-        else
-        {
-            holdPercent = 0.50;
-        }
-
-        var calculatedHoldDuration = new Time((long)(totalTime.Tick * holdPercent));
-        var calculatedSlideDuration = new Time(totalTime.Tick - calculatedHoldDuration.Tick);
-
-        return (calculatedHoldDuration, calculatedSlideDuration);
+        return new SlideInfo(steps, holdDuration, slideWindow, new Time((long)stepSize));
     }
 
     public long GetShiftStepSizeTicks()
@@ -289,14 +245,14 @@ public sealed partial class Nóta
 
 
         // testing code
-        var (holdDuration, slideDuration) = GetSlideDurations();
-        var newImpl = semitoneDistance == 1
-            ? Converter.StandardSlideStepSize
-            : slideDuration.Tick / numberOfSteps;
-        if (newImpl != oldImpl)
+        if (Index == 0)
         {
-            var q = this;
-            Debugger.Break();
+            var slideInfo = GetSlideInfo();
+            if (slideInfo.StepDuration.Tick != oldImpl)
+            {
+                var q = this;
+                Debugger.Break();
+            }
         }
 
         return oldImpl;
@@ -413,15 +369,8 @@ public sealed partial class Nóta
     public SevenBitNumber GetSlideTargetPitch()
     {
         if (Slide == Slide.Shift) return GetSlideTarget().NoteNumber;
-        if (Slide == Slide.Downwards)
-        {
-            var distanceToFret1 = Fret - 1;
-            return (SevenBitNumber)(NoteNumber - distanceToFret1);
-        }
-        if (Slide == Slide.Upwards)
-        {
-            return (SevenBitNumber)(NoteNumber + 9);
-        }
+        if (Slide == Slide.Downwards) return (NoteNumber - Math.Min(10, Fret)).To7();
+        if (Slide == Slide.Upwards) return (NoteNumber + 10).To7();
         if (Slide == Slide.Legato) return GetSlideTarget().NoteNumber;
 
         throw new Exception("what slide");

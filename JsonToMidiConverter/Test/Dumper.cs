@@ -81,6 +81,51 @@ public static class Dumper
     public static string GetNoteDetails(Nóta note) =>
         $"{note.GetName()}; Duration = {note.ActualDuration.ToString().PadLeft(12)} JSON = {GetJson(note.Beat)} {GetJson(note)}";
 
+    public record SlideInfo(int Steps, Time HoldDuration, Time SlideWindow, Time SlideNoteDuration);
+
+    public static void TestTheory(Nóta attackNote, 
+        int testNumberOfSteps, 
+        long testTotalDuration, 
+        long testSlideWindow,
+        long testSlideNoteDelay)
+    {
+
+        if (attackNote.Index > 0)
+        {
+            return;
+        }
+
+        var instrument = attackNote.Part.Instrument;
+        var name = attackNote.Part.Name;
+
+        var attackNoteNumber = attackNote.NoteNumber;
+        var landingNoteNumber = attackNote.GetSlideTargetPitch();
+
+        var steps = Math.Abs(landingNoteNumber - attackNoteNumber) - 1;
+        if (steps < 2) return;
+        var duration = attackNote?.TieDetails?.Destination.ActualDuration.Tick ?? attackNote.ActualDuration.Tick;
+
+
+        
+        var slideWindow = attackNote.Slide == Slide.Downwards || attackNote.Slide == Slide.Upwards
+            ? 0.75 * duration
+            : Math.Min(steps * 960d, duration / 2d);
+        var holdDuration = duration - slideWindow;
+
+        var vibratoMultiplier = attackNote.Vibrato ? 1.33333 : 1.0;
+        var dotMultiplier = (2 - (1 / Math.Pow(2, attackNote.Beat.Dots)));
+        var stepSize = Math.Min(960, slideWindow / steps) * dotMultiplier * vibratoMultiplier;
+
+        var info = attackNote.GetSlideInfo();
+
+        Debug.Assert(testNumberOfSteps == info.Steps);
+        Debug.Assert(Math.Abs(info.StepDuration.Tick - testSlideNoteDelay) < 10);
+
+        Debug.Assert(testNumberOfSteps == steps);
+        Debug.Assert(Math.Abs(stepSize - testSlideNoteDelay) < 10);
+
+    }
+
     public static void CollectSlide(Song song, string midiPath, string? artist)
     {
         var midi = MidiFile.Read(midiPath);
@@ -111,7 +156,7 @@ public static class Dumper
 
             var slideEvents = GetSlideEvents(startNote, endNote, events).ToList();
             var totalTime = new Time(slideEvents[^1].On.Time - slideEvents[0].On.Time);
-            var holdTime = new Time(slideEvents[0].Off.Time - slideEvents[0].On.Time);
+            var holdTime = new Time(slideEvents[0].On.Time - slideEvents[0].On.Time);
             var slideTime = new Time(slideEvents.Count > 2
                 ? slideEvents[^2].Off.Time - slideEvents[1].On.Time
                 : 0);
@@ -121,7 +166,7 @@ public static class Dumper
 
             sb.AppendLine("\r\n\r\n");
             sb.AppendLine($"\t Slide: {attackNote.Slide} SemitonesDistance: {semitoneDistance} (NN{attackNote.NoteNumber} -> NN{landingNote.NoteNumber})");
-            sb.AppendLine($"\t TotalSlideTime: {totalTime} [{slideEvents[^1].On.Time} -> {slideEvents[0].On.Time}] (100%)");
+            sb.AppendLine($"\t TotalSlideTime: {totalTime} [{slideEvents[^1].Off.Time} -> {slideEvents[0].On.Time}] (100%)");
             sb.AppendLine($"\t HoldTime: {holdTime} [{slideEvents[0].Off.Time} -> {slideEvents[0].On.Time}] (~{holdRatio:P})");
             sb.AppendLine($"\t TotalSlideTime: {slideTime} (~{holdRatio:P})");
             sb.AppendLine($"\t Attack Note:  {GetNoteDetails(attackNote)}");
@@ -139,6 +184,8 @@ public static class Dumper
 
             sb.AppendLine("\t Midi events:");
             var isSliding = false;
+            var numberOfSteps = 0;
+            var slidingDelays = new List<long>();
             foreach (var slideEvent in slideEvents)
             {
                 var duration = slideEvent.Off.Time - slideEvent.On.Time;
@@ -154,6 +201,8 @@ public static class Dumper
                         sb.AppendLine($"\t\t In-between notes");
                         isSliding = true;
                     }
+                    slidingDelays.Add(slideEvent.Dur);
+                    numberOfSteps++;
                 }
                 else
                 {
@@ -163,6 +212,9 @@ public static class Dumper
 
                 sb.AppendLine($"\t\t\t - [{slideEvent.On.Time}] NN {(slideEvent.On.MidiEvent as NoteOnEvent).NoteNumber}; Duration = {duration.ToString().PadLeft(5)} ({slideEvent.On.Time} -> {slideEvent.Off.Time})");
             }
+
+            var slideStepTime = (long)slidingDelays.Count == 0 ? 0 : (long)slidingDelays.Average();
+            TestTheory(attackNote, numberOfSteps, totalTime.Tick, slideTime.Tick, slideStepTime);
         }
 
         File.WriteAllText($"Slide_{artist}.data", sb.ToString());
