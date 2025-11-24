@@ -78,6 +78,9 @@ public static class Dumper
 
     public static long R(this long n) => (long)Math.Round(n / 10d) * 10;
 
+    public static string GetNoteDetails(Nóta note) =>
+        $"{note.GetName()}; Duration = {note.ActualDuration.ToString().PadLeft(12)} JSON = {GetJson(note.Beat)} {GetJson(note)}";
+
     public static void CollectSlide(Song song, string midiPath, string? artist)
     {
         var midi = MidiFile.Read(midiPath);
@@ -88,46 +91,53 @@ public static class Dumper
             .SelectMany(e => e.Measures)
             .SelectMany(e => e.Beats)
             .SelectMany(e => e.Notes)
-            .Where(e => e.Slide != Slide.None && !e.Tie);
+            .Where(e => e.Slide != Slide.None || e.OriginalSlide != Slide.None);
 
         var eventsByChunks = midi.Chunks.OfType<TrackChunk>().Select(e => GetMidiEvents(e).ToList()).ToList();
 
         foreach (var slide in slides)
         {
-            var attackNote = slide;
-            var targetNote = attackNote.GetSlideTarget();
             var events = eventsByChunks[slide.Part.Index];
-            var distance = targetNote.NoteNumber - attackNote.NoteNumber;
+            var attackNote = slide;
+            var landingNote = slide.GetSlideTarget();
+            var tie = attackNote.TieDetails;
+            var semitoneDistance = landingNote.NoteNumber - attackNote.NoteNumber;
 
+            
+            var startNote = tie?.Source ?? attackNote;
+            var endNote = landingNote;
+            var startEvent = events[startNote.MidiEventIndex.Value];
+            var endEvent = events[endNote.MidiEventIndex.Value];
 
-            var firstEvent = events[attackNote.MidiEventIndex.Value];
-            var lastEvent = events[targetNote.MidiEventIndex.Value + 2];
+            var slideEvents = GetSlideEvents(startNote, endNote, events).ToList();
+            var totalTime = new Time(slideEvents[^1].On.Time - slideEvents[0].On.Time);
+            var holdTime = new Time(slideEvents[0].Off.Time - slideEvents[0].On.Time);
+            var slideTime = new Time(slideEvents.Count > 2
+                ? slideEvents[^2].Off.Time - slideEvents[1].On.Time
+                : 0);
 
+            var holdRatio = ((double)holdTime.Tick / totalTime.Tick);
+            var slideRato = ((double)slideTime.Tick / totalTime.Tick);
 
+            sb.AppendLine("\r\n\r\n");
+            sb.AppendLine($"\t Slide: {attackNote.Slide} SemitonesDistance: {semitoneDistance} (NN{attackNote.NoteNumber} -> NN{landingNote.NoteNumber})");
+            sb.AppendLine($"\t TotalSlideTime: {totalTime} [{slideEvents[^1].On.Time} -> {slideEvents[0].On.Time}] (100%)");
+            sb.AppendLine($"\t HoldTime: {holdTime} [{slideEvents[0].Off.Time} -> {slideEvents[0].On.Time}] (~{holdRatio:P})");
+            sb.AppendLine($"\t TotalSlideTime: {slideTime} (~{holdRatio:P})");
+            sb.AppendLine($"\t Attack Note:  {GetNoteDetails(attackNote)}");
+            sb.AppendLine($"\t Landing Note: {GetNoteDetails(landingNote)}");
 
-            if (!(attackNote.Tie || attackNote.WillBeTied || targetNote.Tie || targetNote.WillBeTied))
+            if (tie != null)
             {
-                continue;
+                sb.AppendLine($"\t Attack tie chain (FullDuration: {tie.FullDuration})");
+
+                foreach (var tieNote in tie.FullChain)
+                {
+                    sb.AppendLine($"\t\t - {tieNote.TieType.ToString().PadRight(11)}: {GetNoteDetails(tieNote)}");
+                }
             }
 
-
-            var slideEvents = GetSlideEvents(attackNote, targetNote, events).ToList();
-            var holdTime = slideEvents[0].Off.Time - slideEvents[0].On.Time;
-            var slideTime = slideEvents.Count > 2
-                ? slideEvents[^2].Off.Time - slideEvents[1].On.Time
-                : 0;
-
-            var totalTime = slideEvents[^1].On.Time - slideEvents[0].On.Time;
-
-            sb.AppendLine($"{artist}, Part{attackNote.Part.Index}, Measure{attackNote.Measure.Index}, Beat{attackNote.Beat.Index}, Note{attackNote.Index} ");
-            sb.AppendLine($"Semitone distance: {distance} (NN{attackNote.NoteNumber} -> NN{targetNote.NoteNumber})");
-            sb.AppendLine($"Beat Input: {GetJson(attackNote.Beat)}");
-            sb.AppendLine($"Note Input: {GetJson(attackNote)} ");
-            sb.AppendLine($"Total time: {totalTime.ToString().PadLeft(5)} ({firstEvent.Time} -> {lastEvent.Time})");
-            sb.AppendLine($"Hold duration: {holdTime} ({(double)holdTime / totalTime:P1})");
-            sb.AppendLine($"Slide duration: {slideTime} ({(double)slideTime/ totalTime:P1})");
-            sb.AppendLine($"Played notes:");
-
+            sb.AppendLine("\t Midi events:");
             var isSliding = false;
             foreach (var slideEvent in slideEvents)
             {
@@ -135,42 +145,24 @@ public static class Dumper
 
                 if (slideEvent == slideEvents[0])
                 {
-                    sb.AppendLine($"\t Attack note: WillBeTied = {targetNote.WillBeTied}; JSON = {GetJson(attackNote)}");
+                    sb.AppendLine($"\t\t Start:  {GetNoteDetails(startNote)}");
                 }
                 else if (slideEvent != slideEvents[^1])
                 {
                     if (!isSliding)
                     {
-                        sb.AppendLine($"\t Slide notes");
+                        sb.AppendLine($"\t\t In-between notes");
                         isSliding = true;
                     }
                 }
                 else
                 {
-                    sb.AppendLine($"\t Landing note: WillBeTied = {targetNote.WillBeTied}; JSON = {GetJson(targetNote)}");
+                    sb.AppendLine($"\t\t End: {GetNoteDetails(endNote)}");
                     
                 }
 
-                sb.AppendLine($"\t - [{slideEvent.On.Time}] NN {(slideEvent.On.MidiEvent as NoteOnEvent).NoteNumber}; Duration = {duration.ToString().PadLeft(5)} ({slideEvent.On.Time} -> {slideEvent.Off.Time})");
+                sb.AppendLine($"\t\t\t - [{slideEvent.On.Time}] NN {(slideEvent.On.MidiEvent as NoteOnEvent).NoteNumber}; Duration = {duration.ToString().PadLeft(5)} ({slideEvent.On.Time} -> {slideEvent.Off.Time})");
             }
-            for (var i = attackNote.MidiEventIndex.Value; i < targetNote.MidiEventIndex.Value + 2; i++)
-            {
-
-                var ev = events[i];
-                if (ev.MidiEvent is NoteOnEvent on && attackNote.Channel == on.Channel)
-                {
-                    var offIndex = i;
-                    while (!(events[offIndex].MidiEvent is NoteOffEvent e && e.NoteNumber == on.NoteNumber))
-                    {
-                        offIndex++;
-                    }
-                    var off = events[offIndex];
-
-
-                }
-            }
-
-            sb.AppendLine("\r\n");
         }
 
         File.WriteAllText($"Slide_{artist}.data", sb.ToString());

@@ -26,6 +26,7 @@ public sealed partial class Nóta
     [JsonIgnore] public Time RawDuration { get; private set; }
     [JsonIgnore] public bool WillBeTied { get; private set; }
     [JsonIgnore] public Slide Slide { get; private set; }
+    [JsonIgnore] public Slide OriginalSlide { get; private set; }
     [JsonIgnore] public Queue<(MidiEvent Event, Time Time)> PendingEvents { get; private set; } = new();
     [JsonIgnore] public int? MidiEventIndex { get; set; }
     [JsonIgnore] public int? MidiEventCount { get; set; }
@@ -42,7 +43,7 @@ public sealed partial class Nóta
         Channel = GetNoteChannel();
 
         Slide = SlideString?.ToSlide() ?? Slide.None;
-        
+
         RawDuration = Staccato
             ? beat.MusicalDuration.Clone() / 2
             : beat.MusicalDuration.Clone();
@@ -51,6 +52,8 @@ public sealed partial class Nóta
         ActualDuration = prevBeat?.GraceNote == "onBeat"
             ? RawDuration - prevBeat.MusicalDuration
             : RawDuration;
+
+        OriginalSlide = Slide;
 
         WillBeTied = GetWillBeTied();
         if (Tie && !WillBeTied)
@@ -64,13 +67,6 @@ public sealed partial class Nóta
 
             TieDetails.Source.TieType = Models.Song.Tie.Source;
             TieDetails.Destination.TieType = Models.Song.Tie.Destination;
-
-            // Move Slides to the SourceNote from the DestinationNote
-            if (TieDetails.Destination.Slide != Slide.None)
-            {
-                TieDetails.Source.Slide = TieDetails.Destination.Slide;
-                TieDetails.Destination.Slide = Slide.None;
-            }
         }
     }
 
@@ -127,6 +123,8 @@ public sealed partial class Nóta
             else break;
         }
     }
+
+    public string GetName() => $"N{Index} B{Beat.Index} M{Measure.Index} P{Part.Index}";
 
     public Nóta GetForwardTie()
     {
@@ -186,7 +184,12 @@ public sealed partial class Nóta
         if (Slide == Slide.None)
             throw new Exception("Note is not a slide");
 
-        var totalTime = ActualDuration;
+        // Use full tied duration if this is a tied source note
+        var thi = this;
+        var totalTime = (TieType == Models.Song.Tie.Source && TieDetails != null)
+            ? TieDetails.FullDuration
+            : ActualDuration;
+
         var targetPitch = GetSlideTargetPitch();
         var semitoneDistance = Math.Abs(targetPitch - NoteNumber);
 
@@ -214,48 +217,31 @@ public sealed partial class Nóta
 
         double holdPercent;
 
-        // Special case: WillBeTied + Downwards slides bump up one threshold
-        if (WillBeTied && Slide == Slide.Downwards)
+
+        if (ratio >= 16)
         {
-            if (ratio >= 16)
-            {
-                holdPercent = 0.9375;  // Already at max, can't go higher
-            }
-            else if (ratio >= 8)
-            {
-                holdPercent = 0.9375;  // Bump from 87.5% to 93.75%
-            }
-            else if (ratio >= 4)
-            {
-                holdPercent = 0.875;   // Bump from 75% to 87.5%
-            }
-            else if (ratio >= 2)
-            {
-                holdPercent = 0.625;   // Bump from 50% to 62.5%
-            }
-            else
-            {
-                holdPercent = 0.625;   // Use 62.5% for ratio < 2 as well?
-            }
+            var slideDuration = new Time(idealSlideDuration);
+            var holdDuration = new Time(totalTime.Tick - idealSlideDuration);
+
+            return (holdDuration, slideDuration);
         }
-        else // Standard slides ("legato", "shift", or non-tied "downwards")
+
+
+        if (ratio >= 8)
         {
-            if (ratio >= 16)
-            {
-                holdPercent = 0.9375;  // 93.75% (15/16)
-            }
-            else if (ratio >= 8)
-            {
-                holdPercent = 0.875;   // 87.5% (7/8)
-            }
-            else if (ratio >= 4)
-            {
-                holdPercent = 0.75;    // 75% (3/4)
-            }
-            else // ratio >= 2 or ratio < 2
-            {
-                holdPercent = 0.50;    // 50% (1/2)
-            }
+            holdPercent = 0.875;
+        }
+        else if (ratio >= 4)
+        {
+            holdPercent = 0.75;
+        }
+        else if (ratio >= 2)
+        {
+            holdPercent = isSlideOut ? 0.625 : 0.50;  // Slideouts get 62.5%
+        }
+        else
+        {
+            holdPercent = 0.50;
         }
 
         var calculatedHoldDuration = new Time((long)(totalTime.Tick * holdPercent));
@@ -263,7 +249,6 @@ public sealed partial class Nóta
 
         return (calculatedHoldDuration, calculatedSlideDuration);
     }
-
 
     public long GetShiftStepSizeTicks()
     {
@@ -296,20 +281,22 @@ public sealed partial class Nóta
 
         var oldImpl = (finalDuration / denominator).Tick;
 
-        var (holdDuration, slideDuration) = GetSlideDurations();
+        
 
         long numberOfSteps = isSlideOut
             ? semitoneDistance      // slideOut goes through ALL semitones including target
             : semitoneDistance - 1; // normal slide stops before target
 
+
+        // testing code
+        var (holdDuration, slideDuration) = GetSlideDurations();
         var newImpl = semitoneDistance == 1
             ? Converter.StandardSlideStepSize
             : slideDuration.Tick / numberOfSteps;
-
         if (newImpl != oldImpl)
         {
             var q = this;
-            //Debugger.Break();
+            Debugger.Break();
         }
 
         return oldImpl;
@@ -368,7 +355,7 @@ public sealed partial class Nóta
         {
             if (Fret == 51) return 59; // nirvana, M5, P6, N1, N0
             if (Fret == 98 && StringNumber == -0.5) return 57;
-            if (Fret  == 85 && StringNumber == -1.5) return 76;
+            if (Fret == 85 && StringNumber == -1.5) return 76;
             if (Fret == 92 && StringNumber == -0.5) return 46;
             return Fret;
         }
@@ -442,10 +429,10 @@ public sealed partial class Nóta
 
     public FourBitNumber GetNoteChannel()
     {
-        if (Part.InstrumentId == 71 || Part.InstrumentId == 68 
-                                    || Part.InstrumentId == 27 
+        if (Part.InstrumentId == 71 || Part.InstrumentId == 68
+                                    || Part.InstrumentId == 27
                                     || Part.InstrumentId == 30
-                                    || Part.InstrumentId == 40 
+                                    || Part.InstrumentId == 40
                                     || Part.InstrumentId == 29
                                     || Part.InstrumentId == 37
                                     || Part.InstrumentId == 67
@@ -515,7 +502,7 @@ public sealed class TieContext
     {
         if (!destinationNote.Tie || destinationNote.WillBeTied) throw new Exception("no");
 
-        FullChain = destinationNote.GetTies().ToList();
+        FullChain = destinationNote.GetTies().Reverse().ToList();
         Source = FullChain[0];
         Destination = FullChain[^1];
         InBetweenNotes = FullChain.Skip(1).Take(FullChain.Count - 2).ToList();

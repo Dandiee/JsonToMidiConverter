@@ -26,13 +26,13 @@ Time.Map = song.Parts[0].GetTempo(mid);
 mid.ReplaceTempoMap(Time.Map);
 song.Build();
 
-var midiFile = Converter.Convert(song, pair.Key);
+//var midiFile = Converter.Convert(song, pair.Key);
 //midiFile.Write("Output.mid", overwriteFile: true);
 
 //Dumper.DumpJsonInputs(match.SongId, @"References\Tool.mid");
 
 
-return;
+//return;
 foreach (var asd in songPairs)
 {
     var dumpMatch = Database.Search(asd.Value).First();
