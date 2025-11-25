@@ -38,6 +38,9 @@ public readonly struct Time : IEquatable<Time>
     public static long operator %(Time lhs, long rhs) => lhs.Tick % rhs;
 
 
+    public static Time operator *(Time lhs, double rhs) => new((long)(lhs.Tick * rhs));
+    public static Time operator /(Time lhs, double rhs) => new((long)(lhs.Tick / rhs));
+
     public static Time operator *(Time lhs, long rhs) => new(lhs.Tick * rhs);
     public static Time operator /(Time lhs, long rhs) => new(lhs.Tick / rhs);
 

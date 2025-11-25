@@ -10,10 +10,10 @@ using Note = Melanchall.DryWetMidi.Interaction.Note;
 
 namespace JsonToMidiConverter.Models.Song;
 
-public record SlideInfo(int Steps, Time HoldDuration, Time SlideWindow, Time StepDuration);
+public record Slide(int Steps, Time HoldDuration, Time SlideWindow, Time StepDuration, int Direction, bool IsStepped);
 
 
-[DebuggerDisplay("N{Index} B{Beat.Index} M{Measure.Index} P{Part.Index} STR{StringNumber}/FRT{Fret} NN{NoteNumber}")]
+[DebuggerDisplay("N{Index} B{Beat.Index} M{Measure.Index} P{Part.Index}")]
 public sealed partial class Nóta
 {
     [JsonIgnore] public int Index { get; private set; }
@@ -28,8 +28,8 @@ public sealed partial class Nóta
     [JsonIgnore] public Time ActualDuration { get; private set; }
     [JsonIgnore] public Time RawDuration { get; private set; }
     [JsonIgnore] public bool WillBeTied { get; private set; }
-    [JsonIgnore] public Slide Slide { get; private set; }
-    [JsonIgnore] public Slide OriginalSlide { get; private set; }
+    [JsonIgnore] public Context.Slide Slide { get; private set; }
+    [JsonIgnore] public Context.Slide OriginalSlide { get; private set; }
     [JsonIgnore] public Queue<(MidiEvent Event, Time Time)> PendingEvents { get; private set; } = new();
     [JsonIgnore] public int? MidiEventIndex { get; set; }
     [JsonIgnore] public int? MidiEventCount { get; set; }
@@ -45,7 +45,7 @@ public sealed partial class Nóta
         NoteNumber = GetNoteNumber().To7();
         Channel = GetNoteChannel();
 
-        Slide = SlideString?.ToSlide() ?? Slide.None;
+        Slide = SlideString?.ToSlide() ?? Context.Slide.None;
 
         RawDuration = Staccato
             ? beat.MusicalDuration.Clone() / 2
@@ -167,7 +167,7 @@ public sealed partial class Nóta
 
     public Nóta GetSlideTarget()
     {
-        if (Slide == Slide.None) throw new Exception("The not is not a slide.");
+        if (Slide == Context.Slide.None) throw new Exception("The not is not a slide.");
 
         var nextBeat = Beat.GetNext();
         while (true)
@@ -183,16 +183,23 @@ public sealed partial class Nóta
     }
 
     
-    public SlideInfo GetSlideInfo()
+    public Slide GetSlide()
     {
         if (Index > 0) throw new Exception("Works only for lead notes");
 
         var landingNoteNumber = GetSlideTargetPitch();
-
         var steps = Math.Abs(landingNoteNumber - NoteNumber) - 1;
         var duration = TieDetails?.Destination.ActualDuration ?? ActualDuration;
+        var direction = Math.Sign(landingNoteNumber - NoteNumber);
 
-        var defaultSlideWindow = Slide == Slide.Downwards || Slide == Slide.Upwards
+        if (steps < 1 || Vibrato)
+        {
+            var legatoHold = Vibrato ? ActualDuration / 2 : ActualDuration;
+
+            return new Slide(steps, legatoHold, new Time(), new Time(10), direction, false);
+        }
+
+        var defaultSlideWindow = Slide == Context.Slide.Downwards || Slide == Context.Slide.Upwards
             ? 0.75 * duration.Tick
             : Math.Min(steps * 960d, duration.Tick / 2d);
 
@@ -203,7 +210,7 @@ public sealed partial class Nóta
         var slideWindow = new Time((long)(stepSize * steps));
         var holdDuration = duration - slideWindow;
 
-        return new SlideInfo(steps, holdDuration, slideWindow, new Time((long)stepSize));
+        return new Slide(steps, holdDuration, slideWindow, new Time((long)stepSize), direction, true);
     }
 
     public long GetShiftStepSizeTicks()
@@ -211,12 +218,12 @@ public sealed partial class Nóta
         var targetPitch = GetSlideTargetPitch();
         var semitoneDistance = Math.Abs(targetPitch - NoteNumber);
 
-        if ((semitoneDistance == 1 && Slide == Slide.Shift) || Slide == Slide.Legato)
+        if ((semitoneDistance == 1 && Slide == Context.Slide.Shift) || Slide == Context.Slide.Legato)
         {
             return ActualDuration.Tick;
         }
 
-        var isSlideOut = Slide == Slide.Downwards || Slide == Slide.Upwards;
+        var isSlideOut = Slide == Context.Slide.Downwards || Slide == Context.Slide.Upwards;
         var totalTicks = ActualDuration;
         var maxDuration = isSlideOut
             ? (totalTicks * 3) / 4  // 75% Cap
@@ -247,11 +254,11 @@ public sealed partial class Nóta
         // testing code
         if (Index == 0)
         {
-            var slideInfo = GetSlideInfo();
+            var slideInfo = GetSlide();
             if (slideInfo.StepDuration.Tick != oldImpl)
             {
                 var q = this;
-                Debugger.Break();
+                //Debugger.Break();
             }
         }
 
@@ -297,6 +304,7 @@ public sealed partial class Nóta
 
 
     public bool Is(int value) => value == int.Parse($"{Index}{Beat.Index}{Measure.Index}{Part.Index}");
+    public bool Is(string id) => id == $"N{Index} B{Beat.Index} M{Measure.Index} P{Part.Index}";
 
 
     public void Is(int noteIndex, int beatIndex, int measureIndex, int? partIndex = null)
@@ -368,10 +376,10 @@ public sealed partial class Nóta
 
     public SevenBitNumber GetSlideTargetPitch()
     {
-        if (Slide == Slide.Shift) return GetSlideTarget().NoteNumber;
-        if (Slide == Slide.Downwards) return (NoteNumber - Math.Min(10, Fret)).To7();
-        if (Slide == Slide.Upwards) return (NoteNumber + 10).To7();
-        if (Slide == Slide.Legato) return GetSlideTarget().NoteNumber;
+        if (Slide == Context.Slide.Shift) return GetSlideTarget().NoteNumber;
+        if (Slide == Context.Slide.Downwards) return (NoteNumber - Math.Min(10, Fret)).To7();
+        if (Slide == Context.Slide.Upwards) return (NoteNumber + 10).To7();
+        if (Slide == Context.Slide.Legato) return GetSlideTarget().NoteNumber;
 
         throw new Exception("what slide");
     }

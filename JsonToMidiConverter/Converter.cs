@@ -1,9 +1,12 @@
-using System.Diagnostics;
 using JsonToMidiConverter.Context;
 using JsonToMidiConverter.Models.Song;
 using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
+using Melanchall.DryWetMidi.MusicTheory;
+using System.Diagnostics;
+using JsonToMidiConverter.Test;
+using Slide = JsonToMidiConverter.Context.Slide;
 
 namespace JsonToMidiConverter;
 
@@ -14,7 +17,7 @@ internal static class Converter
     private const int StrumOffsetTicks = 123;
 
     // Standard MIDI Values
-    private const int PitchBendCenter = 8192;
+    private const ushort PitchBendCenter = 8192;
 
     public static readonly SevenBitNumber DefaultVelocity = 112.To7();
     public static List<(long AbsoluteTime, MidiEvent Event)>[] ReferenceData;
@@ -30,38 +33,54 @@ internal static class Converter
 
         foreach (var part in song.Parts)
         {
-            var trackEvents = new Events();
-            AddTrackHeader(trackEvents, part);
+            var events = new Events();
+            AddTrackHeader(events, part);
 
             foreach (var measure in part.Measures)
             {
-                AddMeasureMarker(trackEvents, measure);
+                AddMeasureMarker(events, measure);
 
                 foreach (var beat in measure.Beats)
                 {
                     var currentTime = beat.AbsoluteBeatStartTime;
 
                     // Process only the first note group (Chord/Strum)
-                    foreach (var noteGroup in beat.Notes.Take(1))
+                    foreach (var note in beat.Notes.Take(1))
                     {
-                        if (noteGroup.Rest)
+                        if (note.Rest)
                         {
                             currentTime += beat.MusicalDuration;
                             continue;
                         }
 
-                        currentTime = AddNoteAttack(trackEvents, noteGroup, currentTime);
-                        currentTime = AddVibrato(trackEvents, noteGroup, currentTime);
-                        currentTime = AddShift(trackEvents, noteGroup, currentTime);
+
+                        if (note.Is("N0 B3 M52 P1"))
+                        {
+
+                        }
+
+                        currentTime = AddNoteAttack(events, note, currentTime);
+                        currentTime = AddVibrato(events, note, currentTime);
+                        currentTime = AddSlide(events, note, currentTime);
+
+                        if (note.Bend != null)
+                        {
+                            events.Add(new PitchBendEvent(PitchBendCenter), beat.AbsoluteBeatStartTime, note);
+                        }
+
+                        if (note.Slide == Slide.None && note.Bend != null)
+                        {
+                            AddLegatoPitchBends(events, note);
+                        }
 
                         currentTime += StrumOffsetTicks;
                     }
 
-                    CloseBeat(trackEvents, beat);
+                    CloseBeat(events, beat);
                 }
             }
 
-            midiFile.Chunks.Add(trackEvents.ToTrackChunk());
+            midiFile.Chunks.Add(events.ToTrackChunk());
         }
 
         return midiFile;
@@ -69,6 +88,11 @@ internal static class Converter
 
     public static void CloseBeat(Events events, Beat beat)
     {
+        if (beat.Is("B5 M72 P5"))
+        {
+
+        }
+
         var beatStart = beat.AbsoluteBeatStartTime;
         var beatEnd = beatStart + beat.MusicalDuration;
         var beatLeftovers = events.NoteOns
@@ -104,101 +128,75 @@ internal static class Converter
         }
     }
 
-    public static Time AddShift(Events events, Nóta note, Time currentTime)
+    public static Time AddSlide(Events events, Nóta note, Time currentTime)
     {
         if (note.Slide == Slide.None) return currentTime;
 
-        var fullDuration = note.ActualDuration;
 
-        // Temporarily disable validation to allow out-of-order insertion in the template
-
-        var targetPitch = note.GetSlideTargetPitch();
-        var direction = targetPitch < note.NoteNumber ? -1 : 1;
-        var semitoneDistance = Math.Abs(targetPitch - note.NoteNumber);
 
         Events.SuspendValidation = note.Beat.IsAccord;
         var buffer = note.Beat.IsAccord
             ? new Events()
             : events;
 
-        // --- CASE 1: CONTINUOUS SLIDE (1 Semitone or Legato Logic) ---
-        if (semitoneDistance <= 1)
+        var slide = note.GetSlide();
+
+        if (note.Is("N0 B5 M47 P8"))
         {
-            // "Magic Grid" vs "Ratio" Logic
-            var slideTailDuration = fullDuration % TicksPer64Th == 0
-                ? new Time(TicksPer64Th)  // Grid Aligned
-                : fullDuration / 4;            // Ratio (Tuplet) Aligned
 
-            // Advance time to the start of the slide (Hold Phase)
-            currentTime += fullDuration - slideTailDuration;
-            fullDuration = slideTailDuration;
+        }
 
-            Debug.WriteLine($"P{note.Part.Index}, M{note.Measure.Index}, B{note.Beat.Index}, N{note.Index} S{note.Slide} T{note.Tie} V{note.Vibrato}: PitchBends");
-
-            // Generate the Pitch Bend Ramp
-            AddLegatoPitchBends(currentTime, note, buffer, fullDuration);
+        // --- CASE 1: CONTINUOUS SLIDE (1 Semitone or Legato Logic) ---
+        if (!slide.IsStepped)
+        {
+            AddLegatoPitchBends(buffer, note);
         }
         else // --- CASE 2: STEPPED SLIDE (> 1 Semitone) ---
         {
             Debug.WriteLine($"P{note.Part.Index}, M{note.Measure.Index}, B{note.Beat.Index}, N{note.Index} S{note.Slide} T{note.Tie} V{note.Vibrato}: SteppedSlide");
 
-            var totalSteps = semitoneDistance - 1;
-            var stepSizeTicks = note.GetShiftStepSizeTicks(); // Assuming this uses our Unified Logic
+            currentTime = note.Beat.AbsoluteBeatStartTime;
+            currentTime += slide.HoldDuration;
 
-            var firstNoteHoldDuration = fullDuration - (totalSteps * stepSizeTicks);
-
-            // Adjustment for specific slide directions (Slide Out logic)
-            if (note.Slide == Slide.Upwards || (note.Tie && (note.Slide == Slide.Downwards)))
+            if (note.Is("N0 B7 M72 P8"))
             {
-                currentTime -= stepSizeTicks;
+
             }
 
-            currentTime += firstNoteHoldDuration;
-
-            var currentNoteNum = note.NoteNumber;
-            var nextNoteNum = currentNoteNum + direction;
-
-            // -- FIRST STEP --
-            buffer.Add(new PitchBendEvent(PitchBendCenter), currentTime, note);
-            buffer.Add(new NoteOnEvent(nextNoteNum.To7(), DefaultVelocity), currentTime, note);
-
-            // Handle Tie Logic (Ghost Note vs Swap)
-            if (note.Tie)
-            {
-                if (note.Slide == Slide.Downwards || note.Slide == Slide.Upwards)
-                {
-                    // Ghost Note: Source stays alive
-                    currentTime += stepSizeTicks;
-                }
-                else
-                {
-                    // Standard Tie: Overlap
-                    currentTime += stepSizeTicks;
-                    buffer.Add(new NoteOffEvent(currentNoteNum, DefaultVelocity), currentTime, note);
-                }
-            }
-            else
-            {
-                // No Tie: Clean Swap
-                buffer.Add(new NoteOffEvent(currentNoteNum, DefaultVelocity), currentTime, note);
-                currentTime += stepSizeTicks;
-            }
-
-            var loopCount = (note.Slide == Slide.Downwards || note.Slide == Slide.Upwards)
-                ? totalSteps + 1
-                : totalSteps;
-
-            for (var i = 1; i < loopCount; i++)
+            for (var i = 0; i < slide.Steps; i++)
             {
                 buffer.Add(new PitchBendEvent(PitchBendCenter), currentTime, note);
 
-                currentNoteNum = (note.NoteNumber + i * direction).To7();
-                nextNoteNum = (currentNoteNum + direction).To7();
+                var noteToTurnOff = (note.NoteNumber + i * slide.Direction).To7(); // previous note
+                var noteToTurnOn = (noteToTurnOff + slide.Direction).To7();        // next note
 
-                buffer.Add(new NoteOffEvent(currentNoteNum, DefaultVelocity), currentTime, note);
-                buffer.Add(new NoteOnEvent(nextNoteNum.To7(), DefaultVelocity), currentTime, note);
+                if (i == 0) // First we turn on the new note and turn off the hold note
+                {
+                    buffer.Add(new NoteOnEvent(noteToTurnOn, DefaultVelocity), currentTime, note);
 
-                currentTime += stepSizeTicks;
+                    if (note.Slide != Slide.Downwards)
+                    {
+                        if (note.Tie && note.Slide != Slide.Upwards)
+                        {
+                            currentTime += slide.StepDuration;
+                            
+                        }
+
+                        if (!(note.Slide == Slide.Upwards && note.Tie))
+                        {
+                            buffer.Add(new NoteOffEvent(noteToTurnOff, DefaultVelocity), currentTime, note);
+                        }
+
+
+                    }
+                }
+                else // Then we swap between the sliding notes
+                {
+                    buffer.Add(new NoteOffEvent(noteToTurnOff, DefaultVelocity), currentTime, note);
+                    buffer.Add(new NoteOnEvent(noteToTurnOn, DefaultVelocity), currentTime, note);
+                }
+
+                currentTime += slide.StepDuration;
             }
         }
 
@@ -207,13 +205,13 @@ internal static class Converter
         // Apply the template to all strings in the chord (Strumming simulation)
         if (note.Beat.IsAccord)
         {
-            EnrichTemplate(events, buffer, note, semitoneDistance);
+            EnrichTemplate(events, buffer, note, slide);
         }
 
         return currentTime;
     }
 
-    public static void EnrichTemplate(Events events, Events template, Nóta note, int semitoneDistance)
+    public static void EnrichTemplate(Events events, Events template, Nóta note, JsonToMidiConverter.Models.Song.Slide slide)
     {
         if (note.Beat.Notes.Length == 1)
         {
@@ -227,63 +225,58 @@ internal static class Converter
             // Chord: Apply "Dynamic Strum Convergence" logic
             var chunks = template.Chunk(3).ToList(); // Assuming 3 events per step (PB, Off, On)
 
-            var strumBaseOffset = -(StrumOffsetTicks * note.Beat.Notes.Length);
-            var stepStrumDelta = StrumOffsetTicks / 2;
-            var strumDecayRate = 10;
-
-            for (var stepIndex = 0; stepIndex < semitoneDistance - 1; stepIndex++)
+            for (var stepIndex = 0; stepIndex < slide.Steps; stepIndex++)
             {
                 for (var noteIndex = 0; noteIndex < note.Beat.Notes.Length; noteIndex++)
                 {
-                    var pitchOffset = note.Beat.Notes[noteIndex].NoteNumber - note.Beat.Notes[0].NoteNumber;
-
                     foreach (var stepEvent in chunks[stepIndex])
                     {
                         var clonedEvent = stepEvent.Event.Clone();
                         if (clonedEvent is NoteEvent ne)
                         {
-                            ne.NoteNumber += pitchOffset.To7();
+                            ne.NoteNumber += (note.Beat.Notes[noteIndex].NoteNumber - note.Beat.Notes[0].NoteNumber).To7();
                         }
 
-                        // Calculate the tightening strum timing
-                        var dynamicStrumOffset = stepStrumDelta - (strumDecayRate - 1) * stepIndex;
-                        var strumTime = stepEvent.Time + strumBaseOffset + noteIndex * dynamicStrumOffset;
+                        var strum = noteIndex == 0
+                            ? 0
+                            : (StrumOffsetTicks / 2 - stepIndex * 9) * noteIndex;
 
-                        events.Add(clonedEvent, new Time(strumTime), note.Beat.Notes[noteIndex]);
+                        var time = stepEvent.Time + strum;
+                        events.Add(clonedEvent, new Time(time), note.Beat.Notes[noteIndex]);
                     }
                 }
             }
         }
     }
 
-    public static Time AddLegato(Events events, Nóta note, Time currentTime)
-    {
-        if (note.Slide != Slide.Legato) return currentTime;
+    //public static Time AddLegato(Events events, Nóta note, Time currentTime)
+    //{
+    //    if (note.Slide != Slide.Legato && note.Bend == null) return currentTime;
 
-        var remainingDuration = note.ActualDuration;
+    //    var remainingDuration = note.ActualDuration;
 
-        if (!note.Tie && note.Slide == Slide.Legato)
-        {
-            Debug.WriteLine($"");
+    //    if (!note.Tie && note.Slide == Slide.Legato)
+    //    {
+    //        Debug.WriteLine($"");
 
-            if (!note.Vibrato)
-            {
-                Debug.WriteLine($"P{note.Part.Index}, M{note.Measure.Index}, B{note.Beat.Index}, N{note.Index} S{note.Slide} T{note.Tie} V{note.Vibrato}: PitchBends");
+    //        if (!note.Vibrato)
+    //        {
+    //            Debug.WriteLine($"P{note.Part.Index}, M{note.Measure.Index}, B{note.Beat.Index}, N{note.Index} S{note.Slide} T{note.Tie} V{note.Vibrato}: PitchBends");
 
-                // Split note 50/50 if no vibrato
-                remainingDuration /= 2;
-                currentTime += remainingDuration;
-            }
-            else
-            {
-                Debug.WriteLine($"P{note.Part.Index}, M{note.Measure.Index}, B{note.Beat.Index}, N{note.Index} S{note.Slide} T{note.Tie} V{note.Vibrato}: PitchBends");
-            }
+    //            // Split note 50/50 if no vibrato
+    //            remainingDuration /= 2;
+    //            currentTime += remainingDuration;
+    //        }
+    //        else
+    //        {
+    //            Debug.WriteLine($"P{note.Part.Index}, M{note.Measure.Index}, B{note.Beat.Index}, N{note.Index} S{note.Slide} T{note.Tie} V{note.Vibrato}: PitchBends");
+    //        }
 
-            AddLegatoPitchBends(currentTime, note, events, remainingDuration);
-        }
+    //        AddLegatoPitchBends(events, note);
+    //    }
 
-        return currentTime;
-    }
+    //    return currentTime;
+    //}
 
     public static Time AddVibrato(Events events, Nóta note, Time currentTime)
     {
@@ -313,6 +306,11 @@ internal static class Converter
 
     public static Time AddNoteAttack(Events events, Nóta note, Time currentTime)
     {
+        if (note.Is("N0 B6 M55 P8"))
+        {
+
+        }
+
         if (note.Part.IsPianoLike)
         {
             // Pianos don't strum, they hit simultaneously
@@ -333,7 +331,7 @@ internal static class Converter
                 events.Add(new PitchBendEvent(PitchBendCenter), currentTime, n);
                 events.Add(new NoteOnEvent(n.NoteNumber, DefaultVelocity), currentTime, n);
 
-                if (note.Beat.Notes.Length > 1)
+                if (note.Beat.Notes.Length > 1 && n != note.Beat.Notes[^1])
                 {
                     currentTime += StrumOffsetTicks;
                 }
@@ -343,11 +341,30 @@ internal static class Converter
         return currentTime;
     }
 
-    public static void AddLegatoPitchBends(Time currentTime, Nóta note, Events events, Time durationOfSlide)
+    public static void AddLegatoPitchBends(Events events, Nóta note)
     {
+        var fullDuration = note.ActualDuration;
+        // "Magic Grid" vs "Ratio" Logic
+        var slideTailDuration = fullDuration % TicksPer64Th == 0
+            ? new Time(TicksPer64Th)  // Grid Aligned
+            : fullDuration / 4;            // Ratio (Tuplet) Aligned
+
+        // Advance time to the start of the slide (Hold Phase)
+        var currentTime = note.Beat.AbsoluteBeatStartTime;
+        currentTime += fullDuration - slideTailDuration;
+        fullDuration = slideTailDuration;
+
+        //currentTime = note.Beat.AbsoluteBeatStartTime;
+        //currentTime += 960;
+
+        if (note.Slide == Slide.None && note.Bend != null)
+        {
+            currentTime = note.Beat.AbsoluteBeatStartTime + note.ActualDuration * 0.05;
+        }
+
         events.Add(new PitchBendEvent(8195), currentTime, note);
 
-        if (note.Vibrato)
+        if (note.Vibrato && note.Bend == null)
         {
             // If Vibrato is active, we simulate the transition with a discreet note
             // instead of a bend, to avoid conflict? (Check logic here based on M47)
@@ -372,8 +389,8 @@ internal static class Converter
                 if (isLastStep)
                 {
                     // Final Cleanup Step (7 ticks gap?)
-                    var fillerTime = durationOfSlide - 7;
-                    durationOfSlide -= fillerTime;
+                    var fillerTime = fullDuration - 7;
+                    fullDuration -= fillerTime;
                     currentTime += fillerTime;
 
                     // 8888 seems to be a placeholder for "Calculate correct Pitch Value later"?
@@ -382,7 +399,7 @@ internal static class Converter
                 else
                 {
                     var microStepTime = 6; // 6-7 ticks per bend event
-                    durationOfSlide -= microStepTime;
+                    fullDuration -= microStepTime;
                     currentTime += microStepTime;
 
                     events.Add(new PitchBendEvent(8888), currentTime, note);
@@ -411,7 +428,7 @@ internal static class Converter
             ? [9]
             : Enumerable.Range(0, 9).ToArray();
 
-        foreach(var i in channels)
+        foreach (var i in channels)
         {
             // Program Change
             events.Add(new ProgramChangeEvent(part.InstrumentId.To7()), timeZero, null, i, part.PartId);

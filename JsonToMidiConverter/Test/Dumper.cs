@@ -8,6 +8,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
+using Slide = JsonToMidiConverter.Context.Slide;
 
 namespace JsonToMidiConverter.Test;
 
@@ -116,7 +117,7 @@ public static class Dumper
         var dotMultiplier = (2 - (1 / Math.Pow(2, attackNote.Beat.Dots)));
         var stepSize = Math.Min(960, slideWindow / steps) * dotMultiplier * vibratoMultiplier;
 
-        var info = attackNote.GetSlideInfo();
+        var info = attackNote.GetSlide();
 
         Debug.Assert(testNumberOfSteps == info.Steps);
         Debug.Assert(Math.Abs(info.StepDuration.Tick - testSlideNoteDelay) < 10);
@@ -163,6 +164,11 @@ public static class Dumper
 
             var holdRatio = ((double)holdTime.Tick / totalTime.Tick);
             var slideRato = ((double)slideTime.Tick / totalTime.Tick);
+
+            if (attackNote.Is("N0 B5 M47 P8"))
+            {
+
+            }
 
             sb.AppendLine("\r\n\r\n");
             sb.AppendLine($"\t Slide: {attackNote.Slide} SemitonesDistance: {semitoneDistance} (NN{attackNote.NoteNumber} -> NN{landingNote.NoteNumber})");
@@ -446,7 +452,7 @@ public static class Dumper
     public static int? GetBeatEventCursor(List<MidiEvent> events, ref int cursor, Beat beat)
     {
         //if (beat.Part.Index == 1)
-        if (beat.Is("0485"))
+        if (beat.Is("B5 M72 P5"))
         {
 
         }

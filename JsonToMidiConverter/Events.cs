@@ -1,11 +1,14 @@
-﻿using Melanchall.DryWetMidi.Common;
+﻿using JsonToMidiConverter.Context;
+using JsonToMidiConverter.Models.Song;
+using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
+using Melanchall.DryWetMidi.MusicTheory;
 using System.Collections;
 using System.Diagnostics;
+using System.Linq.Expressions;
 using System.Reflection;
-using JsonToMidiConverter.Context;
-using JsonToMidiConverter.Models.Song;
+using Slide = JsonToMidiConverter.Context.Slide;
 
 namespace JsonToMidiConverter;
 
@@ -26,11 +29,11 @@ public class Events : IEnumerable<TimedEvent>
 
 
     public TimedEvent Add(
-        MidiEvent midiEvent, 
+        MidiEvent midiEvent,
         Time time,
-        Nóta? note, 
-        int? channelOverride = null, 
-        int? partId = null, 
+        Nóta? note,
+        int? channelOverride = null,
+        int? partId = null,
         SevenBitNumber? noteNumberOverride = null)
     {
 
@@ -56,8 +59,11 @@ public class Events : IEnumerable<TimedEvent>
 
             //if (pid < 10)
             {
-                var refEvent = Converter.ReferenceData[pid][TimedEvents.Count];
 
+                var refEvent = Converter.ReferenceData[pid][TimedEvents.Count];
+                    var paart = note?.Part.Name + note?.Part.Instrument;
+                
+                var NÓÓT = note;
                 var tiiime = refEvent.AbsoluteTime;
                 var refType = refEvent.Event.EventType;
                 var ourType = midiEvent.EventType;
@@ -85,7 +91,7 @@ public class Events : IEnumerable<TimedEvent>
                         {
                             if (!(propName == "PitchValue" && actualValue.ToString() == "8888"))
                             {
-                                
+
 
                                 Debug.Assert(referenceValue.ToString() == actualValue.ToString(), propName);
                                 var askjdhskdjfh = note?.GetNoteChannel();
@@ -100,36 +106,7 @@ public class Events : IEnumerable<TimedEvent>
         TimedEvents.Add(newEvent);
         if (note != null && !SuspendValidation)
         {
-            if (newEvent.Event is NoteOnEvent on)
-            {
-                //if (newEvent.Time == 1474683)
-                if (newEvent.Time == 2919360 && note.Part.Index == 8)
-                {
-                    //var stepSize = note.GetShiftStepSizeTicks();
-                }
-
-                if (note.Vibrato)
-                {
-
-                }
-
-                var ms = note.Beat.AbsoluteBeatStartTime;
-
-                var noteDuration = note.ActualDuration.Tick;
-                if (note.WillBeTied) noteDuration = note.GetForwardTies().Sum(e => e.ActualDuration.Tick);
-                if (note.Slide != Slide.None && note.Slide != Slide.Legato) noteDuration = note.GetShiftStepSizeTicks();
-                if (note.Slide == Slide.Legato) noteDuration = note.Vibrato ? noteDuration / 2 : noteDuration;
-                //if (note.vibrato) noteDuration = 960;
-
-                var endTime = newEvent.Time + noteDuration;
-
-                NoteOns.Add(new (newEvent, note, endTime));
-            }
-            else if (newEvent.Event is NoteOffEvent off)
-            {
-                var pair = NoteOns.Single(e => ((NoteOnEvent)e.TimedEvent.Event).NoteNumber == off.NoteNumber);
-                NoteOns.Remove(pair);
-            }
+            MarkForDeath(newEvent, note);
 
             note.Events.Add(newEvent);
         }
@@ -145,5 +122,41 @@ public class Events : IEnumerable<TimedEvent>
         return newEvent;
     }
 
-    
+    private void MarkForDeath(TimedEvent timedEvent, Nóta note)
+    {
+        if (timedEvent.Event is NoteOnEvent on)
+        {
+            if (note.Is("N0 B5 M47 P8"))
+            {
+
+            }
+
+            var noteDuration = note.ActualDuration.Tick;
+
+            if (note.WillBeTied)
+            {
+                noteDuration = note.GetForwardTies().Sum(e => e.ActualDuration.Tick);
+            }
+
+            if (note.Slide != Slide.None)
+            {
+                
+                var slide = note.Beat.Notes[0].GetSlide();
+                noteDuration = slide.IsStepped 
+                    ? slide.StepDuration.Tick 
+                    : slide.HoldDuration.Tick;
+            }
+
+            var endTime = timedEvent.Time + noteDuration;
+
+            NoteOns.Add(new(timedEvent, note, endTime));
+        }
+        else if (timedEvent.Event is NoteOffEvent off)
+        {
+            var pair = NoteOns.Single(e => ((NoteOnEvent)e.TimedEvent.Event).NoteNumber == off.NoteNumber);
+            NoteOns.Remove(pair);
+        }
+    }
+
+
 }

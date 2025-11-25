@@ -79,5 +79,5 @@ public sealed partial class Beat
             .TakeWhile(e => e != this)
             .Sum(e => e.MusicalDuration.Tick);
 
-    public bool Is(string nameplate) => nameplate == $"{Index}{Measure.Index}{Part.Index}";
+    public bool Is(string nameplate) => nameplate == $"B{Index} M{Measure.Index} P{Part.Index}";
 }
