@@ -9,6 +9,7 @@ using Microsoft.VisualBasic;
 using System;
 using System.Diagnostics;
 using System.Drawing;
+using System.Reflection;
 using System.Xml.Linq;
 using Slide = JsonToMidiConverter.Context.Slide;
 
@@ -48,7 +49,7 @@ internal static class Converter
                 {
                     foreach (var note in beat.Notes.Where(e => !e.Rest))
                     {
-                        if (note.Is("N4 B4 M53 P4"))
+                        if (note.Is("N0 B1 M54 P4"))
                         {
 
                         }
@@ -94,8 +95,11 @@ internal static class Converter
                             
                             if (!slide.IsStepped)
                             {
-                                On(events, note, note.NoteNumber, note.GetStartTime(), note.GetEndTime());
-
+                                if (!note.Tie) // tie starts are not ties, attack note is playing already
+                                {
+                                    On(events, note, note.NoteNumber, note.GetStartTime(), note.GetEndTime());
+                                }
+                                
                                 end = start + note.ActualDuration;
                                 var step = note.ActualDuration / 2d / 100d;
                                 events.Add(new PitchBendEvent(PitchBendCenter), end - 960, note);
@@ -140,7 +144,10 @@ internal static class Converter
                             events.Add(new ControlChangeEvent(1.To7(), 110.To7()), start, note);
                             events.Add(new ControlChangeEvent(1.To7(), 0.To7()), end, note);
 
-                            On(events, note, note.NoteNumber, noteStart, noteEnd);
+                            if (!note.Tie) // tie roots are not ties, attack note is already playing
+                            {
+                                On(events, note, note.NoteNumber, noteStart, noteEnd);
+                            }
 
                             events.Add(new PitchBendEvent(PitchBendCenter), noteStart + 1, note);
                             Enumerable.Range(1, 61).ToList().ForEach(i =>
@@ -151,7 +158,7 @@ internal static class Converter
                         }
                         else if (!note.Tie)
                         {
-                            if (note.Is("N0 B2 M25 P4"))
+                            if (note.Is("N0 B12 M32 P6"))
                             {
 
                             }
@@ -179,11 +186,6 @@ internal static class Converter
 
     public static void On(Events events, Nóta note, int noteNumber, Time from, Time to)
     {
-        if (note.Is("N1 B5 M30 P4"))
-        {
-
-        }
-
         events.Add(new PitchBendEvent(PitchBendCenter), from, note);
         events.Add(new NoteOnEvent((SevenBitNumber)noteNumber, DefaultVelocity), from, note);
         events.Add(new NoteOffEvent((SevenBitNumber)noteNumber, DefaultVelocity), to, note);
@@ -266,6 +268,22 @@ internal static class Converter
         }
     }
 
+    public static bool AreVerySame(TimedEvent lhs, TimedEvent rhs)
+    {
+        if (lhs.Event.EventType != rhs.Event.EventType) return false;
+        if (lhs.Time != rhs.Time) return false;
+
+        var props = lhs.Event.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public);
+        foreach (var prop in props)
+        {
+            var lhsValue = prop.GetValue(lhs);
+            var rhsValue = prop.GetValue(rhs);
+
+            if (lhsValue.ToString() != rhsValue.ToString()) return false;
+        }
+
+        return true;
+    }
 
     public static void AddMeasureMarker(Events events, Measure measure)
     {

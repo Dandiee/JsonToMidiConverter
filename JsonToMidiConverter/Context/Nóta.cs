@@ -118,7 +118,16 @@ public sealed partial class Nóta
 
                 if (!nextBeat.LetRing)
                 {
-                    return nextBeat.AbsoluteBeatStartTime + nextBeat.MusicalDuration;
+                    if (nextBeat.Rest)
+                    {
+                        return nextBeat.AbsoluteBeatStartTime;
+                    }
+                    else
+                    {
+                        return nextBeat.AbsoluteBeatStartTime + nextBeat.MusicalDuration;
+                    }
+                        // TODO: that comment breaks a lot
+                        
                 }
 
                 
@@ -128,7 +137,7 @@ public sealed partial class Nóta
         }
         else if (WillBeTied)
         {
-            //return TieDetails.Destination.GetEndTime();
+            return TieDetails.Destination.GetEndTime();
         }
 
         return Beat.AbsoluteBeatStartTime + GetPlayDuration();
@@ -137,7 +146,7 @@ public sealed partial class Nóta
     public Time GetPlayDuration()
     {
         if (Dead) return new Time(960 / 2);
-        if (Tie) return new Time();
+        //if (Tie) return new Time();
         if (WillBeTied && TieDetails != null)
         {
             return TieDetails.FullDuration;
