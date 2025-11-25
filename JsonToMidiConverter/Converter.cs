@@ -1,11 +1,15 @@
 using JsonToMidiConverter.Context;
 using JsonToMidiConverter.Models.Song;
+using JsonToMidiConverter.Test;
 using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using Melanchall.DryWetMidi.MusicTheory;
+using Microsoft.VisualBasic;
+using System;
 using System.Diagnostics;
-using JsonToMidiConverter.Test;
+using System.Drawing;
+using System.Xml.Linq;
 using Slide = JsonToMidiConverter.Context.Slide;
 
 namespace JsonToMidiConverter;
@@ -42,49 +46,173 @@ internal static class Converter
 
                 foreach (var beat in measure.Beats)
                 {
-                    var currentTime = beat.AbsoluteBeatStartTime;
-
-                    // Process only the first note group (Chord/Strum)
-                    foreach (var note in beat.Notes.Take(1))
+                    foreach (var note in beat.Notes.Where(e => !e.Rest))
                     {
-                        if (note.Rest)
-                        {
-                            currentTime += beat.MusicalDuration;
-                            continue;
-                        }
-
-
-                        if (note.Is("N0 B3 M52 P1"))
+                        if (note.Is("N0 B6 M55 P8"))
                         {
 
                         }
 
-                        currentTime = AddNoteAttack(events, note, currentTime);
-                        currentTime = AddVibrato(events, note, currentTime);
-                        currentTime = AddSlide(events, note, currentTime);
+                        var start = note.GetStartTime();
+                        var end = note.GetEndTime();
 
-                        if (note.Bend != null)
+
+                        if (note.Vibrato)
                         {
-                            events.Add(new PitchBendEvent(PitchBendCenter), beat.AbsoluteBeatStartTime, note);
+                            if (note.Slide != Slide.None)
+                            {
+                                var slide = note.GetSlide();
+
+                                var note1Start = beat.AbsoluteBeatStartTime;
+                                var note1End = note1Start + slide.HoldDuration;
+                                var note1Pitch = note.NoteNumber;
+
+                                var note2Start = note1End;
+                                var note2End = note2Start + note.ActualDuration - slide.HoldDuration;
+                                var note2Pitch = note1Pitch + slide.Direction * slide.Steps;
+
+                                On(events, note, note1Pitch, note1Start, note1End);
+                                On(events, note, note2Pitch, note2Start, note2End);
+
+                                events.Add(new ControlChangeEvent(1.To7(), 64.To7()), note1Start, note);
+                                events.Add(new ControlChangeEvent(1.To7(), 0.To7()), note1End, note);
+                            }
+                            else
+                            {
+                                On(events, note, note.NoteNumber, start, end);
+
+                                events.Add(new ControlChangeEvent(1.To7(), 64.To7()), start, note);
+                                events.Add(new ControlChangeEvent(1.To7(), 0.To7()), end, note);
+                            }
+                        }
+                        else if (note.Slide != Slide.None)
+                        {
+                            var slide = note.GetSlide();
+
+                            
+                            if (!slide.IsStepped)
+                            {
+                                On(events, note, note.NoteNumber, note.GetStartTime(), note.GetEndTime());
+
+                                end = start + note.ActualDuration;
+                                var step = note.ActualDuration / 2d / 100d;
+                                events.Add(new PitchBendEvent(PitchBendCenter), end - 960, note);
+                                Enumerable.Range(1, 100).ToList().ForEach(i =>
+                                {
+                                    events.Add(new PitchBendEvent(PitchBendCenter), end - 960 + (i * step.Tick), note);
+                                });
+                            }
+                            else
+                            {
+                                var holdFrom = start;
+                                var holdTo = holdFrom + slide.HoldDuration - (note.Index * 62);
+
+                                On(events, note, note.NoteNumber, holdFrom, holdTo);
+
+                                for (var i = 0; i < slide.Steps; i++)
+                                {
+                                    var stepFrom = holdTo + slide.StepDuration * i - (i * 9 * note.Index);
+                                    var stepTo = stepFrom + slide.StepDuration - 9 * note.Index;
+                                    var stepNote = note.NoteNumber + slide.Direction * (i + 1);
+
+                                    On(events, note, stepNote, stepFrom, stepTo);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            On(events, note, note.NoteNumber, note.GetStartTime(), note.GetEndTime());
                         }
 
-                        if (note.Slide == Slide.None && note.Bend != null)
-                        {
-                            AddLegatoPitchBends(events, note);
-                        }
 
-                        currentTime += StrumOffsetTicks;
                     }
-
-                    CloseBeat(events, beat);
                 }
             }
 
+            Validate(events, part);
             midiFile.Chunks.Add(events.ToTrackChunk());
         }
 
         return midiFile;
     }
+
+    public static void On(Events events, Nóta note, int noteNumber, Time from, Time to)
+    {
+        events.Add(new PitchBendEvent(PitchBendCenter), from, note);
+        events.Add(new NoteOnEvent((SevenBitNumber)noteNumber, DefaultVelocity), from, note);
+        events.Add(new NoteOffEvent((SevenBitNumber)noteNumber, DefaultVelocity), to, note);
+    }
+
+    public static void Validate(Events events, Part part)
+    {
+        var chunk = ReferenceData[part.PartId];
+
+        var isStarted = false;
+        for (var i = 0; i < chunk.Count; i++)
+        {
+            var referenceEvent = chunk[i];
+            isStarted |= referenceEvent.Event.Is<MarkerEvent>();
+            
+            if (!isStarted) continue;
+            if (referenceEvent.Event.DeltaTime < 11 && referenceEvent.Event.Is<PitchBendEvent>()) continue;
+            if (referenceEvent.Event is MarkerEvent mark && mark.Text == "END_OF_VOICE") break;
+            if (referenceEvent.Event.EventType == MidiEventType.PitchBend)
+            {
+                var pitchBendEventsCount = 0;
+                for (; chunk[i + pitchBendEventsCount].Event.EventType == MidiEventType.PitchBend; pitchBendEventsCount++) ;
+                if (pitchBendEventsCount > 10)
+                {
+                    i += pitchBendEventsCount - 1;
+                    continue;
+                }
+            }
+
+            var cursor = i + 2;
+            var time = referenceEvent.AbsoluteTime;
+            var type = referenceEvent.Event.EventType;
+            var partDetails = $"P{part.Index} {part.Name} - {part.Instrument}";
+
+            var matchesByTime = events.Where(e => Math.Abs(e.Time - referenceEvent.AbsoluteTime) < 10).Where(e => e.Event.EventType == referenceEvent.Event.EventType).ToList();
+            var closest = events.Where(e => e.Event.EventType == referenceEvent.Event.EventType).MinBy(e => Math.Abs(e.Time - referenceEvent.AbsoluteTime));
+            var distance = closest.Time - referenceEvent.AbsoluteTime;
+
+            if (matchesByTime.Count > 1)
+            {
+                if (referenceEvent.Event.Is<ChannelEvent>()) matchesByTime = matchesByTime.Where(e => e.Event.As<ChannelEvent>().Channel == referenceEvent.Event.As<ChannelEvent>().Channel).ToList();
+                if (referenceEvent.Event.Is<NoteEvent>()) matchesByTime = matchesByTime.Where(e => e.Event.As<NoteEvent>().NoteNumber == referenceEvent.Event.As<NoteEvent>().NoteNumber).ToList();
+                if (referenceEvent.Event.Is<ControlChangeEvent>()) matchesByTime = matchesByTime.Where(e => e.Event.As<ControlChangeEvent>().ControlValue == referenceEvent.Event.As<ControlChangeEvent>().ControlValue).ToList();
+            }
+
+            var match = matchesByTime.Single();
+
+            if (match.Is<NoteEvent>())
+            {
+                Debug.Assert(match.As<NoteEvent>().NoteNumber == referenceEvent.Event.As<NoteEvent>().NoteNumber);
+            }
+
+            if (match.Is<ChannelEvent>())
+            {
+                Debug.Assert(match.As<ChannelEvent>().Channel == referenceEvent.Event.As<ChannelEvent>().Channel);
+            }
+
+            if (match.Is<ControlChangeEvent>())
+            {
+                Debug.Assert(match.As<ControlChangeEvent>().ControlNumber == referenceEvent.Event.As<ControlChangeEvent>().ControlNumber);
+                Debug.Assert(match.As<ControlChangeEvent>().ControlValue == referenceEvent.Event.As<ControlChangeEvent>().ControlValue);
+            }
+
+            if (match.Is<TextEvent>())
+            {
+                Debug.Assert(match.As<TextEvent>().Text == referenceEvent.Event.As<TextEvent>().Text);
+            }
+
+            if (match.Is<SetTempoEvent>())
+            {
+                Debug.Assert(match.As<SetTempoEvent>().MicrosecondsPerQuarterNote == referenceEvent.Event.As<SetTempoEvent>().MicrosecondsPerQuarterNote);
+            }
+        }
+    }
+
 
     public static void CloseBeat(Events events, Beat beat)
     {
@@ -158,11 +286,6 @@ internal static class Converter
             currentTime = note.Beat.AbsoluteBeatStartTime;
             currentTime += slide.HoldDuration;
 
-            if (note.Is("N0 B7 M72 P8"))
-            {
-
-            }
-
             for (var i = 0; i < slide.Steps; i++)
             {
                 buffer.Add(new PitchBendEvent(PitchBendCenter), currentTime, note);
@@ -179,7 +302,7 @@ internal static class Converter
                         if (note.Tie && note.Slide != Slide.Upwards)
                         {
                             currentTime += slide.StepDuration;
-                            
+
                         }
 
                         if (!(note.Slide == Slide.Upwards && note.Tie))

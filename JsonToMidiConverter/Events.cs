@@ -37,7 +37,6 @@ public class Events : IEnumerable<TimedEvent>
         SevenBitNumber? noteNumberOverride = null)
     {
 
-        var origNoteNumber = note?.NoteNumber;
         if (noteNumberOverride != null)
         {
             note.NoteNumber = noteNumberOverride.Value;
@@ -50,76 +49,22 @@ public class Events : IEnumerable<TimedEvent>
         }
 
         Recap = TimedEvents.Skip(Math.Max(0, TimedEvents.Count - 30)).ToList();
+        TimedEvents.Add(new TimedEvent(midiEvent, time.Tick));
+        //if (note != null && !SuspendValidation)
+        //{
+        //    MarkForDeath(newEvent, note);
+        //
+        //    note.Events.Add(newEvent);
+        //}
 
-        var eventType = midiEvent.GetType();
-
-        if (!SuspendValidation)
-        {
-            var pid = partId ?? note.Part.Index;
-
-            //if (pid < 10)
-            {
-
-                var refEvent = Converter.ReferenceData[pid][TimedEvents.Count];
-                    var paart = note?.Part.Name + note?.Part.Instrument;
-                
-                var NÓÓT = note;
-                var tiiime = refEvent.AbsoluteTime;
-                var refType = refEvent.Event.EventType;
-                var ourType = midiEvent.EventType;
-                Debug.Assert(refType == ourType);
-
-                if (!(midiEvent is PitchBendEvent pitch && pitch.PitchValue == 8888))
-                {
-                    var diff = refEvent.AbsoluteTime - time.Tick;
-                    if (Math.Abs(diff) > 9)
-                    {
-                        Debug.Assert(refEvent.AbsoluteTime == time.Tick);
-                    }
-                }
-
-                if (refType == ourType)
-                {
-                    var props = eventType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-                    foreach (var prop in props)
-                    {
-                        var propName = prop.Name;
-                        var referenceValue = prop.GetValue(refEvent.Event)!;
-                        var actualValue = prop.GetValue(midiEvent)!;
-
-                        if (propName != "DeltaTime" && propName != "Velocity" && propName != "PitchValue")
-                        {
-                            if (!(propName == "PitchValue" && actualValue.ToString() == "8888"))
-                            {
-
-
-                                Debug.Assert(referenceValue.ToString() == actualValue.ToString(), propName);
-                                var askjdhskdjfh = note?.GetNoteChannel();
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        var newEvent = new TimedEvent(midiEvent, time.Tick);
-        TimedEvents.Add(newEvent);
-        if (note != null && !SuspendValidation)
-        {
-            MarkForDeath(newEvent, note);
-
-            note.Events.Add(newEvent);
-        }
-
-        if (noteNumberOverride != null)
-        {
-            note.NoteNumber = origNoteNumber.Value;
-        }
+        //if (noteNumberOverride != null)
+        //{
+        //    note.NoteNumber = origNoteNumber.Value;
+        //}
 
         LastNote = note;
-        LastEvent = newEvent;
 
-        return newEvent;
+        return null;
     }
 
     private void MarkForDeath(TimedEvent timedEvent, Nóta note)

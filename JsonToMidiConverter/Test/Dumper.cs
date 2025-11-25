@@ -323,17 +323,16 @@ public static class Dumper
                                     .OrderBy(e => e.Name)
                                     .Select(prop => $"{prop.Name}: {prop.GetValue(timedEvent.MidiEvent)}"));
 
-                                if (timedEvent.MidiEvent is PitchBendEvent)
-                                {
-                                    pitchCounter++;
-                                }
-                                else pitchCounter = 0;
-
-                                if (pitchCounter == 3)
-                                {
-                                    sb.AppendLine($"\t\t\t..... More pitch bending");
-                                }
-                                else if (pitchCounter < 3)
+                                //if (timedEvent.MidiEvent is PitchBendEvent)
+                                //{
+                                //    pitchCounter++;
+                                //}
+                                //else pitchCounter = 0;
+                                //if (pitchCounter == 3)
+                                //{
+                                //    sb.AppendLine($"\t\t\t..... More pitch bending");
+                                //}
+                                //else if (pitchCounter < 3)
                                 {
                                     sb.AppendLine(
                                         $"\t\t\t{i.ToString().PadLeft(5)} {(niceName ?? timedEvent.MidiEvent.EventType.ToString()).PadRight(10)} " +

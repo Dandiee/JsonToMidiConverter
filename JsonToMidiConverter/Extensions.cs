@@ -10,6 +10,7 @@ public static class Extensions
     public static SevenBitNumber To7(this int i) => (SevenBitNumber)i;
     public static FourBitNumber To4(this int i) => (FourBitNumber)i;
 
+    
     public static Slide ToSlide(this string str) => str switch
     {
         "upwards" => Slide.Upwards,
@@ -19,6 +20,10 @@ public static class Extensions
 
         _ => Slide.None,
     };
+
+    public static bool Is<TMidiEvent>(this TimedEvent timedEvent)
+        where TMidiEvent : MidiEvent
+        => timedEvent.Event is TMidiEvent;
 
     public static TMidiEvent As<TMidiEvent>(this TimedEvent timedEvent) 
         where TMidiEvent : MidiEvent
@@ -30,4 +35,12 @@ public static class Extensions
 
         throw new InvalidCastException($"Cannot cast event of type {timedEvent.GetType().Name} to {typeof(TMidiEvent).Name}");
     }
+
+    public static TMidiEvent As<TMidiEvent>(this MidiEvent midiEvent)
+        where TMidiEvent : MidiEvent
+        => (TMidiEvent)midiEvent;
+
+    public static bool Is<TMidiEvent>(this MidiEvent timedEvent)
+        where TMidiEvent : MidiEvent
+        => timedEvent is TMidiEvent;
 }

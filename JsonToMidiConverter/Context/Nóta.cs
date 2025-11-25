@@ -36,6 +36,7 @@ public sealed partial class Nóta
 
     [JsonIgnore] public TieContext? TieDetails { get; private set; }
     [JsonIgnore] public Tie TieType { get; private set; }
+    [JsonIgnore] public Time PlayedDuration { get; private set; }
 
 
     public void Build(Beat beat, int index)
@@ -56,6 +57,8 @@ public sealed partial class Nóta
             ? RawDuration - prevBeat.MusicalDuration
             : RawDuration;
 
+        
+
         OriginalSlide = Slide;
 
         WillBeTied = GetWillBeTied();
@@ -71,6 +74,29 @@ public sealed partial class Nóta
             TieDetails.Source.TieType = Models.Song.Tie.Source;
             TieDetails.Destination.TieType = Models.Song.Tie.Destination;
         }
+
+    }
+
+    public Time GetStartTime()
+    {
+        var strum = Part.IsPianoLike ? 0 : 123 * Index;
+        return Beat.AbsoluteBeatStartTime + strum;
+    }
+
+    public Time GetEndTime()
+    {
+        return Beat.AbsoluteBeatStartTime + GetPlayDuration();
+    }
+
+    public Time GetPlayDuration()
+    {
+        if (Tie) return new Time();
+        if (WillBeTied && TieDetails != null)
+        {
+            return TieDetails.FullDuration;
+        }
+
+        return ActualDuration;
     }
 
     public Nóta GetNext()
@@ -185,7 +211,7 @@ public sealed partial class Nóta
     
     public Slide GetSlide()
     {
-        if (Index > 0) throw new Exception("Works only for lead notes");
+        //if (Index > 0) throw new Exception("Works only for lead notes");
 
         var landingNoteNumber = GetSlideTargetPitch();
         var steps = Math.Abs(landingNoteNumber - NoteNumber) - 1;
