@@ -24,7 +24,7 @@ foreach (var pair in songPairs)
     var mid = new MidiFile { TimeDivision = new TicksPerQuarterNoteTimeDivision(15360) };
     Time.Map = song.Parts[0].GetTempo(mid);
     mid.ReplaceTempoMap(Time.Map);
-    song.Build();
+    song.Build(mid);
 
     var midiFile = Converter.Convert(song, pair.Key);
 
@@ -44,7 +44,7 @@ foreach (var kvp in songPairs)
     var dumpMid = new MidiFile { TimeDivision = new TicksPerQuarterNoteTimeDivision(15360) };
     Time.Map = dumpSong.Parts[0].GetTempo(dumpMid);
     dumpMid.ReplaceTempoMap(Time.Map);
-    dumpSong.Build();
+    dumpSong.Build(dumpMid);
     
     
     //Dumper.Dump(dumpSong, kvp.Key, dumpMatch.Artist!);

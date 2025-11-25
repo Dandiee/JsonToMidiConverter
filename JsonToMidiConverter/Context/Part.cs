@@ -15,6 +15,7 @@ public sealed partial class Part
 
     public void Build(Song song, int index)
     {
+        TempoMap = GetTempo(song.Midi);
         Index = index;
         Song = song;
         IsPianoLike = PianoLikeInstruments.Contains(InstrumentId);

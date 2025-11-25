@@ -77,25 +77,73 @@ public sealed partial class Nóta
 
     }
 
+    public Time GetStrum() => new((long)(1.17 * Part.TempoMap.GetTempoAtTime(Beat.AbsoluteBeatStartTime.Span).BeatsPerMinute)+1);
+
     public Time GetStartTime()
     {
-        var strum = Part.IsPianoLike ? 0 : 123 * Index;
+        var strum = Part.IsPianoLike ? new Time() : GetStrum() * Index;
         return Beat.AbsoluteBeatStartTime + strum;
     }
 
     public Time GetEndTime()
     {
+        //if (WillBeTied)
+        //{
+        //    var dest = TieDetails.Destination;
+        //    var ties = GetForwardTies().ToList();
+        //    return Beat.AbsoluteBeatStartTime + dest.GetPlayDuration();
+        //}
+        
+
+        if (Beat.LetRing)
+        {
+            var nextBeat = Beat.GetNext();
+            while (true)
+            {
+                if (nextBeat == null)
+                {
+                    return Beat.AbsoluteBeatStartTime + Beat.MusicalDuration;
+                }
+
+                var fretSharedNote = nextBeat.Notes.SingleOrDefault(e => e.StringNumber == StringNumber);
+                if (fretSharedNote != null)
+                {
+                    if (fretSharedNote.Tie && fretSharedNote.NoteNumber == NoteNumber)
+                    {
+                        return fretSharedNote.GetEndTime();
+                    }
+
+                    return fretSharedNote.GetStartTime();
+                }
+
+                if (!nextBeat.LetRing)
+                {
+                    return nextBeat.AbsoluteBeatStartTime + nextBeat.MusicalDuration;
+                }
+
+                
+
+                nextBeat = nextBeat.GetNext();
+            }
+        }
+        else if (WillBeTied)
+        {
+            //return TieDetails.Destination.GetEndTime();
+        }
+
         return Beat.AbsoluteBeatStartTime + GetPlayDuration();
     }
 
     public Time GetPlayDuration()
     {
+        if (Dead) return new Time(960 / 2);
         if (Tie) return new Time();
         if (WillBeTied && TieDetails != null)
         {
             return TieDetails.FullDuration;
         }
 
+        
         return ActualDuration;
     }
 
@@ -191,10 +239,8 @@ public sealed partial class Nóta
         }
     }
 
-    public Nóta GetSlideTarget()
+    public Nóta GetNextStringSibling()
     {
-        if (Slide == Context.Slide.None) throw new Exception("The not is not a slide.");
-
         var nextBeat = Beat.GetNext();
         while (true)
         {
@@ -402,10 +448,10 @@ public sealed partial class Nóta
 
     public SevenBitNumber GetSlideTargetPitch()
     {
-        if (Slide == Context.Slide.Shift) return GetSlideTarget().NoteNumber;
+        if (Slide == Context.Slide.Shift) return GetNextStringSibling().NoteNumber;
         if (Slide == Context.Slide.Downwards) return (NoteNumber - Math.Min(10, Fret)).To7();
         if (Slide == Context.Slide.Upwards) return (NoteNumber + 10).To7();
-        if (Slide == Context.Slide.Legato) return GetSlideTarget().NoteNumber;
+        if (Slide == Context.Slide.Legato) return GetNextStringSibling().NoteNumber;
 
         throw new Exception("what slide");
     }

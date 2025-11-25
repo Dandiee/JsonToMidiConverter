@@ -1,9 +1,15 @@
-﻿namespace JsonToMidiConverter.Models.Song;
+﻿using System.Text.Json.Serialization;
+using Melanchall.DryWetMidi.Core;
+
+namespace JsonToMidiConverter.Models.Song;
 
 public sealed partial class Song
 {
-    public void Build()
+    [JsonIgnore] public MidiFile Midi { get; private set; }
+
+    public void Build(MidiFile midi)
     {
+        Midi = midi;
         Parts = Parts.OrderBy(e => e.PartId).ToArray();
 
         for (var i = 0; i < Parts.Length; i++)

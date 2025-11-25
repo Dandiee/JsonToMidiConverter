@@ -37,6 +37,16 @@ public class Events : IEnumerable<TimedEvent>
         SevenBitNumber? noteNumberOverride = null)
     {
 
+        if (TimedEvents.Count == 994 && note != null && note.Part.Index == 4)
+        {
+
+        }
+
+        if ((note?.Is("N1 B5 M30 P4") ?? false) && time == new Time(1889421))
+        {
+
+        }
+
         if (noteNumberOverride != null)
         {
             note.NoteNumber = noteNumberOverride.Value;
@@ -49,6 +59,7 @@ public class Events : IEnumerable<TimedEvent>
         }
 
         Recap = TimedEvents.Skip(Math.Max(0, TimedEvents.Count - 30)).ToList();
+
         TimedEvents.Add(new TimedEvent(midiEvent, time.Tick));
         //if (note != null && !SuspendValidation)
         //{

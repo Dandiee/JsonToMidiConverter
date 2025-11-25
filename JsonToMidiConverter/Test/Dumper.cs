@@ -145,7 +145,7 @@ public static class Dumper
         {
             var events = eventsByChunks[slide.Part.Index];
             var attackNote = slide;
-            var landingNote = slide.GetSlideTarget();
+            var landingNote = slide.GetNextStringSibling();
             var tie = attackNote.TieDetails;
             var semitoneDistance = landingNote.NoteNumber - attackNote.NoteNumber;
 
@@ -633,7 +633,7 @@ public static class Dumper
 
         var dumpMid = new MidiFile { TimeDivision = new TicksPerQuarterNoteTimeDivision(15360) };
         Time.Map = song.Parts[0].GetTempo(dumpMid);
-        song.Build();
+        song.Build(dumpMid);
         Time.Map = originalTimeMap;
 
         var sb = new StringBuilder();
