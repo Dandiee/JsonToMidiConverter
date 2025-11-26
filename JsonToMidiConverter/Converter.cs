@@ -1,17 +1,9 @@
-using JsonToMidiConverter.Context;
 using JsonToMidiConverter.Models.Song;
-using JsonToMidiConverter.Test;
 using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
-using Melanchall.DryWetMidi.MusicTheory;
-using Microsoft.VisualBasic;
-using System;
 using System.Diagnostics;
-using System.Drawing;
 using System.Reflection;
-using System.Xml.Linq;
-using Note = Melanchall.DryWetMidi.Interaction.Note;
 using Slide = JsonToMidiConverter.Context.Slide;
 
 namespace JsonToMidiConverter;
@@ -47,146 +39,154 @@ internal static class Converter
             {
                 AddMeasureMarker(events, measure);
 
-                foreach (var beat in measure.Beats)
+                foreach (var voice in measure.Voices)
                 {
-                    foreach (var note in beat.Notes.Where(e => !e.Rest))
+                    foreach (var beat in voice.Beats)
                     {
-
-                        var start = note.GetStartTime();
-                        var end = note.GetEndTime();
-
-
-                        if (note.Vibrato)
+                        foreach (var note in beat.Notes.Where(e => !e.Rest))
                         {
-                            if (note.Slide != Slide.None)
+
+                            var start = note.GetStartTime();
+                            var end = note.GetEndTime();
+
+
+                            if (note.Vibrato)
+                            {
+                                if (note.Slide != Slide.None)
+                                {
+                                    var slide = note.GetSlide();
+
+                                    var note1Start = beat.AbsoluteBeatStartTime;
+                                    var note1End = note1Start + slide.HoldDuration;
+                                    var note1Pitch = note.NoteNumber;
+
+                                    var note2Start = note1End;
+                                    var note2End = note2Start + note.ActualDuration - slide.HoldDuration;
+                                    var note2Pitch = note1Pitch + slide.Direction * slide.Steps;
+
+                                    On(events, note, note1Pitch, note1Start, note1End);
+                                    On(events, note, note2Pitch, note2Start, note2End);
+
+                                    events.Add(new ControlChangeEvent(1.To7(), 64.To7()), note1Start, note);
+                                    events.Add(new ControlChangeEvent(1.To7(), 0.To7()), note1End, note);
+                                }
+                                else
+                                {
+                                    On(events, note, note.NoteNumber, start, end);
+
+                                    events.Add(new ControlChangeEvent(1.To7(), 64.To7()), start, note);
+                                    events.Add(new ControlChangeEvent(1.To7(), 0.To7()), end, note);
+                                }
+                            }
+                            else if (note.Slide != Slide.None)
                             {
                                 var slide = note.GetSlide();
 
-                                var note1Start = beat.AbsoluteBeatStartTime;
-                                var note1End = note1Start + slide.HoldDuration;
-                                var note1Pitch = note.NoteNumber;
+                                if (!slide.IsStepped)
+                                {
+                                    if (!note.Tie) // tie starts are not ties, attack note is playing already
+                                    {
+                                        var startNote = note.GetStartTime();
+                                        var endNote = note.GetEndTime();
+                                        On(events, note, note.NoteNumber, startNote, endNote);
+                                    }
 
-                                var note2Start = note1End;
-                                var note2End = note2Start + note.ActualDuration - slide.HoldDuration;
-                                var note2Pitch = note1Pitch + slide.Direction * slide.Steps;
+                                    end = start + note.ActualDuration;
+                                    var step = note.ActualDuration / 2d / 100d;
+                                    events.Add(new PitchBendEvent(PitchBendCenter), end - 960, note);
+                                    Enumerable.Range(1, 100).ToList().ForEach(i =>
+                                    {
+                                        events.Add(new PitchBendEvent(PitchBendCenter), end - 960 + (i * step.Tick),
+                                            note);
+                                    });
+                                }
+                                else
+                                {
+                                    var strummul = 1;
+                                    if (note.Is("N1 B5 M246 P1"))
+                                    {
+                                        strummul = 2;
+                                    }
 
-                                On(events, note, note1Pitch, note1Start, note1End);
-                                On(events, note, note2Pitch, note2Start, note2End);
+                                    var holdFrom = start;
+                                    var holdTo = holdFrom + slide.HoldDuration -
+                                                 (note.Index * note.GetStrum().Tick / 2) * strummul;
 
-                                events.Add(new ControlChangeEvent(1.To7(), 64.To7()), note1Start, note);
-                                events.Add(new ControlChangeEvent(1.To7(), 0.To7()), note1End, note);
+                                    On(events, note, note.NoteNumber, holdFrom, holdTo);
+
+                                    var startTime = slide.TimeDirection < 0 ? holdFrom : holdTo;
+
+                                    for (var step = 0; step < slide.Steps; step++)
+                                    {
+                                        var i = slide.TimeDirection < 0 ? step + 1 : step;
+
+                                        var stepFrom = startTime + slide.TimeDirection *
+                                            (slide.StepDuration * i - (i * 9 * note.Index));
+                                        var stepTo = stepFrom + (slide.StepDuration - 9 * note.Index);
+                                        var stepNote = note.NoteNumber + slide.Direction * (step + 1);
+
+                                        On(events, note, stepNote, stepFrom, stepTo);
+                                    }
+                                }
                             }
-                            else
+                            else if (note.Bend != null)
                             {
-                                On(events, note, note.NoteNumber, start, end);
+                                var noteStart = note.GetStartTime();
+                                var noteEnd = note.GetEndTime();
+                                var noteDuration = noteEnd - noteStart;
+                                var quarterDuration = noteDuration / 4;
+                                var pitchBendStep = quarterDuration / 60;
 
-                                events.Add(new ControlChangeEvent(1.To7(), 64.To7()), start, note);
+                                var leftoverDuration = noteDuration - quarterDuration;
+
+
+                                events.Add(new ControlChangeEvent(1.To7(), 110.To7()), start, note);
                                 events.Add(new ControlChangeEvent(1.To7(), 0.To7()), end, note);
-                            }
-                        }
-                        else if (note.Slide != Slide.None)
-                        {
-                            var slide = note.GetSlide();
 
-                            if (!slide.IsStepped)
-                            {
-                                if (!note.Tie) // tie starts are not ties, attack note is playing already
+                                if (!note.Tie) // tie roots are not ties, attack note is already playing
                                 {
-                                    var startNote = note.GetStartTime();
-                                    var endNote = note.GetEndTime();
-                                    On(events, note, note.NoteNumber, startNote, endNote);
+                                    On(events, note, note.NoteNumber, noteStart, noteEnd);
                                 }
-                                
-                                end = start + note.ActualDuration;
-                                var step = note.ActualDuration / 2d / 100d;
-                                events.Add(new PitchBendEvent(PitchBendCenter), end - 960, note);
-                                Enumerable.Range(1, 100).ToList().ForEach(i =>
+
+                                if (note.Is("N0 B0 M127 P1"))
                                 {
-                                    events.Add(new PitchBendEvent(PitchBendCenter), end - 960 + (i * step.Tick), note);
+
+                                }
+
+                                events.Add(new PitchBendEvent(PitchBendCenter), noteStart + 1, note);
+                                Enumerable.Range(1, 61).ToList().ForEach(i =>
+                                {
+                                    events.Add(new PitchBendEvent(PitchBendCenter), noteStart + pitchBendStep * i,
+                                        note);
                                 });
+                                events.Add(new PitchBendEvent(PitchBendCenter), noteStart + pitchBendStep * 60 + 1,
+                                    note);
                             }
-                            else
+                            else if (!note.Tie)
                             {
-                                var strummul = 1;
-                                if (note.Is("N1 B5 M246 P1"))
+                                if (note.Is("N0 B2 M212 P1"))
                                 {
-                                    strummul = 2;
+
                                 }
 
-                                var holdFrom = start;
-                                var holdTo = holdFrom + slide.HoldDuration - (note.Index * note.GetStrum().Tick / 2) * strummul;
-
-                                On(events, note, note.NoteNumber, holdFrom, holdTo);
-
-                                var startTime = slide.TimeDirection < 0 ? holdFrom : holdTo;
-
-                                for (var step = 0; step < slide.Steps; step++)
-                                {
-                                    var i = slide.TimeDirection < 0 ? step + 1 : step;
-
-                                    var stepFrom = startTime + slide.TimeDirection * (slide.StepDuration * i - (i * 9 * note.Index));
-                                    var stepTo = stepFrom + (slide.StepDuration - 9 * note.Index);
-                                    var stepNote = note.NoteNumber + slide.Direction * (step + 1);
-
-                                    On(events, note, stepNote, stepFrom, stepTo);
-                                }
-                            }
-                        }
-                        else if (note.Bend != null)
-                        {
-                            var noteStart = note.GetStartTime();
-                            var noteEnd = note.GetEndTime();
-                            var noteDuration = noteEnd - noteStart;
-                            var quarterDuration = noteDuration / 4;
-                            var pitchBendStep = quarterDuration / 60;
-
-                            var leftoverDuration = noteDuration - quarterDuration;
+                                var noteStart = note.GetStartTime();
+                                var noteEnd = note.GetEndTime();
+                                Debug.Assert(noteEnd != noteStart);
+                                Debug.Assert(noteEnd > noteStart);
 
 
-                            events.Add(new ControlChangeEvent(1.To7(), 110.To7()), start, note);
-                            events.Add(new ControlChangeEvent(1.To7(), 0.To7()), end, note);
-
-                            if (!note.Tie) // tie roots are not ties, attack note is already playing
-                            {
-                                On(events, note, note.NoteNumber, noteStart, noteEnd);
+                                On(events, note, note.NoteNumber, noteStart, note.GetEndTime());
                             }
 
-                            if (note.Is("N0 B0 M127 P1"))
+
+                            if (note.Bend != null)
                             {
 
                             }
-
-                            events.Add(new PitchBendEvent(PitchBendCenter), noteStart + 1, note);
-                            Enumerable.Range(1, 61).ToList().ForEach(i =>
-                            {
-                                events.Add(new PitchBendEvent(PitchBendCenter), noteStart + pitchBendStep * i, note);
-                            });
-                            events.Add(new PitchBendEvent(PitchBendCenter), noteStart + pitchBendStep * 60 + 1, note);
-                        }
-                        else if (!note.Tie)
-                        {
-                            if (note.Is("N0 B2 M212 P1"))
-                            {
-
-                            }
-
-                            var noteStart = note.GetStartTime();
-                            var noteEnd = note.GetEndTime();
-                            Debug.Assert(noteEnd != noteStart);
-                            Debug.Assert(noteEnd > noteStart);
-
-
-                            On(events, note, note.NoteNumber, noteStart, note.GetEndTime());
-                        }
-
-
-                        if (note.Bend != null)
-                        {
 
                         }
 
                     }
-
                 }
             }
 
@@ -213,7 +213,7 @@ internal static class Converter
         {
             var referenceEvent = chunk[i];
             isStarted |= referenceEvent.Event.Is<MarkerEvent>();
-            
+
             if (!isStarted) continue;
             if (referenceEvent.Event.DeltaTime < 11 && referenceEvent.Event.Is<PitchBendEvent>()) continue;
             if (referenceEvent.Event is MarkerEvent mark && mark.Text == "END_OF_VOICE") break;

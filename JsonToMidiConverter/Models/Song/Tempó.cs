@@ -7,4 +7,5 @@ public sealed class Tempó
     public int Bpm { get; set; }
     public int Type { get; set; }
     public bool Visible { get; set; }
+    public bool Linear { get; set; }
 }

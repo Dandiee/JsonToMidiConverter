@@ -1,9 +1,6 @@
-﻿using JsonToMidiConverter.Context;
-using JsonToMidiConverter.Models.Song;
+﻿using JsonToMidiConverter.Models.Song;
 using Melanchall.DryWetMidi.Core;
-using Melanchall.DryWetMidi.Interaction;
 using System.Diagnostics;
-using System.Diagnostics.Metrics;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
@@ -33,10 +30,12 @@ public static class Dumper
     public static readonly IReadOnlyDictionary<Type, JsonSerializerOptions> JsonOptions =
         new Dictionary<Type, JsonSerializerOptions>
         {
-            
+
             [typeof(Measure)] = GetTypeExcludedJsonOptions(nameof(Measure.Voices)),
             [typeof(Beat)] = GetTypeExcludedJsonOptions(nameof(Beat.Notes), nameof(Beat.Text)),
             [typeof(Part)] = GetTypeExcludedJsonOptions(nameof(Part.NewLyrics), nameof(Part.Measures), nameof(Part.Automations)),
+            [typeof(Voice)] = GetTypeExcludedJsonOptions(nameof(Voice.Beats)),
+
 
         };
 
@@ -57,7 +56,7 @@ public static class Dumper
         return false;
     }
 
-    public static void Dump(Song song, string midiPath, string? artist)
+    public static void Dump(Song song, string midiPath, string? artist, string title)
     {
         var midi = MidiFile.Read(midiPath);
         var output = ProcessMidi(song, midi);
@@ -71,20 +70,23 @@ public static class Dumper
 
             foreach (var measure in part.Measures)
             {
-                foreach (var beat in measure.Beats.Where(e => e.Notes.Length > 1))
+                foreach (var voice in measure.Voices)
                 {
-                    for (var i = 1; i < beat.Notes.Length; i++)
+                    foreach (var beat in voice.Beats.Where(e => e.Notes.Length > 1))
                     {
-                        var prev = beat.Notes[i - 1];
-                        var curr = beat.Notes[i];
-
-                        if (prev.MidiEventIndex.HasValue && curr.MidiEventIndex.HasValue)
+                        for (var i = 1; i < beat.Notes.Length; i++)
                         {
-                            var prevE = midEvs[prev.MidiEventIndex.Value];
-                            var currE = midEvs[curr.MidiEventIndex.Value];
+                            var prev = beat.Notes[i - 1];
+                            var curr = beat.Notes[i];
 
-                            var distance = currE.Time - prevE.Time;
-                            strums.Add(new (distance, curr));
+                            if (prev.MidiEventIndex.HasValue && curr.MidiEventIndex.HasValue)
+                            {
+                                var prevE = midEvs[prev.MidiEventIndex.Value];
+                                var currE = midEvs[curr.MidiEventIndex.Value];
+
+                                var distance = currE.Time - prevE.Time;
+                                strums.Add(new(distance, curr));
+                            }
                         }
                     }
                 }
@@ -99,13 +101,15 @@ public static class Dumper
 
         foreach (var strum in strums)
         {
+            if (strum.Strum < 10) continue;
+
             var note = strum.note;
 
             var map = note.Measure.Part.GetTempo(note.Song.Midi);
             var temp = map.GetTempoAtTime(note.GetStartTime().Span);
             var timeSig = map.GetTimeSignatureAtTime(note.GetStartTime().Span);
 
-            sb.AppendLine($"Strum: {strum.Strum} P{note.Part.Index} M{note.Measure.Index} ({temp.BeatsPerMinute:N0}BPM [{timeSig}]) B{note.Beat.Index} N{note.Index} raw dur: {note.RawDuration}, played dur: {note.GetPlayDuration()}");
+            sb.AppendLine($"Strum: {strum.Strum} {note} ({temp.BeatsPerMinute:N0}BPM [{timeSig}]) {note.RawDuration}");
 
         }
 
@@ -117,7 +121,7 @@ public static class Dumper
             {
                 var map = e.note.Measure.Part.GetTempo(e.note.Song.Midi);
                 var temp = map.GetTempoAtTime(e.note.GetStartTime().Span);
-                var timeSig =  map.GetTimeSignatureAtTime(e.note.GetStartTime().Span);
+                var timeSig = map.GetTimeSignatureAtTime(e.note.GetStartTime().Span);
                 //return $"{temp.BeatsPerMinute:N0}BPM [{timeSig}]";
                 return $"No. of notes. {e.note.Beat.Notes.Length} @{temp.BeatsPerMinute:N0}BPM";
             });
@@ -128,9 +132,9 @@ public static class Dumper
             }
         }
 
-        File.WriteAllText($"Strums_{artist}", sb.ToString());
+        File.WriteAllText($"{title}_Strums", sb.ToString());
 
-        File.WriteAllText($"Logs_{artist}", output);
+        File.WriteAllText($"{title}_Bible", output);
     }
 
     private static IEnumerable<Event> GetMidiEvents(TrackChunk chunk)
@@ -153,9 +157,9 @@ public static class Dumper
 
     public record SlideInfo(int Steps, Time HoldDuration, Time SlideWindow, Time SlideNoteDuration);
 
-    public static void TestTheory(Nóta attackNote, 
-        int testNumberOfSteps, 
-        long testTotalDuration, 
+    public static void TestTheory(Nóta attackNote,
+        int testNumberOfSteps,
+        long testTotalDuration,
         long testSlideWindow,
         long testSlideNoteDelay)
     {
@@ -176,7 +180,7 @@ public static class Dumper
         var duration = attackNote?.TieDetails?.Destination.ActualDuration.Tick ?? attackNote.ActualDuration.Tick;
 
 
-        
+
         var slideWindow = attackNote.Slide == Slide.Downwards || attackNote.Slide == Slide.Upwards
             ? 0.75 * duration
             : Math.Min(steps * 960d, duration / 2d);
@@ -204,9 +208,10 @@ public static class Dumper
 
         var slides = song.Parts
             .SelectMany(e => e.Measures)
+            .SelectMany(e => e.Voices)
             .SelectMany(e => e.Beats)
             .SelectMany(e => e.Notes)
-            .Where(e => e.Slide != Slide.None || e.OriginalSlide != Slide.None);
+            .Where(e => e.Slide != Slide.None);
 
         var eventsByChunks = midi.Chunks.OfType<TrackChunk>().Select(e => GetMidiEvents(e).ToList()).ToList();
 
@@ -218,7 +223,7 @@ public static class Dumper
             var tie = attackNote.TieDetails;
             var semitoneDistance = landingNote.NoteNumber - attackNote.NoteNumber;
 
-            
+
             var startNote = tie?.Source ?? attackNote;
             var endNote = landingNote;
             var startEvent = events[startNote.MidiEventIndex.Value];
@@ -282,7 +287,7 @@ public static class Dumper
                 else
                 {
                     sb.AppendLine($"\t\t End: {GetNoteDetails(endNote)}");
-                    
+
                 }
 
                 sb.AppendLine($"\t\t\t - [{slideEvent.On.Time}] NN {(slideEvent.On.MidiEvent as NoteOnEvent).NoteNumber}; Duration = {duration.ToString().PadLeft(5)} ({slideEvent.On.Time} -> {slideEvent.Off.Time})");
@@ -323,7 +328,7 @@ public static class Dumper
 
         Debug.Assert(song.Parts.Length == chunks.Count);
 
-        
+
 
         foreach (var part in song.Parts)
         {
@@ -337,7 +342,7 @@ public static class Dumper
             Debug.Assert(part.Instrument == instrumentName);
             Debug.Assert(part.Name == trackName);
             //Debug.Assert(part.InstrumentId == instrumentId);
-            Debug.Assert(part.Measures.Length == events.Count(e => e.MidiEvent.EventType == MidiEventType.Marker) - 1);
+            Debug.Assert(part.Measures.Count == events.Count(e => e.MidiEvent.EventType == MidiEventType.Marker) - 1);
 
             var partTitle =
                 $"================================== P{part.Index} - I{part.InstrumentId}: {part.Instrument} {part.Name} ==================================";
@@ -345,81 +350,84 @@ public static class Dumper
             sb.AppendLine(separator);
             sb.AppendLine(partTitle);
             sb.AppendLine(separator);
+
+
             foreach (var measure in part.Measures)
             {
                 if (measure.Rest) continue;
 
-                sb.AppendLine($"\r\n\r\nM{measure.Index} P{part.Index}, Input = {GetJson(measure)}");
-                foreach (var beat in measure.Beats)
+
+                sb.AppendLine($"\r\n\r\n{measure}, Input = {GetJson(measure)}");
+                foreach (var voice in measure.Voices)
                 {
-                    if (beat.Rest) continue;
 
-                    sb.AppendLine(
-                        $"\r\n\tB{beat.Index} M{measure.Index} P{part.Index}, Attr = [{GetAttributes(beat)}], Input = {GetJson(beat)}");
-                    foreach (var note in beat.Notes)
+                    sb.AppendLine($"\r\n\r\n{voice}, Input = {GetJson(voice)}");
+                    foreach (var beat in voice.Beats)
                     {
+                        if (beat.Rest) continue;
 
-                        var slideMarker = note.Slide != Slide.None ? $" Slide = {note.Slide} " : "";
-                        var tieMarker = note.Tie ? " Tie " : "";
-
-                        sb.AppendLine(
-                            $"\t\tN{note.Index} B{beat.Index} M{measure.Index} P{part.Index} S{note.StringNumber} F{note.Fret}" +
-                            $"{slideMarker}{tieMarker} Attr = [{GetAttributes(beat)}] Input = {GetJson(note)}");
-
-
-                        if (note.MidiEventIndex.HasValue)
+                        sb.AppendLine($"\r\n\t{beat}, Attr = [{GetAttributes(beat)}], Input = {GetJson(beat)}");
+                        foreach (var note in beat.Notes)
                         {
-                            var from = note.MidiEventIndex.Value;
-                            var to = note.MidiEventCount.HasValue
-                                ? note.MidiEventCount.Value + from
-                                : events.Count;
 
-                            var pitchCounter = 0;
+                            var slideMarker = note.Slide != Slide.None ? $" Slide = {note.Slide} " : "";
+                            var tieMarker = note.Tie ? " Tie " : "";
 
-                            for (var i = from; i < to; i++)
+                            sb.AppendLine($"\t\t{note} {slideMarker}{tieMarker} Attr = [{GetAttributes(beat)}] Input = {GetJson(note)}");
+
+                            if (note.MidiEventIndex.HasValue)
                             {
-                                var timedEvent = events[i];
-                                EventTypeNames.TryGetValue(timedEvent.MidiEvent.EventType, out var niceName);
+                                var from = note.MidiEventIndex.Value;
+                                var to = note.MidiEventCount.HasValue
+                                    ? note.MidiEventCount.Value + from
+                                    : events.Count;
 
-                                var ch = (timedEvent.MidiEvent as ChannelEvent)?.Channel.ToString() ?? string.Empty;
-                                var nn = (timedEvent.MidiEvent as NoteEvent)?.NoteNumber.ToString() ?? string.Empty;
+                                var pitchCounter = 0;
 
-                                var properties = timedEvent.MidiEvent
-                                    .GetType()
-                                    .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                                    .Where(e => !ExcludedProperties.Contains(e.Name));
-
-                                var attributes = string.Join("; ", properties
-                                    .OrderBy(e => e.Name)
-                                    .Select(prop => $"{prop.Name}: {prop.GetValue(timedEvent.MidiEvent)}"));
-
-                                //if (timedEvent.MidiEvent is PitchBendEvent)
-                                //{
-                                //    pitchCounter++;
-                                //}
-                                //else pitchCounter = 0;
-                                //if (pitchCounter == 3)
-                                //{
-                                //    sb.AppendLine($"\t\t\t..... More pitch bending");
-                                //}
-                                //else if (pitchCounter < 3)
+                                for (var i = from; i < to; i++)
                                 {
-                                    sb.AppendLine(
-                                        $"\t\t\t{i.ToString().PadLeft(5)} {(niceName ?? timedEvent.MidiEvent.EventType.ToString()).PadRight(10)} " +
-                                        $"Note: {nn.PadLeft(2)}; At: {timedEvent.Time}; Ch: {ch}; " +
-                                        $"Delta: {timedEvent.MidiEvent.DeltaTime.ToString().PadLeft(6)} {attributes}");
-                                }
-                            }
+                                    var timedEvent = events[i];
+                                    EventTypeNames.TryGetValue(timedEvent.MidiEvent.EventType, out var niceName);
 
+                                    var ch = (timedEvent.MidiEvent as ChannelEvent)?.Channel.ToString() ?? string.Empty;
+                                    var nn = (timedEvent.MidiEvent as NoteEvent)?.NoteNumber.ToString() ?? string.Empty;
+
+                                    var properties = timedEvent.MidiEvent
+                                        .GetType()
+                                        .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                                        .Where(e => !ExcludedProperties.Contains(e.Name));
+
+                                    var attributes = string.Join("; ", properties
+                                        .OrderBy(e => e.Name)
+                                        .Select(prop => $"{prop.Name}: {prop.GetValue(timedEvent.MidiEvent)}"));
+
+                                    //if (timedEvent.MidiEvent is PitchBendEvent)
+                                    //{
+                                    //    pitchCounter++;
+                                    //}
+                                    //else pitchCounter = 0;
+                                    //if (pitchCounter == 3)
+                                    //{
+                                    //    sb.AppendLine($"\t\t\t..... More pitch bending");
+                                    //}
+                                    //else if (pitchCounter < 3)
+                                    {
+                                        sb.AppendLine(
+                                            $"\t\t\t{i.ToString().PadLeft(5)} {(niceName ?? timedEvent.MidiEvent.EventType.ToString()).PadRight(10)} " +
+                                            $"Note: {nn.PadLeft(2)}; At: {timedEvent.Time}; Ch: {ch}; " +
+                                            $"Delta: {timedEvent.MidiEvent.DeltaTime.ToString().PadLeft(6)} {attributes}");
+                                    }
+                                }
+
+                            }
                         }
                     }
-
 
                 }
             }
         }
 
-       
+
         return sb.ToString();
     }
 
@@ -438,11 +446,15 @@ public static class Dumper
 
             foreach (var measure in part.Measures)
             {
-                foreach (var beat in measure.Beats)
+                foreach (var voice in measure.Voices)
                 {
-                    if (beat.Rest || beat.Notes.All(e => e.Rest || e.Tie)) continue;
 
-                    _ = GetBeatEventCursor(events, ref cursor, beat);
+                    foreach (var beat in voice.Beats)
+                    {
+                        if (beat.Rest || beat.Notes.All(e => e.Rest || e.Tie)) continue;
+
+                        _ = GetBeatEventCursor(events, ref cursor, beat);
+                    }
                 }
             }
         }
@@ -454,19 +466,22 @@ public static class Dumper
             Nóta prevNote = null;
             foreach (var measure in part.Measures)
             {
-                foreach (var beat in measure.Beats)
+                foreach (var voice in measure.Voices)
                 {
-                    foreach (var note in beat.Notes)
+                    foreach (var beat in voice.Beats)
                     {
-                        if (note.MidiEventIndex.HasValue)
+                        foreach (var note in beat.Notes)
                         {
-                            if (prevNote != null)
+                            if (note.MidiEventIndex.HasValue)
                             {
-                                var distance = note.MidiEventIndex.Value - prevNote.MidiEventIndex.Value;
-                                prevNote.MidiEventCount = distance;
-                            }
+                                if (prevNote != null)
+                                {
+                                    var distance = note.MidiEventIndex.Value - prevNote.MidiEventIndex.Value;
+                                    prevNote.MidiEventCount = distance;
+                                }
 
-                            prevNote = note;
+                                prevNote = note;
+                            }
                         }
                     }
                 }
@@ -698,8 +713,8 @@ public static class Dumper
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
         };
 
-        File.WriteAllText($"MetaData_{meta.Artist}.json", JsonSerializer.Serialize(meta, opts));
-        File.WriteAllText($"MidiData_{meta.Artist}.json", JsonSerializer.Serialize(song, opts));
+        File.WriteAllText($"{meta.Title}_MidiData.json", JsonSerializer.Serialize(meta, opts));
+        File.WriteAllText($"{meta.Title}_JsonData.json", JsonSerializer.Serialize(song, opts));
 
 
         var dumpMid = new MidiFile { TimeDivision = new TicksPerQuarterNoteTimeDivision(15360) };
@@ -712,7 +727,11 @@ public static class Dumper
         var sb = new StringBuilder();
         foreach (var part in song.Parts)
         {
-            sb.AppendLine($"\t P{part.Index} {part.Name} {part.Instrument} I{part.InstrumentId}, TempoChanges = {GetJson(part.Automations.Tempo)}");
+            sb.AppendLine($"\t P{part.Index} {part.Name} {part.Instrument} I{part.InstrumentId}, Tempo changes:");
+            foreach (var tempoChange in part.Automations.Tempo)
+            {
+                sb.AppendLine($"\t\t - {GetJson(tempoChange)}]");
+            }
         }
 
         sb.AppendLine();
@@ -720,17 +739,22 @@ public static class Dumper
 
         foreach (var part in song.Parts)
         {
-            sb.AppendLine($"\r\n\r\nP{part.Index} {GetJson(part)}");
+            sb.AppendLine($"\r\n\r\n{part} {GetJson(part)}");
             foreach (var measure in part.Measures)
             {
-                sb.AppendLine($"\r\n\tM{measure.Index} P{part.Index}: {GetJson(measure)}");
-                foreach (var beat in measure.Beats)
+
+                sb.AppendLine($"\r\n\t{measure} {GetJson(measure)}");
+                foreach (var voice in measure.Voices)
                 {
-                    sb.AppendLine($"\t\tB{beat.Index} M{measure.Index} P{part.Index}: {GetJson(beat)}");
-                    foreach (var note in beat.Notes)
+                    sb.AppendLine($"\r\n\t\t{voice} {GetJson(voice)}");
+                    foreach (var beat in voice.Beats)
                     {
-                        sb.AppendLine(
-                            $"\t\t\tN{note.Index} B{beat.Index} M{measure.Index} P{part.Index}: {GetJson(note)}");
+                        sb.AppendLine($"\t\t\tB{beat} {GetJson(beat)}");
+                        foreach (var note in beat.Notes)
+                        {
+                            sb.AppendLine(
+                                $"\t\t\t\t{note} {GetJson(note)}");
+                        }
                     }
                 }
             }

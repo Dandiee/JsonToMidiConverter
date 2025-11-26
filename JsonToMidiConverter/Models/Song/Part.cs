@@ -8,13 +8,13 @@ public sealed partial class Part
     public string Name { get; set; } = string.Empty;
     public double Balance { get; set; }
     public double Volume { get; set; }
-    public Measure[] Measures { get; set; } = Array.Empty<Measure>();
+    public List<Measure> Measures { get; set; } = [];
     public int Frets { get; set; }
-    public int[] Tuning { get; set; } = Array.Empty<int>();
+    public int[] Tuning { get; set; } = [];
     public int Strings { get; set; }
     public int InstrumentId { get; set; }
     public string Instrument { get; set; } = string.Empty;
-    public Newlyric[] NewLyrics { get; set; } = Array.Empty<Newlyric>();
+    public List<Newlyric> NewLyrics { get; set; } = [];
     public int PartId { get; set; }
     public Automations Automations { get; set; } = new();
     public int Version { get; set; }

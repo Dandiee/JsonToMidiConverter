@@ -1,10 +1,9 @@
 ﻿using System.Diagnostics;
 using System.Text.Json.Serialization;
-using Melanchall.DryWetMidi.Interaction;
 
 namespace JsonToMidiConverter.Models.Song;
 
-[DebuggerDisplay("B{Index} M{Measure.Index} P{Part.Index}")]
+[DebuggerDisplay("B{Index} V{Voice.Index} M{Measure.Index} P{Part.Index}")]
 public sealed partial class Beat
 {
     [JsonIgnore] public int Index { get; private set; }
@@ -20,23 +19,42 @@ public sealed partial class Beat
     [JsonIgnore] public byte Denominator => (byte)Duration[1];
     [JsonIgnore] public bool IsAccord { get; private set; }
     [JsonIgnore] public string Nameplate => $"{Index}{Measure.Index}{Part.Index}";
+    [JsonIgnore] public Beat? Next { get; private set; }
+    [JsonIgnore] public Beat? Previous { get; private set; }
 
-    public void Build(Voice voice, int index)
+    public void SetNavigation(Voice voice, int index)
     {
-        ReversedNotes = Notes;
         Index = index;
         Voice = voice;
-        var prevBeat = GetPrevious();
 
-        MusicalDuration = prevBeat?.GraceNote == "onBeat"
-            ? new Time(Duration[0], Duration[1]) - prevBeat.MusicalDuration
+        Previous = Index > 0
+            ? Previous = Voice.Beats[Index - 1]
+            : Measure.Previous?.Voices[Voice.Index].Beats[^1];
+
+        if (Previous != null)
+        {
+            Previous.Next = this;
+        }
+
+        for (var i = 0; i < Notes.Length; i++)
+        {
+            Notes[i].SetNavigation(this, i);
+        }
+    }
+
+    public void Build()
+    {
+        ReversedNotes = Notes;
+        
+        MusicalDuration = Previous?.GraceNote == "onBeat"
+            ? new Time(Duration[0], Duration[1]) - Previous.MusicalDuration
             : new Time(Duration[0], Duration[1]);
 
         IsAccord = Notes.Length > 1;
-        
+
         RelativeBeatStartTime = Index == 0
             ? new Time()
-            : prevBeat.RelativeBeatStartTime + prevBeat.MusicalDuration;
+            : Previous!.RelativeBeatStartTime + Previous.MusicalDuration;
 
         AbsoluteBeatStartTime = Measure.StartTime + RelativeBeatStartTime;
 
@@ -54,36 +72,7 @@ public sealed partial class Beat
         }
     }
 
-    public Beat? GetNext()
-    {
-        if (Index < Measure.Beats.Length - 1)
-            return Measure.Beats[Index + 1];
-
-        var nextMeasure = Measure.GetNext();
-        if (nextMeasure != null)
-            return nextMeasure.Beats[0];
-
-        return null;
-
-    }
-
-    public Beat? GetPrevious()
-    {
-        if (Index > 0)
-            return Measure.Beats[Index - 1];
-
-        var previousMeasure = Measure.GetPrevious();
-        if (previousMeasure != null)
-            return previousMeasure.Beats[^1];
-
-        return null;
-    }
-
-
-    public long GetMeasureStartDuration(TempoMap tempoMap)
-        => Measure.Beats
-            .TakeWhile(e => e != this)
-            .Sum(e => e.MusicalDuration.Tick);
-
     public bool Is(string nameplate) => nameplate == $"B{Index} M{Measure.Index} P{Part.Index}";
+
+    public override string ToString() => $"B{Index} {Voice}";
 }

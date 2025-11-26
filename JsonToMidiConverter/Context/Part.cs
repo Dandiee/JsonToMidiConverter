@@ -20,12 +20,13 @@ public sealed partial class Part
         Song = song;
         IsPianoLike = PianoLikeInstruments.Contains(InstrumentId);
 
-        for (var i = 0; i < Measures.Length; i++)
+        for (var i = 0; i < Measures.Count; i++)
         {
-            Measures[i].Build(this, i);
+            Measures[i].SetNavigation(this, i);
         }
-    }
 
+        Measures.ForEach(m => m.Build());
+    }
 
     public TempoMap GetTempo(MidiFile midi)
     {
@@ -35,7 +36,7 @@ public sealed partial class Part
 
         using var tempoMapManager = new TempoMapManager(midi.TimeDivision);
 
-        for (var i = 0; i < Measures.Length; i++)
+        for (var i = 0; i < Measures.Count; i++)
         {
             var measure = Measures[i];
             if (measure.Signature.Length == 2)
@@ -57,4 +58,6 @@ public sealed partial class Part
     }
 
     public static readonly HashSet<int> PianoLikeInstruments = new() { 0, 48, 1024, 67 };
+
+    public override string ToString() => $"P{Index}";
 }

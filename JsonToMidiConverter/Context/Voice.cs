@@ -1,4 +1,6 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
+using System.Reflection;
 using System.Text.Json.Serialization;
 
 namespace JsonToMidiConverter.Models.Song;
@@ -11,14 +13,21 @@ public sealed partial class Voice
     [JsonIgnore] public Song Song => Part.Song;
     [JsonIgnore] public int Index { get; private set; }
 
-    public void Build(Measure measure, int index)
+
+    public void SetNavigation(Measure measure, int index)
     {
         Index = index;
         Measure = measure;
 
-        for (var i = 0; i < Beats.Length; i++)
+        for (var i = 0; i < Beats.Count; i++)
         {
-            Beats[i].Build(this, i);
+            Beats[i].SetNavigation(this, i);
         }
     }
+
+    public void Build() => Beats.ForEach(beat => beat.Build());
+
+    public override string ToString() => $"V{Index} {Measure}";
+
+    
 }
