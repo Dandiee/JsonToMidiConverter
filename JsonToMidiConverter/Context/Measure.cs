@@ -11,12 +11,19 @@ public sealed partial class Measure
     [JsonIgnore]public Song Song => Part.Song;
     [JsonIgnore]public Beat[] Beats => Voices.First().Beats;
     [JsonIgnore] public Time StartTime { get; private set; }
+    [JsonIgnore] public byte? SignatureNominator { get; private set; }
+    [JsonIgnore] public byte? SignatureDenominator { get; private set; }
 
     public void Build(Part part, int index)
     {
         Index = index;
         Part = part;
         StartTime = new Time(Index, 0d);
+        if (Signature.Length == 2)
+        {
+            SignatureNominator = (byte)Signature[0];
+            SignatureDenominator = (byte)Signature[1];
+        }
 
         for (var i = 0; i < Voices.Length; i++)
         {

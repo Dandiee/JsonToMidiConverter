@@ -10,7 +10,7 @@ var songPairs = new Dictionary<string, string>
     [@"References\LinkinPark.mid"] = "In the end",
     [@"References\Nirvana.mid"] = "Come as you are",
     //[@"References\LedZeppelin.mid"] = "Stairway to heaven",
-    //[@"References\Tool.mid"] = "Pneuma",
+    [@"References\Tool.mid"] = "Pneuma",
     //[@"References\Metallica.mid"] = "Nothing else matters",
     //[@"References\Blink182.mid"] = "What's my age",
 };

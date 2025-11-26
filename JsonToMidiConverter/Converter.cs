@@ -17,9 +17,10 @@ namespace JsonToMidiConverter;
 
 internal static class Converter
 {
-    private const int TicksPerQuarter = 15360;
-    private const int TicksPer64Th = 960; // The "Magic Grid" unit
-    
+    public const int TicksPerQuarter = 15360;
+    public const int TicksPer64Th = 960; // The "Magic Grid" unit
+    public const int MsPer64Th = TicksPerQuarter / TicksPer64Th;
+
 
     // Standard MIDI Values
     private const ushort PitchBendCenter = 8192;
@@ -49,10 +50,7 @@ internal static class Converter
                 {
                     foreach (var note in beat.Notes.Where(e => !e.Rest))
                     {
-                        if (note.Is("N0 B1 M54 P4"))
-                        {
-
-                        }
+                       
 
                         
 
@@ -130,12 +128,12 @@ internal static class Converter
                                 }
                             }
                         }
-                        else if (note.Dead)
-                        {
-                            var noteStart = note.GetStartTime();
-                            var noteEnd = noteStart + 960 / 2;
-                            On(events, note, note.NoteNumber, noteStart, noteEnd);
-                        }
+                       // else if (note.Dead)
+                       // {
+                       //     var noteStart = note.GetStartTime();
+                       //     var noteEnd = noteStart + 960 / 2;
+                       //     On(events, note, note.NoteNumber, noteStart, noteEnd);
+                       // }
                         else if (note.Bend != null)
                         {
                             var noteStart = note.GetStartTime();
@@ -163,7 +161,10 @@ internal static class Converter
                         }
                         else if (!note.Tie)
                         {
-                            
+                            if (note.Is("N0 B5 M25 P0"))
+                            {
+
+                            }
 
                             var noteStart = note.GetStartTime();
                             var noteEnd = note.GetEndTime();
@@ -232,6 +233,7 @@ internal static class Converter
                 if (referenceEvent.Event.Is<ChannelEvent>()) matchesByTime = matchesByTime.Where(e => e.Event.As<ChannelEvent>().Channel == referenceEvent.Event.As<ChannelEvent>().Channel).ToList();
                 if (referenceEvent.Event.Is<NoteEvent>()) matchesByTime = matchesByTime.Where(e => e.Event.As<NoteEvent>().NoteNumber == referenceEvent.Event.As<NoteEvent>().NoteNumber).ToList();
                 if (referenceEvent.Event.Is<ControlChangeEvent>()) matchesByTime = matchesByTime.Where(e => e.Event.As<ControlChangeEvent>().ControlValue == referenceEvent.Event.As<ControlChangeEvent>().ControlValue).ToList();
+                if (referenceEvent.Event.Is<ControlChangeEvent>()) matchesByTime = matchesByTime.Where(e => e.Event.As<ControlChangeEvent>().ControlValue == referenceEvent.Event.As<ControlChangeEvent>().ControlValue).ToList();
             }
 
             var asd = matchesByTime.Select(e => new
@@ -296,6 +298,11 @@ internal static class Converter
         {
             var newTempo = Tempo.FromBeatsPerMinute(measureChange.Bpm).MicrosecondsPerQuarterNote;
             events.Add(new SetTempoEvent(newTempo), measure.StartTime, null, null, measure.Part.PartId);
+        }
+
+        if (measure.Index > 0 && measure.Signature.Length > 0)
+        {
+            events.Add(new TimeSignatureEvent(measure.SignatureNominator.Value, measure.SignatureDenominator.Value), measure.StartTime, null, null, measure.Part.PartId);
         }
     }
 

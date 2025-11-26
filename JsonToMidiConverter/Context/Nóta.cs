@@ -137,6 +137,10 @@ public sealed partial class Nóta
                 nextBeat = nextBeat.GetNext();
             }
         }
+        else if (Dead)
+        {
+            return GetStartTime() + GetPlayDuration();
+        }
         else if (WillBeTied)
         {
             return TieDetails.Destination.GetEndTime();
@@ -147,7 +151,12 @@ public sealed partial class Nóta
 
     public Time GetPlayDuration()
     {
-        if (Dead) return new Time(960 / 2);
+        if (Dead)
+        {
+            var tempo = Part.TempoMap.GetTempoAtTime(Beat.AbsoluteBeatStartTime.Span);
+            var ticks = tempo.BeatsPerMinute * 4;
+            return new Time((long)ticks);
+        }
         //if (Tie) return new Time();
         if (WillBeTied && TieDetails != null)
         {
