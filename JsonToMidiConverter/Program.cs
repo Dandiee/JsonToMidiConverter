@@ -26,14 +26,15 @@ foreach (var pair in songPairs)
     mid.ReplaceTempoMap(Time.Map);
     song.Build(mid);
 
-    var midiFile = Converter.Convert(song, pair.Key);
+    //var midiFile = Converter.Convert(song, pair.Key);
 
-    //var dumpMatch = Database.Search(asd.Value).First();
-    // Dumper.DumpJsonInputs(dumpMatch.SongId, asd.Key);
+    var dumpMatch = Database.Search(pair.Value).First();
+     Dumper.DumpJsonInputs(dumpMatch.SongId, pair.Key);
 
 
 }
 
+return;
 
 foreach (var kvp in songPairs)
 {
@@ -47,7 +48,7 @@ foreach (var kvp in songPairs)
     dumpSong.Build(dumpMid);
     
     
-    //Dumper.Dump(dumpSong, kvp.Key, dumpMatch.Artist!);
+    Dumper.Dump(dumpSong, kvp.Key, dumpMatch.Artist!);
     //Dumper.CollectSlide(dumpSong, kvp.Key, dumpMatch.Artist!);
 }
 

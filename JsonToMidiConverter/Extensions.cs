@@ -17,6 +17,7 @@ public static class Extensions
         "downwards" => Slide.Downwards,
         "shift" => Slide.Shift,
         "legato" => Slide.Legato,
+        "below" => Slide.Below,
 
         _ => Slide.None,
     };

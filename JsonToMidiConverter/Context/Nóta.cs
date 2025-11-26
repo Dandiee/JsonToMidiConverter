@@ -10,7 +10,7 @@ using Note = Melanchall.DryWetMidi.Interaction.Note;
 
 namespace JsonToMidiConverter.Models.Song;
 
-public record Slide(int Steps, Time HoldDuration, Time SlideWindow, Time StepDuration, int Direction, bool IsStepped);
+public record Slide(int Steps, Time HoldDuration, Time SlideWindow, Time StepDuration, int Direction, bool IsStepped, int TimeDirection);
 
 
 [DebuggerDisplay("N{Index} B{Beat.Index} M{Measure.Index} P{Part.Index}")]
@@ -79,24 +79,23 @@ public sealed partial class Nóta
 
     }
 
-    public Time GetStrum() => new((long)(1.17 * Part.TempoMap.GetTempoAtTime(Beat.AbsoluteBeatStartTime.Span).BeatsPerMinute)+1);
+    public Time GetStrum() => new((long)(1.17 * Part.TempoMap.GetTempoAtTime(Beat.AbsoluteBeatStartTime.Span).BeatsPerMinute) + 1);
+    public Time GetStrumNew()
+    {
+        var tempo = Part.TempoMap.GetTempoAtTime(Beat.AbsoluteBeatStartTime.Span);
+        var ticks = 4 * (long)Math.Round(0.3 * tempo.BeatsPerMinute);
+        return new Time((long)ticks);
+    } 
 
     public Time GetStartTime()
     {
-        var strum = Part.IsPianoLike ? new Time() : GetStrum() * Index;
-        return Beat.AbsoluteBeatStartTime + strum;
+        if (Part.IsPianoLike) return Beat.AbsoluteBeatStartTime;
+        else return Beat.AbsoluteBeatStartTime + GetStrum() * Index;
     }
 
     public Time GetEndTime()
     {
-        //if (WillBeTied)
-        //{
-        //    var dest = TieDetails.Destination;
-        //    var ties = GetForwardTies().ToList();
-        //    return Beat.AbsoluteBeatStartTime + dest.GetPlayDuration();
-        //}
         
-
         if (Beat.LetRing)
         {
             var nextBeat = Beat.GetNext();
@@ -151,6 +150,11 @@ public sealed partial class Nóta
 
     public Time GetPlayDuration()
     {
+        var nextChannelNote = Beat.GetNext()?.Notes.FirstOrDefault(e => e.StringNumber == StringNumber); // its fguckin first or default because drums ofc
+        if (nextChannelNote != null && nextChannelNote.Slide == Context.Slide.Below)
+        {
+            return ActualDuration - 1920; // TODO: when will this magic number break, i do wonder
+        }
         if (Dead)
         {
             var tempo = Part.TempoMap.GetTempoAtTime(Beat.AbsoluteBeatStartTime.Span);
@@ -281,14 +285,23 @@ public sealed partial class Nóta
 
         var landingNoteNumber = GetSlideTargetPitch();
         var steps = Math.Abs(landingNoteNumber - NoteNumber) - 1;
+
+        if (Slide == Context.Slide.Below)
+        {
+            var belowSlideWindow = new Time(1920);
+            return new Slide(steps, ActualDuration, belowSlideWindow, belowSlideWindow / steps, -1, true, -1);
+        }
+
         var duration = TieDetails?.Destination.ActualDuration ?? ActualDuration;
         var direction = Math.Sign(landingNoteNumber - NoteNumber);
+
+        
 
         if (steps < 1 || Vibrato)
         {
             var legatoHold = Vibrato ? ActualDuration / 2 : ActualDuration;
 
-            return new Slide(steps, legatoHold, new Time(), new Time(10), direction, false);
+            return new Slide(steps, legatoHold, new Time(), new Time(10), direction, false, 1);
         }
 
         var defaultSlideWindow = Slide == Context.Slide.Downwards || Slide == Context.Slide.Upwards
@@ -302,7 +315,7 @@ public sealed partial class Nóta
         var slideWindow = new Time((long)(stepSize * steps));
         var holdDuration = duration - slideWindow;
 
-        return new Slide(steps, holdDuration, slideWindow, new Time((long)stepSize), direction, true);
+        return new Slide(steps, holdDuration, slideWindow, new Time((long)stepSize), direction, true, 1);
     }
 
     public long GetShiftStepSizeTicks()
@@ -472,6 +485,7 @@ public sealed partial class Nóta
         if (Slide == Context.Slide.Downwards) return (NoteNumber - Math.Min(10, Fret)).To7();
         if (Slide == Context.Slide.Upwards) return (NoteNumber + 10).To7();
         if (Slide == Context.Slide.Legato) return GetNextStringSibling().NoteNumber;
+        if (Slide == Context.Slide.Below) return (NoteNumber - Math.Min(10, Fret)).To7();
 
         throw new Exception("what slide");
     }

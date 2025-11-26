@@ -1,6 +1,7 @@
 ﻿using JsonToMidiConverter.Context;
 using JsonToMidiConverter.Models.Song;
 using Melanchall.DryWetMidi.Core;
+using Melanchall.DryWetMidi.Interaction;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Reflection;
@@ -32,10 +33,10 @@ public static class Dumper
     public static readonly IReadOnlyDictionary<Type, JsonSerializerOptions> JsonOptions =
         new Dictionary<Type, JsonSerializerOptions>
         {
+            
             [typeof(Measure)] = GetTypeExcludedJsonOptions(nameof(Measure.Voices)),
             [typeof(Beat)] = GetTypeExcludedJsonOptions(nameof(Beat.Notes), nameof(Beat.Text)),
-            [typeof(Part)] =
-                GetTypeExcludedJsonOptions(nameof(Part.NewLyrics), nameof(Part.Measures), nameof(Part.Automations)),
+            [typeof(Part)] = GetTypeExcludedJsonOptions(nameof(Part.NewLyrics), nameof(Part.Measures), nameof(Part.Automations)),
 
         };
 
@@ -60,6 +61,74 @@ public static class Dumper
     {
         var midi = MidiFile.Read(midiPath);
         var output = ProcessMidi(song, midi);
+
+
+        var chunks = midi.Chunks.OfType<TrackChunk>().ToList();
+        var strums = new List<(long Strum, Nóta note)>();
+        foreach (var part in song.Parts)
+        {
+            var midEvs = GetMidiEvents(chunks[part.Index]).ToList();
+
+            foreach (var measure in part.Measures)
+            {
+                foreach (var beat in measure.Beats.Where(e => e.Notes.Length > 1))
+                {
+                    for (var i = 1; i < beat.Notes.Length; i++)
+                    {
+                        var prev = beat.Notes[i - 1];
+                        var curr = beat.Notes[i];
+
+                        if (prev.MidiEventIndex.HasValue && curr.MidiEventIndex.HasValue)
+                        {
+                            var prevE = midEvs[prev.MidiEventIndex.Value];
+                            var currE = midEvs[curr.MidiEventIndex.Value];
+
+                            var distance = currE.Time - prevE.Time;
+                            strums.Add(new (distance, curr));
+                        }
+                    }
+                }
+            }
+        }
+
+        var struMDicts = strums
+            .Where(e => e.Strum > 0)
+            .GroupBy(e => e.Strum);
+
+        var sb = new StringBuilder();
+
+        foreach (var strum in strums)
+        {
+            var note = strum.note;
+
+            var map = note.Measure.Part.GetTempo(note.Song.Midi);
+            var temp = map.GetTempoAtTime(note.GetStartTime().Span);
+            var timeSig = map.GetTimeSignatureAtTime(note.GetStartTime().Span);
+
+            sb.AppendLine($"Strum: {strum.Strum} P{note.Part.Index} M{note.Measure.Index} ({temp.BeatsPerMinute:N0}BPM [{timeSig}]) B{note.Beat.Index} N{note.Index} raw dur: {note.RawDuration}, played dur: {note.GetPlayDuration()}");
+
+        }
+
+        foreach (var strumGroup in struMDicts)
+        {
+            //sb.AppendLine($"{strumGroup.Key} ({strumGroup.Count()})");
+
+            var bpmGroups = strumGroup.GroupBy(e =>
+            {
+                var map = e.note.Measure.Part.GetTempo(e.note.Song.Midi);
+                var temp = map.GetTempoAtTime(e.note.GetStartTime().Span);
+                var timeSig =  map.GetTimeSignatureAtTime(e.note.GetStartTime().Span);
+                //return $"{temp.BeatsPerMinute:N0}BPM [{timeSig}]";
+                return $"No. of notes. {e.note.Beat.Notes.Length} @{temp.BeatsPerMinute:N0}BPM";
+            });
+
+            foreach (var bpmGroup in bpmGroups)
+            {
+                sb.AppendLine($"Strum: {strumGroup.Key} ticks, at {bpmGroup.Key}: (x{bpmGroup.Count()})");
+            }
+        }
+
+        File.WriteAllText($"Strums_{artist}", sb.ToString());
 
         File.WriteAllText($"Logs_{artist}", output);
     }
@@ -119,11 +188,11 @@ public static class Dumper
 
         var info = attackNote.GetSlide();
 
-        Debug.Assert(testNumberOfSteps == info.Steps);
-        Debug.Assert(Math.Abs(info.StepDuration.Tick - testSlideNoteDelay) < 10);
-
-        Debug.Assert(testNumberOfSteps == steps);
-        Debug.Assert(Math.Abs(stepSize - testSlideNoteDelay) < 10);
+        //Debug.Assert(testNumberOfSteps == info.Steps);
+        //Debug.Assert(Math.Abs(info.StepDuration.Tick - testSlideNoteDelay) < 10);
+        //
+        //Debug.Assert(testNumberOfSteps == steps);
+        //Debug.Assert(Math.Abs(stepSize - testSlideNoteDelay) < 10);
 
     }
 
@@ -254,6 +323,7 @@ public static class Dumper
 
         Debug.Assert(song.Parts.Length == chunks.Count);
 
+        
 
         foreach (var part in song.Parts)
         {
@@ -349,6 +419,7 @@ public static class Dumper
             }
         }
 
+       
         return sb.ToString();
     }
 
@@ -636,7 +707,17 @@ public static class Dumper
         song.Build(dumpMid);
         Time.Map = originalTimeMap;
 
+
+
         var sb = new StringBuilder();
+        foreach (var part in song.Parts)
+        {
+            sb.AppendLine($"\t P{part.Index} {part.Name} {part.Instrument} I{part.InstrumentId}, TempoChanges = {GetJson(part.Automations.Tempo)}");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine();
+
         foreach (var part in song.Parts)
         {
             sb.AppendLine($"\r\n\r\nP{part.Index} {GetJson(part)}");

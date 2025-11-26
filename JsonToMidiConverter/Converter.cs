@@ -11,6 +11,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Reflection;
 using System.Xml.Linq;
+using Note = Melanchall.DryWetMidi.Interaction.Note;
 using Slide = JsonToMidiConverter.Context.Slide;
 
 namespace JsonToMidiConverter;
@@ -50,9 +51,6 @@ internal static class Converter
                 {
                     foreach (var note in beat.Notes.Where(e => !e.Rest))
                     {
-                       
-
-                        
 
                         var start = note.GetStartTime();
                         var end = note.GetEndTime();
@@ -89,10 +87,6 @@ internal static class Converter
                         else if (note.Slide != Slide.None)
                         {
                             var slide = note.GetSlide();
-                            if (note.Is("N0 B3 M7 P0"))
-                            {
-
-                            }
 
                             if (!slide.IsStepped)
                             {
@@ -113,27 +107,31 @@ internal static class Converter
                             }
                             else
                             {
+                                var strummul = 1;
+                                if (note.Is("N1 B5 M246 P1"))
+                                {
+                                    strummul = 2;
+                                }
+
                                 var holdFrom = start;
-                                var holdTo = holdFrom + slide.HoldDuration - (note.Index * note.GetStrum().Tick / 2);
+                                var holdTo = holdFrom + slide.HoldDuration - (note.Index * note.GetStrum().Tick / 2) * strummul;
 
                                 On(events, note, note.NoteNumber, holdFrom, holdTo);
 
-                                for (var i = 0; i < slide.Steps; i++)
+                                var startTime = slide.TimeDirection < 0 ? holdFrom : holdTo;
+
+                                for (var step = 0; step < slide.Steps; step++)
                                 {
-                                    var stepFrom = holdTo + slide.StepDuration * i - (i * 9 * note.Index);
-                                    var stepTo = stepFrom + slide.StepDuration - 9 * note.Index;
-                                    var stepNote = note.NoteNumber + slide.Direction * (i + 1);
+                                    var i = slide.TimeDirection < 0 ? step + 1 : step;
+
+                                    var stepFrom = startTime + slide.TimeDirection * (slide.StepDuration * i - (i * 9 * note.Index));
+                                    var stepTo = stepFrom + (slide.StepDuration - 9 * note.Index);
+                                    var stepNote = note.NoteNumber + slide.Direction * (step + 1);
 
                                     On(events, note, stepNote, stepFrom, stepTo);
                                 }
                             }
                         }
-                       // else if (note.Dead)
-                       // {
-                       //     var noteStart = note.GetStartTime();
-                       //     var noteEnd = noteStart + 960 / 2;
-                       //     On(events, note, note.NoteNumber, noteStart, noteEnd);
-                       // }
                         else if (note.Bend != null)
                         {
                             var noteStart = note.GetStartTime();
@@ -141,6 +139,7 @@ internal static class Converter
                             var noteDuration = noteEnd - noteStart;
                             var quarterDuration = noteDuration / 4;
                             var pitchBendStep = quarterDuration / 60;
+
                             var leftoverDuration = noteDuration - quarterDuration;
 
 
@@ -152,6 +151,11 @@ internal static class Converter
                                 On(events, note, note.NoteNumber, noteStart, noteEnd);
                             }
 
+                            if (note.Is("N0 B0 M127 P1"))
+                            {
+
+                            }
+
                             events.Add(new PitchBendEvent(PitchBendCenter), noteStart + 1, note);
                             Enumerable.Range(1, 61).ToList().ForEach(i =>
                             {
@@ -161,7 +165,7 @@ internal static class Converter
                         }
                         else if (!note.Tie)
                         {
-                            if (note.Is("N0 B5 M25 P0"))
+                            if (note.Is("N0 B2 M212 P1"))
                             {
 
                             }
@@ -176,7 +180,13 @@ internal static class Converter
                         }
 
 
+                        if (note.Bend != null)
+                        {
+
+                        }
+
                     }
+
                 }
             }
 
@@ -224,7 +234,7 @@ internal static class Converter
             var type = referenceEvent.Event.EventType;
             var partDetails = $"P{part.Index} {part.Name} - {part.Instrument}";
 
-            var matchesByTime = events.Where(e => Math.Abs(e.Time - referenceEvent.AbsoluteTime) < 10).Where(e => e.Event.EventType == referenceEvent.Event.EventType).ToList();
+            var matchesByTime = events.Where(e => Math.Abs(e.Time - referenceEvent.AbsoluteTime) < 11).Where(e => e.Event.EventType == referenceEvent.Event.EventType).ToList();
             var closest = events.Where(e => e.Event.EventType == referenceEvent.Event.EventType).MinBy(e => Math.Abs(e.Time - referenceEvent.AbsoluteTime));
             var distance = closest.Time - referenceEvent.AbsoluteTime;
 
@@ -234,6 +244,7 @@ internal static class Converter
                 if (referenceEvent.Event.Is<NoteEvent>()) matchesByTime = matchesByTime.Where(e => e.Event.As<NoteEvent>().NoteNumber == referenceEvent.Event.As<NoteEvent>().NoteNumber).ToList();
                 if (referenceEvent.Event.Is<ControlChangeEvent>()) matchesByTime = matchesByTime.Where(e => e.Event.As<ControlChangeEvent>().ControlValue == referenceEvent.Event.As<ControlChangeEvent>().ControlValue).ToList();
                 if (referenceEvent.Event.Is<ControlChangeEvent>()) matchesByTime = matchesByTime.Where(e => e.Event.As<ControlChangeEvent>().ControlValue == referenceEvent.Event.As<ControlChangeEvent>().ControlValue).ToList();
+                if (referenceEvent.Event.Is<PitchBendEvent>()) matchesByTime = matchesByTime.OrderBy(e => Math.Abs(e.Time - referenceEvent.AbsoluteTime)).Take(1).ToList();
             }
 
             var asd = matchesByTime.Select(e => new

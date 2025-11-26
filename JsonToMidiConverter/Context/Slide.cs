@@ -7,4 +7,5 @@ public enum Slide
     Upwards = 2,
     Downwards = 3,
     Legato = 4,
+    Below = 5,
 }
