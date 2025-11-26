@@ -53,11 +53,13 @@ public sealed partial class Nóta
             : beat.MusicalDuration.Clone();
 
         var prevBeat = Beat.GetPrevious();
-        ActualDuration = prevBeat?.GraceNote == "onBeat"
-            ? RawDuration - prevBeat.MusicalDuration
-            : RawDuration;
+        //ActualDuration = prevBeat?.GraceNote == "onBeat"
+        //    ? RawDuration - prevBeat.MusicalDuration
+        //    : RawDuration;
 
-        
+        ActualDuration = RawDuration;
+
+
 
         OriginalSlide = Slide;
 

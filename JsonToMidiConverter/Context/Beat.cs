@@ -26,14 +26,20 @@ public sealed partial class Beat
         ReversedNotes = Notes;
         Index = index;
         Voice = voice;
-        MusicalDuration = new Time(Duration[0], Duration[1]);
-        IsAccord = Notes.Length > 1;
         var prevBeat = GetPrevious();
+
+        MusicalDuration = prevBeat?.GraceNote == "onBeat"
+            ? new Time(Duration[0], Duration[1]) - prevBeat.MusicalDuration
+            : new Time(Duration[0], Duration[1]);
+
+        IsAccord = Notes.Length > 1;
+        
         RelativeBeatStartTime = Index == 0
             ? new Time()
             : prevBeat.RelativeBeatStartTime + prevBeat.MusicalDuration;
 
         AbsoluteBeatStartTime = Measure.StartTime + RelativeBeatStartTime;
+
 
         Notes = Notes.OrderBy(e => e.StringNumber).ToArray();
 

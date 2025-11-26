@@ -91,13 +91,18 @@ internal static class Converter
                         else if (note.Slide != Slide.None)
                         {
                             var slide = note.GetSlide();
+                            if (note.Is("N0 B3 M7 P0"))
+                            {
 
-                            
+                            }
+
                             if (!slide.IsStepped)
                             {
                                 if (!note.Tie) // tie starts are not ties, attack note is playing already
                                 {
-                                    On(events, note, note.NoteNumber, note.GetStartTime(), note.GetEndTime());
+                                    var startNote = note.GetStartTime();
+                                    var endNote = note.GetEndTime();
+                                    On(events, note, note.NoteNumber, startNote, endNote);
                                 }
                                 
                                 end = start + note.ActualDuration;
@@ -158,10 +163,7 @@ internal static class Converter
                         }
                         else if (!note.Tie)
                         {
-                            if (note.Is("N0 B12 M32 P6"))
-                            {
-
-                            }
+                            
 
                             var noteStart = note.GetStartTime();
                             var noteEnd = note.GetEndTime();
