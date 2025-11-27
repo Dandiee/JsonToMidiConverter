@@ -47,4 +47,5 @@ public sealed partial class Measure
 
     public override string ToString() => $"M{Index} {Part}";
 
+    public bool Is(string name) => name == $"{this}";
 }

@@ -30,8 +30,8 @@ public sealed partial class Nóta
     [JsonIgnore] public bool WillBeTied { get; private set; }
     [JsonIgnore] public Context.Slide Slide { get; private set; }
     [JsonIgnore] public Queue<(MidiEvent Event, Time Time)> PendingEvents { get; private set; } = new();
-    [JsonIgnore] public int? MidiEventIndex { get; set; }
-    [JsonIgnore] public int? MidiEventCount { get; set; }
+    [JsonIgnore] public int? MidiStartEventIndex { get; set; }
+    [JsonIgnore] public int? MidiEndEventIndex { get; set; }
 
     [JsonIgnore] public TieContext? TieDetails { get; private set; }
     [JsonIgnore] public Tie TieType { get; private set; }
@@ -371,20 +371,31 @@ public sealed partial class Nóta
 
     public int GetNoteNumber()
     {
+        if (Rest) return 0;
+
         if (Part.InstrumentId == 1024 || (int)StringNumber == -1)
         {
-            if (Fret == 51) return 59; // nirvana, M5, P6, N1, N0
-            if (Fret == 98 && StringNumber == -0.5) return 57;
-            if (Fret == 85 && StringNumber == -1.5) return 76;
-            if (Fret == 92 && StringNumber == -0.5) return 46;
-            return Fret;
+            return DrumMapping.Mapping.TryGetValue(Fret, out var noteNumber)
+                ? noteNumber.NoteNumber
+                : Fret; // default to Acoustic Bass Drum
+            //if (Fret == 51) return 59; // nirvana, M5, P6, N1, N0
+            //if (Fret == 98 && StringNumber == -0.5) return 57;
+            //if (Fret == 85 && StringNumber == -1.5) return 76;
+            //if (Fret == 92 && StringNumber == -0.5) return 46;
+            //return Fret;
         }
 
         int openStringPitch = Part.Tuning.Length == 0
             ? (int)StringNumber // Fallback
             : Part.Tuning[(int)StringNumber];
 
-        if (Harmonic == "natural")
+        if (Part.InstrumentId == 33)
+        {
+            return openStringPitch + Fret;
+        }
+
+
+    if (Harmonic == "natural")
         {
             switch (Fret) // Or note.harmonicFret
             {
@@ -427,7 +438,13 @@ public sealed partial class Nóta
             return openStringPitch + Fret + 0;
         }
 
-        return (openStringPitch + Fret + (int)HarmonicFret) + randomOffset;
+        if (Part.InstrumentId == 33)
+        {
+            return 24 + Fret;
+        }
+
+
+    return (openStringPitch + Fret + (int)HarmonicFret) + randomOffset;
     }
 
     public SevenBitNumber GetSlideTargetPitch()
@@ -453,7 +470,8 @@ public sealed partial class Nóta
                                     || Part.InstrumentId == 26
                                     || Part.InstrumentId == 12
                                     || Part.InstrumentId == 81
-                                    || Part.InstrumentId == 66)
+                                    || Part.InstrumentId == 66
+                                    || Part.InstrumentId == 33)
         {
             return (FourBitNumber)StringNumber;
         }
@@ -473,7 +491,7 @@ public sealed partial class Nóta
         }
         var id = Part.InstrumentId;
 
-        if (id >= 0 && id <= 7) return 0.To4(); // Piano -> Ch 1
+        if (id >= 0 && id <= 7 || Part.InstrumentId == 33) return 0.To4(); // Piano -> Ch 1
         if (id >= 24 && id <= 34) return 1.To4(); // Guitar -> Ch 2
         if (id >= 32 && id <= 39) return 2.To4(); // Bass   -> Ch 3
         if (id >= 40 && id <= 55) return 3.To4(); // Strings/Voices -> Ch 4

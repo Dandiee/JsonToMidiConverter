@@ -1,15 +1,33 @@
-﻿using JsonToMidiConverter.Context;
+﻿using System.Diagnostics;
+using JsonToMidiConverter.Context;
 using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 
 namespace JsonToMidiConverter;
 
+public record TimedMidiEvent(MidiEvent Event, int Index, long Time);
+
 public static class Extensions
 {
     public static SevenBitNumber To7(this int i) => (SevenBitNumber)i;
     public static FourBitNumber To4(this int i) => (FourBitNumber)i;
 
+    public static IReadOnlyList<TimedMidiEvent> GetEvents(this MidiFile midi, int partIndex)
+    {
+        var chunk = midi.Chunks.OfType<TrackChunk>().ToList()[partIndex];
+        var timedEvents = new List<TimedMidiEvent>();
+
+        var time = 0L;
+        for (var i = 0; i < chunk.Events.Count; i++)
+        {
+            var midiEvent = chunk.Events[i];
+            time += midiEvent.DeltaTime;
+            timedEvents.Add(new TimedMidiEvent(midiEvent, i, time));
+        }
+
+        return timedEvents;
+    }
     
     public static Slide ToSlide(this string str) => str switch
     {

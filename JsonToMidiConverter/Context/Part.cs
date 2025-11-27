@@ -5,7 +5,7 @@ using Melanchall.DryWetMidi.Interaction;
 
 namespace JsonToMidiConverter.Models.Song;
 
-[DebuggerDisplay("P{Index}")]
+[DebuggerDisplay("P{Index} {Instrument} {Name}")]
 public sealed partial class Part
 {
     [JsonIgnore] public int Index { get; private set; }
@@ -60,7 +60,7 @@ public sealed partial class Part
         return tempoMapManager.TempoMap;
     }
 
-    public static readonly HashSet<int> PianoLikeInstruments = new() { 0, 48, 1024, 67 };
+    public static readonly HashSet<int> PianoLikeInstruments = new() { 0, 48, 1024, 67, 66 };
 
     public override string ToString() => $"P{Index}";
 }

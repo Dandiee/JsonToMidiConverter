@@ -72,7 +72,7 @@ public sealed partial class Beat
 
         if (!Part.IsPianoLike) // for piano we dont change the fuckin note order
         {
-            Notes = Notes.Reverse().ToArray();
+            //Notes = Notes.Reverse().ToArray();
         }
 
         for (var i = 0; i < Notes.Length; i++)

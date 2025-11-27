@@ -7,15 +7,17 @@ using Melanchall.DryWetMidi.Interaction;
 
 var songPairs = new Dictionary<string, string>
 {
-    //[@"References\LinkinPark.mid"] = "In the end",
-    //[@"References\Nirvana.mid"] = "Come as you are",
-    //[@"References\Tool.mid"] = "Pneuma",
+    [@"References\LinkinPark.mid"] = "In the end",
+    [@"References\Nirvana.mid"] = "Come as you are",
+    [@"References\Tool.mid"] = "Pneuma",
     //[@"References\LedZeppelin.mid"] = "Stairway to heaven",
     //[@"References\Metallica.mid"] = "Nothing else matters",
     //[@"References\Blink182.mid"] = "What's my age",
     [@"References\Rage Against The Machine-Killing in the Name-11-24-2025.mid"] = "Killing in the name",
 
 };
+
+//await Database.RefreshSong(360);
 
 
 foreach (var pair in songPairs)
@@ -32,7 +34,7 @@ foreach (var pair in songPairs)
     song.Build(mid);
 
     Dumper.DumpJsonInputs(dumpMatch.SongId, pair.Key);
-    //Dumper.Dump(song, pair.Key, match.Artist, match.Title);
+    Dumper.Dump(song, pair.Key, match.Artist, match.Title);
 
     //var midiFile = Converter.Convert(song, pair.Key);
 

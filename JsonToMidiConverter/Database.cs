@@ -1,4 +1,5 @@
-﻿using JsonToMidiConverter.Models;
+﻿using System.Diagnostics.CodeAnalysis;
+using JsonToMidiConverter.Models;
 using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -12,10 +13,10 @@ public static class Database
     public static readonly string SearchPath = Path.Combine(RootPath, "Search");
     public static readonly string MetaPath = Path.Combine(RootPath, "Meta");
     public static readonly string DatabaseFile = Path.Combine(RootPath, "Database.json");
-    public static readonly string Data = Path.Combine(RootPath, "Data");
+    public static readonly string DataPath = Path.Combine(RootPath, "Data");
 
-    private static readonly IReadOnlyList<RecordModel> Songs;
-    private static readonly IReadOnlyDictionary<int, RecordModel> SongsById;
+    private static List<RecordModel> Songs;
+    private static readonly Dictionary<int, RecordModel> SongsById;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -36,7 +37,7 @@ public static class Database
 
         var files = Enumerable
             .Range(0, record.Parts)
-            .Select(i => Path.Combine(Data, $"{record.SongId}_{record.RevisionId}_{i}.gz"))
+            .Select(i => Path.Combine(DataPath, $"{record.SongId}_{record.RevisionId}_{i}.gz"))
             .ToList();
 
         var streams = files
@@ -51,7 +52,7 @@ public static class Database
 
         streams.ForEach(s => s.Dispose());
 
-        var content = $"{{\"parts\":[{string.Join(", ", textContents)}]}}";
+        var content = $"{{\"parts\":[{string.Join(", ", textContents)}], \"songId\": {record.SongId}}}";
 
         return JsonSerializer.Deserialize<Song>(content, JsonOptions);
     }
@@ -118,7 +119,22 @@ public static class Database
             metaModels.AddRange(models);
         }
 
-        var records = metaModels.DistinctBy(e => e.SongId).Select(e => new RecordModel
+        var records = metaModels.DistinctBy(e => e.SongId).Select(CreateRecord).ToList();
+        SaveDatabase(records);
+    }
+
+    private static void SaveDatabase(IEnumerable<RecordModel> records)
+    {
+        var json = JsonSerializer.Serialize(records, new JsonSerializerOptions
+        {
+            WriteIndented = true
+        });
+
+        File.WriteAllText(DatabaseFile, json);
+    }
+
+    private static RecordModel CreateRecord(SongMetaDataModel e) =>
+        new()
         {
             SongId = e.SongId,
             Artist = e.Artist,
@@ -127,15 +143,7 @@ public static class Database
             RevisionId = e.RevisionId,
             Parts = e.Tracks?.Length ?? 0,
             Views = e.Views
-        });
-
-        var json = JsonSerializer.Serialize(records, new JsonSerializerOptions
-        {
-            WriteIndented = true
-        });
-
-        File.WriteAllText(DatabaseFile, json);
-    }
+        };
 
     private static void ProcessSearchResults()
     {
@@ -147,5 +155,32 @@ public static class Database
             .ToList();
 
         var distinctSongs = searchResultModels.DistinctBy(e => e.SongId).Select(e => e.SongId);
+    }
+
+    public static async Task RefreshSong(int songId)
+    {
+        var client = new HttpClient();
+
+        var metaResponse = await client.GetAsync($"https://www.songsterr.com/api/meta/{songId}");
+        var metaText = await metaResponse.Content.ReadAsStringAsync();
+
+        var meta = JsonSerializer.Deserialize<SongMetaDataModel>(metaText, JsonOptions);
+
+        await File.WriteAllTextAsync(Path.Combine(MetaPath, $"{songId}.json"), metaText);
+
+        for (var i = 0; i < meta!.Tracks.Length; i++)
+        {
+            var dataUrl = $"https://dqsljvtekg760.cloudfront.net/{meta.SongId}/{meta.RevisionId}/{meta.Image}/{i}.json";
+            var dataResponse = await client.GetAsync(dataUrl);
+            var dataBytes = await dataResponse.Content.ReadAsByteArrayAsync();
+
+            await File.WriteAllBytesAsync(Path.Combine(DataPath, $"{meta.SongId}_{meta.RevisionId}_{i}.gz"), dataBytes);
+        }
+
+
+        SongsById[songId] = CreateRecord(meta);
+        Songs = SongsById.Values.ToList();
+
+        SaveDatabase(Songs);
     }
 }
