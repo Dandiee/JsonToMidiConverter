@@ -27,9 +27,18 @@ public sealed partial class Beat
         Index = index;
         Voice = voice;
 
-        Previous = Index > 0
-            ? Previous = Voice.Beats[Index - 1]
-            : Measure.Previous?.Voices[Voice.Index].Beats[^1];
+        if (Index > 0)
+        {
+            Previous = Voice.Beats[Index - 1];
+        }
+        else if (Measure.Previous?.Voices.Count > Voice.Index)
+        {
+            var prevBeat = Measure.Previous?.Voices[Voice.Index].Beats;
+            if (prevBeat != null)
+            {
+                Previous = prevBeat[^1];
+            }
+        }
 
         if (Previous != null)
         {
@@ -45,7 +54,7 @@ public sealed partial class Beat
     public void Build()
     {
         ReversedNotes = Notes;
-        
+
         MusicalDuration = Previous?.GraceNote == "onBeat"
             ? new Time(Duration[0], Duration[1]) - Previous.MusicalDuration
             : new Time(Duration[0], Duration[1]);

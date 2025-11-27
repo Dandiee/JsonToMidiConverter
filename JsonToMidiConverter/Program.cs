@@ -13,7 +13,7 @@ var songPairs = new Dictionary<string, string>
     //[@"References\LedZeppelin.mid"] = "Stairway to heaven",
     //[@"References\Metallica.mid"] = "Nothing else matters",
     //[@"References\Blink182.mid"] = "What's my age",
-    //[@"References\Rage Against The Machine-Killing in the Name-11-24-2025"] = "Killing in the name",
+    [@"References\Rage Against The Machine-Killing in the Name-11-24-2025.mid"] = "Killing in the name",
 
 };
 

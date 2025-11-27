@@ -26,6 +26,9 @@ public sealed partial class Part
         }
 
         Measures.ForEach(m => m.Build());
+
+        var maximumVoiceChannelCount = Measures.Max(e => e.Voices.Count);
+        Debug.Assert(Measures.All(e => e.Voices.Count <= 1 || e.Voices.Count == maximumVoiceChannelCount));
     }
 
     public TempoMap GetTempo(MidiFile midi)
