@@ -452,7 +452,8 @@ public sealed partial class Nóta
                                     || Part.InstrumentId == 67
                                     || Part.InstrumentId == 26
                                     || Part.InstrumentId == 12
-                                    || Part.InstrumentId == 81)
+                                    || Part.InstrumentId == 81
+                                    || Part.InstrumentId == 66)
         {
             return (FourBitNumber)StringNumber;
         }

@@ -537,7 +537,7 @@ public static class Dumper
     public static int? GetBeatEventCursor(List<MidiEvent> events, ref int cursor, Beat beat)
     {
         //if (beat.Part.Index == 1)
-        if (beat.Is("B5 M72 P5"))
+        if (beat.Is("B1 V0 M32 P0"))
         {
 
         }
@@ -554,6 +554,8 @@ public static class Dumper
                 if (!KnownFuckedUpMeasures.Contains(beat.Nameplate))
                 {
                     Debugger.Break();
+                    //cursor = originalCursor;
+                    //return null;
                 }
                 else
                 {
@@ -723,7 +725,6 @@ public static class Dumper
         Time.Map = originalTimeMap;
 
 
-
         var sb = new StringBuilder();
         foreach (var part in song.Parts)
         {
@@ -760,26 +761,53 @@ public static class Dumper
             }
         }
 
-        File.WriteAllText($"MidiFormatted_{meta.Artist}.json", sb.ToString());
+        File.WriteAllText($"{meta.Title}_JsonRaw.json", sb.ToString());
+
+
+
+
+
+
+
 
 
         sb = new StringBuilder();
-        if (midiFilePath != null)
+
+
+        var midi = MidiFile.Read(midiFilePath);
+        var chunks = midi.Chunks.OfType<TrackChunk>().ToList();
+
+        foreach (var part in song.Parts)
         {
-            var midi = MidiFile.Read(midiFilePath);
+            var partEvents = chunks[part.Index].Events.Select((e, i) => new { Event = e, Index = i }).ToList();
 
-
-            var partIndex = 0;
-            foreach (var part in midi.Chunks.OfType<TrackChunk>())
+            sb.AppendLine($"\r\n\r\n{part} {GetJson(part)}");
+            foreach (var measure in part.Measures)
             {
-                var eventIndex = 0;
-                var time = 0L;
-                var measureIndex = 0;
-
-                sb.AppendLine($"P{partIndex}");
-
-                foreach (var midiEvent in part.Events)
+                sb.AppendLine($"\r\n\t{measure} {GetJson(measure)}");
+                foreach (var voice in measure.Voices)
                 {
+                    sb.AppendLine($"\r\n\t\t{voice} {GetJson(voice)}");
+                    foreach (var beat in voice.Beats)
+                    {
+                        sb.AppendLine($"\t\t\tB{beat} {GetJson(beat)}");
+                        foreach (var note in beat.Notes)
+                        {
+                            sb.AppendLine(
+                                $"\t\t\t\t{note} {GetJson(note)}");
+                        }
+                    }
+                }
+
+                var events = partEvents
+                    .SkipWhile(e => !(e.Event is MarkerEvent marker && marker.Text == $"MEASURE_{measure.Index}"))
+                    .TakeWhile(e => e.Event is not MarkerEvent marker || marker.Text == $"MEASURE_{measure.Index}")
+                    .ToList();
+
+                var time = 0L;
+                foreach (var evnt in events)
+                {
+                    var midiEvent = evnt.Event;
                     time += midiEvent.DeltaTime;
 
                     EventTypeNames.TryGetValue(midiEvent.EventType, out var niceName);
@@ -796,25 +824,16 @@ public static class Dumper
                         .OrderBy(e => e.Name)
                         .Select(prop => $"{prop.Name}: {prop.GetValue(midiEvent)}"));
 
-                    if (midiEvent.EventType == MidiEventType.Marker)
-                    {
-                        sb.AppendLine($"\t M{measureIndex} P{partIndex} -------------------------------------------------------------------------------------------------------------------- ");
-                        measureIndex++;
-                    }
-
                     sb.AppendLine(
-                        $"\t\t{eventIndex++.ToString().PadLeft(5)} {(niceName ?? midiEvent.EventType.ToString()).PadRight(10)} " +
+                        $"\t\t{evnt.Index.ToString().PadLeft(5)} {(niceName ?? midiEvent.EventType.ToString()).PadRight(10)} " +
                         $"Note: {nn.PadLeft(2)}; At: {time}; Ch: {ch}; " +
                         $"Delta: {midiEvent.DeltaTime.ToString().PadLeft(6)} {attributes}");
                 }
-
-                partIndex++;
             }
-
-
         }
 
-        File.WriteAllText($"MidiRaw_{meta.Artist}.dani", sb.ToString());
+
+        File.WriteAllText($"{meta.Title}_MidiRaw.dani", sb.ToString());
 
     }
 }

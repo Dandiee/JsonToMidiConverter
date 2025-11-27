@@ -81,7 +81,7 @@ public sealed partial class Beat
         }
     }
 
-    public bool Is(string nameplate) => nameplate == $"B{Index} M{Measure.Index} P{Part.Index}";
+    public bool Is(string nameplate) => nameplate == $"{this}";
 
     public override string ToString() => $"B{Index} {Voice}";
 }
