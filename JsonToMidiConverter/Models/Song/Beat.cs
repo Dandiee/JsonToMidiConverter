@@ -30,4 +30,16 @@ public partial class Beat
     public bool TupletStart { get; set; }
     public bool TupletStop { get; set; }
     public string? GraceNote { get; set; }
+    public int UpStroke { get; set; }
+    public int DownStroke { get; set; }
+    public Chord Chord { get; set; }
+    public bool Slapping { get; set; }
+    public bool Popping { get; set; }
+    public string GradualVelocity { get; set; }
+}
+
+public sealed class Chord
+{
+    public string Text { get; set; }
+    public double Width { get; set; }
 }

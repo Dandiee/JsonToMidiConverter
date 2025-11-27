@@ -9,4 +9,6 @@ public sealed partial class Measure
     public int[] Signature { get; set; } = [];
     public Marker? Marker { get; set; }
     public bool Rest { get; set; }
+    public bool RepeatStart { get; set; }
+    public int Repeat { get; set; }
 }

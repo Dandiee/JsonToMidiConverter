@@ -23,4 +23,10 @@ public sealed partial class Nóta
     public double HarmonicFret { get; set; }
     public Bend? Bend { get; set; }
     public bool Dead { get; set; }
+    public double[] Tremolo { get; set; }
+}
+
+public class Tremolo
+{
+
 }

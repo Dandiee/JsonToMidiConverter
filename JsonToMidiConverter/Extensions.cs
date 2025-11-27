@@ -1,12 +1,13 @@
 ﻿using System.Diagnostics;
-using JsonToMidiConverter.Context;
+using JsonToMidiConverter.Models.Song;
 using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
+using Slide = JsonToMidiConverter.Context.Slide;
 
 namespace JsonToMidiConverter;
 
-public record TimedMidiEvent(MidiEvent Event, int Index, long Time);
+public record TimedMidiEvent(int Index, long Time, MidiEvent Event);
 
 public static class Extensions
 {
@@ -23,12 +24,18 @@ public static class Extensions
         {
             var midiEvent = chunk.Events[i];
             time += midiEvent.DeltaTime;
-            timedEvents.Add(new TimedMidiEvent(midiEvent, i, time));
+            timedEvents.Add(new TimedMidiEvent(i, time, midiEvent));
         }
 
         return timedEvents;
     }
-    
+
+    public static IReadOnlyList<TimedMidiEvent> GetMeasureEvents(this IReadOnlyList<TimedMidiEvent> events, Measure measure) =>
+        events
+            .SkipWhile(e => !(e.Event is MarkerEvent marker &&  Math.Abs(e.Time - measure.StartTime.Tick) < 10))
+            .TakeWhile(e => e.Event is not MarkerEvent marker || Math.Abs(e.Time - measure.StartTime.Tick) > 100)
+            .ToList();
+
     public static Slide ToSlide(this string str) => str switch
     {
         "upwards" => Slide.Upwards,
@@ -44,7 +51,7 @@ public static class Extensions
         where TMidiEvent : MidiEvent
         => timedEvent.Event is TMidiEvent;
 
-    public static TMidiEvent As<TMidiEvent>(this TimedEvent timedEvent) 
+    public static TMidiEvent As<TMidiEvent>(this TimedEvent timedEvent)
         where TMidiEvent : MidiEvent
     {
         if (timedEvent.Event is TMidiEvent typedEvt)

@@ -11,6 +11,7 @@ namespace JsonToMidiConverter;
 internal static class Converter
 {
     public const int TicksPerQuarter = 15360;
+    public static readonly TicksPerQuarterNoteTimeDivision Tpqn = new(TicksPerQuarter);
     public const int TicksPer64Th = 960; // The "Magic Grid" unit
     public const int MsPer64Th = TicksPerQuarter / TicksPer64Th;
 
@@ -22,9 +23,9 @@ internal static class Converter
     public static List<(long AbsoluteTime, MidiEvent Event)>[] ReferenceData;
     public static readonly long StandardSlideStepSize = 960;
 
-    public static MidiFile Convert(Song song, string referenceMidiPath)
+    public static MidiFile Convert(Song song, MidiFile referenceMidi)
     {
-        ReferenceData = GetReferenceMidiData(referenceMidiPath);
+        ReferenceData = GetReferenceMidiData(referenceMidi);
         var midiFile = new MidiFile { TimeDivision = new TicksPerQuarterNoteTimeDivision(TicksPerQuarter) };
         Time.Map = song.Parts[0].GetTempo(midiFile);
         midiFile.ReplaceTempoMap(Time.Map);
@@ -365,9 +366,8 @@ internal static class Converter
         }
     }
 
-    private static List<(long AbsoluteTime, MidiEvent Event)>[] GetReferenceMidiData(string referenceMidiFile)
+    private static List<(long AbsoluteTime, MidiEvent Event)>[] GetReferenceMidiData(MidiFile referenceMidi)
     {
-        var referenceMidi = MidiFile.Read(referenceMidiFile);
         var results = new List<(long AbsoluteTime, MidiEvent Event)>[referenceMidi.Chunks.Count];
 
         for (var i = 0; i < referenceMidi.Chunks.Count; i++)

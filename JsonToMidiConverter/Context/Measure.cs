@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Text.Json.Serialization;
+using Melanchall.DryWetMidi.Interaction;
 
 namespace JsonToMidiConverter.Models.Song;
 
@@ -34,7 +35,8 @@ public sealed partial class Measure
 
     public void Build()
     {
-        StartTime = new Time(Index, 0d);
+        var startTime = TimeConverter.ConvertTo<MetricTimeSpan>(new BarBeatFractionTimeSpan(Index), Part.TempoMap);
+        StartTime = new Time(TimeConverter.ConvertFrom(startTime, Part.TempoMap));
 
         if (Signature.Length == 2)
         {

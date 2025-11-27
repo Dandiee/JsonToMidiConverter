@@ -20,4 +20,6 @@ public sealed partial class Part
     public int Version { get; set; }
     public int SongId { get; set; }
     public int RevisionId { get; set; }
+    public bool WithLyrics { get; set; }
+    public bool TuningFlat { get; set; }
 }
