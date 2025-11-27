@@ -790,7 +790,7 @@ public static class Dumper
                     sb.AppendLine($"\r\n\t\t{voice} {GetJson(voice)}");
                     foreach (var beat in voice.Beats)
                     {
-                        sb.AppendLine($"\t\t\tB{beat} {GetJson(beat)}");
+                        sb.AppendLine($"\t\t\t{beat} {GetJson(beat)}");
                         foreach (var note in beat.Notes)
                         {
                             sb.AppendLine(
