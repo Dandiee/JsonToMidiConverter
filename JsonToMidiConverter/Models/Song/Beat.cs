@@ -5,24 +5,16 @@ namespace JsonToMidiConverter.Models.Song;
 [DebuggerDisplay("B{Index} M{Measure.Index} P{Part.Index}")]
 public partial class Beat
 {
-    public Nóta[] Notes { get; set; } = Array.Empty<Nóta>();
+    public List<Nóta> Notes { get; set; } = [];
     public string Velocity { get; set; } = string.Empty;
-
-    /// <summary>
-    /// THIS IS ONYL FOR VISUAL REPRESENTATION ON THE MUSIC SHEET DONT LET IT CONFUSE YOU AGAIN!
-    /// </summary>
     public int Type { get; set; }
     public bool PalmMute { get; set; }
-    public int[] Duration { get; set; } = Array.Empty<int>();
+    public List<int> Duration { get; set; } = [];
     public bool BeamStart { get; set; }
     public bool BeamStop { get; set; }
     public bool Vibrato { get; set; }
     public Text? Text { get; set; }
     public bool LetRing { get; set; }
-
-    /// <summary>
-    ///  THIS IS ALSO JUST HERE TO FUCK WITH ME, IGNORE THEFUCKER
-    /// </summary>
     public int Dots { get; set; }
     public bool Rest { get; set; }
     public bool Tapping { get; set; }
@@ -32,14 +24,41 @@ public partial class Beat
     public string? GraceNote { get; set; }
     public int UpStroke { get; set; }
     public int DownStroke { get; set; }
-    public Chord Chord { get; set; }
+    public Marker? Chord { get; set; }
     public bool Slapping { get; set; }
     public bool Popping { get; set; }
-    public string GradualVelocity { get; set; }
-}
+    public string? GradualVelocity { get; set; }
+    public string? VibratoWithTremoloBar { get; set; }
+    public string? PickStroke { get; set; }
+    public Bend? TremoloBar { get; set; }
 
-public sealed class Chord
-{
-    public string Text { get; set; }
-    public double Width { get; set; }
+    public Beat Clone() => new()
+    {
+        Notes = Notes.Select(e => e.Clone()).ToList(),
+        Velocity = Velocity,
+        Type = Type,
+        PalmMute = PalmMute,
+        Duration = Duration.Select(e => e).ToList(),
+        BeamStart = BeamStart,
+        BeamStop = BeamStop,
+        Vibrato = Vibrato,
+        Text = Text?.Clone(),
+        LetRing = LetRing,
+        Dots = Dots,
+        Rest = Rest,
+        Tapping = Tapping,
+        Tuplet = Tuplet,
+        TupletStart = TupletStart,
+        TupletStop = TupletStop,
+        GraceNote = GraceNote,
+        UpStroke = UpStroke,
+        DownStroke = DownStroke,
+        Chord = Chord?.Clone(),
+        Slapping = Slapping,
+        Popping = Popping,
+        GradualVelocity = GradualVelocity,
+        VibratoWithTremoloBar = VibratoWithTremoloBar,
+        PickStroke = PickStroke,
+        TremoloBar = TremoloBar?.Clone()
+    };
 }

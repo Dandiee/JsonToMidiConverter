@@ -4,4 +4,10 @@ public sealed class Point
 {
     public int Position { get; set; }
     public double Tone { get; set; }
+
+    public Point Clone() => new()
+    {
+        Position = Position,
+        Tone = Tone
+    };
 }

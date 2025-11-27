@@ -77,4 +77,5 @@ public class Track
     public int[] Tuning { get; set; }
     public string Hash { get; set; }
     public int Difficulty { get; set; }
+    public bool IsVocalTrack { get; set; }
 }

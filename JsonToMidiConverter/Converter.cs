@@ -312,7 +312,7 @@ internal static class Converter
             events.Add(new SetTempoEvent(newTempo), measure.StartTime, null, null, measure.Part.PartId);
         }
 
-        if (measure.Index > 0 && measure.Signature.Length > 0)
+        if (measure.Index > 0 && measure.Signature.Count > 0)
         {
             events.Add(new TimeSignatureEvent(measure.SignatureNominator.Value, measure.SignatureDenominator.Value), measure.StartTime, null, null, measure.Part.PartId);
         }

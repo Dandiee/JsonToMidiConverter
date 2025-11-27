@@ -6,9 +6,19 @@ namespace JsonToMidiConverter.Models.Song;
 public sealed partial class Measure
 {
     public List<Voice> Voices { get; set; } = [];
-    public int[] Signature { get; set; } = [];
+    public List<int> Signature { get; set; } = [];
     public Marker? Marker { get; set; }
     public bool Rest { get; set; }
     public bool RepeatStart { get; set; }
     public int Repeat { get; set; }
+
+    public Measure Clone() => new()
+    {
+        Voices = Voices.Select(v => v.Clone()).ToList(),
+        Signature = Signature.Select(e => e).ToList(),
+        Marker = Marker?.Clone(),
+        Rest = Rest,
+        RepeatStart = RepeatStart,
+        Repeat = Repeat
+    };
 }

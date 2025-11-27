@@ -3,5 +3,11 @@
 public sealed class Bend
 {
     public double Tone { get; set; }
-    public Point[] Points { get; set; } = Array.Empty<Point>();
+    public List<Point> Points { get; set; } = [];
+
+    public Bend Clone() => new()
+    {
+        Tone = Tone,
+        Points = Points.Select(e => e.Clone()).ToList()
+    };
 }

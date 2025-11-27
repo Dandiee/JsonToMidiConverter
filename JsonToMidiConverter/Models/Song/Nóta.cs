@@ -15,7 +15,6 @@ public sealed partial class Nóta
     public bool Hp { get; set; }
     public bool Tie { get; set; }
     public bool Rest { get; set; }
-    //public int[] tremolo { get; set; }
     public bool Staccato { get; set; }
     public double Accentuated { get; set; }
     public bool Ghost { get; set; }
@@ -23,7 +22,26 @@ public sealed partial class Nóta
     public double HarmonicFret { get; set; }
     public Bend? Bend { get; set; }
     public bool Dead { get; set; }
-    public double[] Tremolo { get; set; }
+    public List<double> Tremolo { get; set; } = [];
+
+    public Nóta Clone() => new()
+    {
+        Fret = Fret,
+        StringNumber = StringNumber,
+        SlideString = SlideString,
+        Vibrato = Vibrato,
+        Hp = Hp,
+        Tie = Tie,
+        Rest = Rest,
+        Staccato = Staccato,
+        Accentuated = Accentuated,
+        Ghost = Ghost,
+        Harmonic = Harmonic,
+        HarmonicFret = HarmonicFret,
+        Bend = Bend?.Clone(),
+        Dead = Dead,
+        Tremolo = Tremolo.Select(e => e).ToList()
+    };
 }
 
 public class Tremolo

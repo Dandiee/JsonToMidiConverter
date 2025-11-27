@@ -10,13 +10,13 @@ using Melanchall.DryWetMidi.Tools;
 
 var songPairs = new Dictionary<string, string>
 {
-    //[@"References\LinkinPark.mid"] = "In the end",
-    //[@"References\Nirvana.mid"] = "Come as you are",
-    //[@"References\Tool.mid"] = "Pneuma",
+    [@"References\LinkinPark.mid"] = "In the end",
+    [@"References\Nirvana.mid"] = "Come as you are",
+    [@"References\Tool.mid"] = "Pneuma",
     //[@"References\LedZeppelin.mid"] = "Stairway to heaven",
     //[@"References\Metallica.mid"] = "Nothing else matters",
     //[@"References\Blink182.mid"] = "What's my age",
-    //[@"References\Rage Against The Machine-Killing in the Name-11-24-2025.mid"] = "Killing in the name",
+    [@"References\Rage Against The Machine-Killing in the Name-11-24-2025.mid"] = "Killing in the name",
     [@"References\Red Hot Chili Peppers-Can't Stop-11-15-2025.mid"] = "Can't stop"
 };
 

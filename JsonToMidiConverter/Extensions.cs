@@ -32,8 +32,13 @@ public static class Extensions
 
     public static IReadOnlyList<TimedMidiEvent> GetMeasureEvents(this IReadOnlyList<TimedMidiEvent> events, Measure measure) =>
         events
-            .SkipWhile(e => !(e.Event is MarkerEvent marker &&  Math.Abs(e.Time - measure.StartTime.Tick) < 10))
-            .TakeWhile(e => e.Event is not MarkerEvent marker || Math.Abs(e.Time - measure.StartTime.Tick) > 100)
+            .SkipWhile(e => !(e.Event is MarkerEvent marker && marker.Text == $"MEASURE_{measure.Index}"))
+            .TakeWhile(e => e.Event is not MarkerEvent marker || marker.Text == $"MEASURE_{measure.Index}")
+
+            // Time based implementation
+            // .SkipWhile(e => !(e.Event is MarkerEvent marker && Math.Abs(e.Time - measure.StartTime.Tick) < 10))
+            // .TakeWhile(e => e.Event is not MarkerEvent marker || Math.Abs(e.Time - measure.StartTime.Tick) > 100)
+
             .ToList();
 
     public static Slide ToSlide(this string str) => str switch

@@ -20,6 +20,8 @@ public sealed partial class Part
         Song = song;
         IsPianoLike = PianoLikeInstruments.Contains(InstrumentId);
 
+        Measures = GetLinearMeasures();
+
         for (var i = 0; i < Measures.Count; i++)
         {
             Measures[i].SetNavigation(this, i);
@@ -31,10 +33,30 @@ public sealed partial class Part
         Debug.Assert(Measures.All(e => e.Voices.Count <= 1 || e.Voices.Count == maximumVoiceChannelCount));
     }
 
+    public List<Measure> GetLinearMeasures()
+    {
+        var measures = new List<Measure>();
+
+        foreach (var measure in Measures)
+        {
+            if (measure.RepeatStart)
+            {
+                for (var i = 0; i < measure.Repeat; i++)
+                {
+                    measures.Add(measure.Clone());
+                }
+            }
+            else measures.Add(measure);
+        }
+
+        return measures;
+
+    }
+
     public TempoMap GetTempo(MidiFile midi)
     {
         var bpmChangeByMeasure = Automations.Tempo.ToDictionary(kvp => kvp.Measure, kvp => kvp.Bpm);
-        int[] lastSignature = [];
+        List<int> lastSignature = [];
         var lastBpm = -1;
 
         using var tempoMapManager = new TempoMapManager(midi.TimeDivision);
@@ -42,7 +64,7 @@ public sealed partial class Part
         for (var i = 0; i < Measures.Count; i++)
         {
             var measure = Measures[i];
-            if (measure.Signature.Length == 2)
+            if (measure.Signature.Count == 2)
             {
                 lastSignature = measure.Signature;
             }

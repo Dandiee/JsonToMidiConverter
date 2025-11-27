@@ -14,7 +14,7 @@ public sealed partial class Beat
     [JsonIgnore] public Time MusicalDuration { get; private set; }
     [JsonIgnore] public Time RelativeBeatStartTime { get; private set; }
     [JsonIgnore] public Time AbsoluteBeatStartTime { get; private set; }
-    [JsonIgnore] public Nóta[] ReversedNotes { get; set; }
+    [JsonIgnore] public List<Nóta> ReversedNotes { get; set; }
     [JsonIgnore] public byte Numerator => (byte)Duration[0];
     [JsonIgnore] public byte Denominator => (byte)Duration[1];
     [JsonIgnore] public bool IsAccord { get; private set; }
@@ -45,7 +45,7 @@ public sealed partial class Beat
             Previous.Next = this;
         }
 
-        for (var i = 0; i < Notes.Length; i++)
+        for (var i = 0; i < Notes.Count; i++)
         {
             Notes[i].SetNavigation(this, i);
         }
@@ -59,7 +59,7 @@ public sealed partial class Beat
             ? new Time(Duration[0], Duration[1]) - Previous.MusicalDuration
             : new Time(Duration[0], Duration[1]);
 
-        IsAccord = Notes.Length > 1;
+        IsAccord = Notes.Count > 1;
 
         RelativeBeatStartTime = Index == 0
             ? new Time()
@@ -68,14 +68,14 @@ public sealed partial class Beat
         AbsoluteBeatStartTime = Measure.StartTime + RelativeBeatStartTime;
 
 
-        Notes = Notes.OrderBy(e => e.StringNumber).ToArray();
+        Notes = Notes.OrderBy(e => e.StringNumber).ToList();
 
         if (!Part.IsPianoLike) // for piano we dont change the fuckin note order
         {
             //Notes = Notes.Reverse().ToArray();
         }
 
-        for (var i = 0; i < Notes.Length; i++)
+        for (var i = 0; i < Notes.Count; i++)
         {
             Notes[i].Build(this, i);
         }

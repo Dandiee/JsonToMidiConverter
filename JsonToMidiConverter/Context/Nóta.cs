@@ -61,7 +61,7 @@ public sealed partial class Nóta
     {
         NoteNumber = GetNoteNumber().To7();
         Channel = GetNoteChannel();
-      
+
         Slide = SlideString?.ToSlide() ?? Context.Slide.None;
 
         RawDuration = Staccato
@@ -176,7 +176,7 @@ public sealed partial class Nóta
     public Nóta GetTie()
     {
         if (!Tie) throw new Exception("The note is not tied.");
-        
+
         var prevNote = Previous;
         while (prevNote != null)
         {
@@ -185,7 +185,7 @@ public sealed partial class Nóta
                 return prevNote;
             }
 
-            prevNote = prevNote.Next;   
+            prevNote = prevNote.Next;
         }
 
         throw new Exception("If its a tie, why isnt there a next note");
@@ -389,13 +389,10 @@ public sealed partial class Nóta
             ? (int)StringNumber // Fallback
             : Part.Tuning[(int)StringNumber];
 
-        if (Part.InstrumentId == 33)
-        {
-            return openStringPitch + Fret;
-        }
 
 
-    if (Harmonic == "natural")
+
+        if (Harmonic == "natural")
         {
             switch (Fret) // Or note.harmonicFret
             {
@@ -412,10 +409,13 @@ public sealed partial class Nóta
         {
             switch ((int)HarmonicFret)
             {
+                case 12: return openStringPitch + Fret + 12;
                 case 10: return openStringPitch + Fret + 12;
                 case 5: return openStringPitch + Fret + 24;
             }
         }
+
+        return openStringPitch + Fret;
 
         var q = this;
         //if (Fret == 12) return openStringPitch;
@@ -444,7 +444,7 @@ public sealed partial class Nóta
         }
 
 
-    return (openStringPitch + Fret + (int)HarmonicFret) + randomOffset;
+        return (openStringPitch + Fret + (int)HarmonicFret) + randomOffset;
     }
 
     public SevenBitNumber GetSlideTargetPitch()
@@ -460,25 +460,11 @@ public sealed partial class Nóta
 
     public FourBitNumber GetNoteChannel()
     {
-        if (Part.InstrumentId == 71 || Part.InstrumentId == 68
-                                    || Part.InstrumentId == 27
-                                    || Part.InstrumentId == 30
-                                    || Part.InstrumentId == 40
-                                    || Part.InstrumentId == 29
-                                    || Part.InstrumentId == 37
-                                    || Part.InstrumentId == 67
-                                    || Part.InstrumentId == 26
-                                    || Part.InstrumentId == 12
-                                    || Part.InstrumentId == 81
-                                    || Part.InstrumentId == 66
-                                    || Part.InstrumentId == 33)
-        {
-            return (FourBitNumber)StringNumber;
-        }
-
-
-        if (Part.InstrumentId == 27) return 2.To4();
         if (Part.InstrumentId == 1024) return 9.To4();
+        return (FourBitNumber)StringNumber;
+
+
+
 
         if (InstrumentChannels.TryGetValue(Part.InstrumentId, out int assignedChannel))
         {

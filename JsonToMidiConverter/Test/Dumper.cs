@@ -126,6 +126,7 @@ public static class Dumper
             var midiInstrumentName = chunk.FirstOrDefault(e => e.Event.Is<InstrumentNameEvent>())?.Event.As<InstrumentNameEvent>().Text;
             var midiTrackName = chunk.FirstOrDefault(e => e.Event.Is<SequenceTrackNameEvent>())?.Event.As<SequenceTrackNameEvent>().Text;
 
+            Debug.Assert(part.Measures.Count == chunk.Count(e => e.Event is MarkerEvent marker && marker.Text.StartsWith("MEASURE")));
             Debug.Assert(part.InstrumentId.To7() == midiInstrumentId);
             Debug.Assert(midiInstrumentName == null || part.Instrument == midiInstrumentName);
             Debug.Assert(midiTrackName == null || part.Name == midiTrackName);
@@ -186,9 +187,14 @@ public static class Dumper
                     var note = notes[i];
                     var nextNote = i == notes.Count - 1 ? null : notes[i + 1];
 
+                    var ch = note.GetNoteChannel();
+                    var nn = note.GetNoteNumber();
+
                     var noteOnEvent = noteOnEvents
                         .SkipWhile(e => !IsMatchingNoteOn(e.Event, note))
                         .First();
+
+                    
 
                     noteOnEvents.Remove(noteOnEvent);
 

@@ -38,7 +38,7 @@ public sealed partial class Measure
         var startTime = TimeConverter.ConvertTo<MetricTimeSpan>(new BarBeatFractionTimeSpan(Index), Part.TempoMap);
         StartTime = new Time(TimeConverter.ConvertFrom(startTime, Part.TempoMap));
 
-        if (Signature.Length == 2)
+        if (Signature.Count == 2)
         {
             SignatureNominator = (byte)Signature[0];
             SignatureDenominator = (byte)Signature[1];
