@@ -1,0 +1,347 @@
+[
+  {
+    "Fret": 35,
+    "NoteNumber": 35,
+    "Name": "Acoustic Bass Drum"
+  },
+  {
+    "Fret": 36,
+    "NoteNumber": 36,
+    "Name": "Bass Drum 1"
+  },
+  {
+    "Fret": 37,
+    "NoteNumber": 37,
+    "Name": "Side Stick"
+  },
+  {
+    "Fret": 38,
+    "NoteNumber": 38,
+    "Name": "Acoustic Snare"
+  },
+  {
+    "Fret": 39,
+    "NoteNumber": 39,
+    "Name": "Hand Clap"
+  },
+  {
+    "Fret": 40,
+    "NoteNumber": 40,
+    "Name": "Electric Snare"
+  },
+  {
+    "Fret": 41,
+    "NoteNumber": 41,
+    "Name": "Low Floor Tom"
+  },
+  {
+    "Fret": 42,
+    "NoteNumber": 42,
+    "Name": "Closed Hi-Hat"
+  },
+  {
+    "Fret": 43,
+    "NoteNumber": 43,
+    "Name": "High Floor Tom"
+  },
+  {
+    "Fret": 44,
+    "NoteNumber": 44,
+    "Name": "Pedal Hi-Hat"
+  },
+  {
+    "Fret": 45,
+    "NoteNumber": 45,
+    "Name": "Low Tom"
+  },
+  {
+    "Fret": 46,
+    "NoteNumber": 46,
+    "Name": "Open Hi-Hat"
+  },
+  {
+    "Fret": 47,
+    "NoteNumber": 47,
+    "Name": "Low-Mid Tom"
+  },
+  {
+    "Fret": 48,
+    "NoteNumber": 48,
+    "Name": "Hi-Mid Tom"
+  },
+  {
+    "Fret": 49,
+    "NoteNumber": 49,
+    "Name": "Crash Cymbal 1"
+  },
+  {
+    "Fret": 50,
+    "NoteNumber": 50,
+    "Name": "High Tom"
+  },
+  {
+    "Fret": 51,
+    "NoteNumber": 59,
+    "Name": "Ride Cymbal 1"
+  },
+  {
+    "Fret": 52,
+    "NoteNumber": 52,
+    "Name": "Chinese Cymbal"
+  },
+  {
+    "Fret": 53,
+    "NoteNumber": 53,
+    "Name": "Ride Bell"
+  },
+  {
+    "Fret": 54,
+    "NoteNumber": 54,
+    "Name": "Tambourine"
+  },
+  {
+    "Fret": 55,
+    "NoteNumber": 55,
+    "Name": "Splash Cymbal"
+  },
+  {
+    "Fret": 56,
+    "NoteNumber": 56,
+    "Name": "Cowbell"
+  },
+  {
+    "Fret": 57,
+    "NoteNumber": 57,
+    "Name": "Crash Cymbal 2"
+  },
+  {
+    "Fret": 58,
+    "NoteNumber": 58,
+    "Name": "Vibra Slap"
+  },
+  {
+    "Fret": 59,
+    "NoteNumber": 59,
+    "Name": "Ride Cymbal 2"
+  },
+  {
+    "Fret": 60,
+    "NoteNumber": 60,
+    "Name": "Hi Bongo"
+  },
+  {
+    "Fret": 61,
+    "NoteNumber": 61,
+    "Name": "Low Bongo"
+  },
+  {
+    "Fret": 62,
+    "NoteNumber": 62,
+    "Name": "Mute Hi Conga"
+  },
+  {
+    "Fret": 63,
+    "NoteNumber": 63,
+    "Name": "Open Hi Conga"
+  },
+  {
+    "Fret": 64,
+    "NoteNumber": 64,
+    "Name": "Low Conga"
+  },
+  {
+    "Fret": 65,
+    "NoteNumber": 65,
+    "Name": "High Timbale"
+  },
+  {
+    "Fret": 66,
+    "NoteNumber": 66,
+    "Name": "Low Timbale"
+  },
+  {
+    "Fret": 67,
+    "NoteNumber": 67,
+    "Name": "High Agogo"
+  },
+  {
+    "Fret": 68,
+    "NoteNumber": 68,
+    "Name": "Low Agogo"
+  },
+  {
+    "Fret": 69,
+    "NoteNumber": 69,
+    "Name": "Cabasa"
+  },
+  {
+    "Fret": 70,
+    "NoteNumber": 70,
+    "Name": "Maracas"
+  },
+  {
+    "Fret": 71,
+    "NoteNumber": 71,
+    "Name": "Short Whistle"
+  },
+  {
+    "Fret": 72,
+    "NoteNumber": 72,
+    "Name": "Long Whistle"
+  },
+  {
+    "Fret": 73,
+    "NoteNumber": 73,
+    "Name": "Short Guiro"
+  },
+  {
+    "Fret": 74,
+    "NoteNumber": 74,
+    "Name": "Long Guiro"
+  },
+  {
+    "Fret": 75,
+    "NoteNumber": 75,
+    "Name": "Claves"
+  },
+  {
+    "Fret": 76,
+    "NoteNumber": 76,
+    "Name": "Hi Wood Block"
+  },
+  {
+    "Fret": 77,
+    "NoteNumber": 77,
+    "Name": "Low Wood Block"
+  },
+  {
+    "Fret": 78,
+    "NoteNumber": 78,
+    "Name": "Mute Cuica"
+  },
+  {
+    "Fret": 79,
+    "NoteNumber": 79,
+    "Name": "Open Cuica"
+  },
+  {
+    "Fret": 80,
+    "NoteNumber": 80,
+    "Name": "Mute Triangle"
+  },
+  {
+    "Fret": 81,
+    "NoteNumber": 81,
+    "Name": "Open Triangle"
+  },
+  {
+    "Fret": 85,
+    "NoteNumber": 76,
+    "Name": "Open Triangle"
+  },
+  {
+    "Fret": 90,
+    "NoteNumber": 38,
+    "Name": "Acoustic Snare (alias)"
+  },
+  {
+    "Fret": 91,
+    "NoteNumber": 46,
+    "Name": "Open Hi-Hat (alias)"
+  },
+  {
+    "Fret": 92,
+    "NoteNumber": 46,
+    "Name": "Closed Hi-Hat (alias)"
+  },
+  {
+    "Fret": 93,
+    "NoteNumber": 44,
+    "Name": "Pedal Hi-Hat (alias)"
+  },
+  {
+    "Fret": 94,
+    "NoteNumber": 49,
+    "Name": "Crash Cymbal 1 (alias)"
+  },
+  {
+    "Fret": 95,
+    "NoteNumber": 57,
+    "Name": "Crash Cymbal 2 (alias)"
+  },
+  {
+    "Fret": 96,
+    "NoteNumber": 51,
+    "Name": "Ride Cymbal 1 (alias)"
+  },
+  {
+    "Fret": 97,
+    "NoteNumber": 59,
+    "Name": "Ride Cymbal 2 (alias)"
+  },
+  {
+    "Fret": 98,
+    "NoteNumber": 57,
+    "Name": "Electric Snare (alias)"
+  },
+  {
+    "Fret": 99,
+    "NoteNumber": 56,
+    "Name": "Acoustic Snare (alias)"
+  },
+  {
+    "Fret": 100,
+    "NoteNumber": 42,
+    "Name": "Closed Hi-Hat (alias)"
+  },
+  {
+    "Fret": 101,
+    "NoteNumber": 46,
+    "Name": "Open Hi-Hat (alias)"
+  },
+  {
+    "Fret": 102,
+    "NoteNumber": 67,
+    "Name": "High Agogo (alias)"
+  },
+  {
+    "Fret": 103,
+    "NoteNumber": 68,
+    "Name": "Low Agogo (alias)"
+  },
+  {
+    "Fret": 104,
+    "NoteNumber": 49,
+    "Name": "Crash Cymbal 1 (alias)"
+  },
+  {
+    "Fret": 105,
+    "NoteNumber": 57,
+    "Name": "Crash Cymbal 2 (alias)"
+  },
+  {
+    "Fret": 106,
+    "NoteNumber": 51,
+    "Name": "Ride Cymbal 1 (alias)"
+  },
+  {
+    "Fret": 107,
+    "NoteNumber": 59,
+    "Name": "Ride Cymbal 2 (alias)"
+  },
+  {
+    "Fret": 108,
+    "NoteNumber": 42,
+    "Name": "Closed Hi-Hat (alias)"
+  },
+  {
+    "Fret": 109,
+    "NoteNumber": 46,
+    "Name": "Open Hi-Hat (alias)"
+  },
+  {
+    "Fret": 110,
+    "NoteNumber": 49,
+    "Name": "Crash Cymbal 1 (alias)"
+  }
+]
