@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Text.Json.Serialization;
 using JsonToMidiConverter.Context;
+using JsonToMidiConverter.Test;
 using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
@@ -29,12 +30,11 @@ public sealed partial class Nóta
     [JsonIgnore] public Time RawDuration { get; private set; }
     [JsonIgnore] public bool WillBeTied { get; private set; }
     [JsonIgnore] public Context.Slide Slide { get; private set; }
-    [JsonIgnore] public Queue<(MidiEvent Event, Time Time)> PendingEvents { get; private set; } = new();
-    [JsonIgnore] public int? MidiStartEventIndex { get; set; }
-    [JsonIgnore] public int? MidiEndEventIndex { get; set; }
-    [JsonIgnore] public int? MidiOffEventIndex { get; set; }
-    [JsonIgnore] public int? MidiOnEventIndex { get; set; }
-
+    //[JsonIgnore] public int? MidiStartEventIndex { get; set; }
+    //[JsonIgnore] public int? MidiEndEventIndex { get; set; }
+    //[JsonIgnore] public int? MidiOffEventIndex { get; set; }
+    //[JsonIgnore] public int? MidiOnEventIndex { get; set; }
+    [JsonIgnore] public List<MidiNoteEvent> MidiNoteEvents { get; set; } = [];
     [JsonIgnore] public TieContext? TieDetails { get; private set; }
     [JsonIgnore] public Tie TieType { get; private set; }
     [JsonIgnore] public Time PlayedDuration { get; private set; }
@@ -514,6 +514,38 @@ public sealed partial class Nóta
     };
 
     public override string ToString() => $"N{Index} {Beat}";
+
+    public Nóta? GetNextDontUse()
+    {
+        var currentBeat = Beat;
+        var currentMeasure = Beat.Voice.Measure;
+
+        while (true)
+        {
+            if (currentBeat.Voice.Beats.Count == currentBeat.Index + 1)
+            {
+                if (currentMeasure.Index == currentMeasure.Part.Measures.Count - 1)
+                {
+                    return null;
+                }
+
+                currentMeasure = currentMeasure.Part.Measures[currentMeasure.Index + 1];
+                currentBeat = currentMeasure.Voices[Voice.Index].Beats[0];
+            }
+            else
+            {
+                currentBeat = currentMeasure.Voices[Voice.Index].Beats[currentBeat.Index + 1];
+            }
+
+            var note = currentBeat.Notes.SingleOrDefault(e => e.StringNumber == StringNumber);
+            if (note != null)
+            {
+                return note;
+            }
+        }
+    }
+
+    public long GetBeatStartDontUse() => Beat.AbsoluteBeatStartTime.Tick;
 }
 
 public enum Tie

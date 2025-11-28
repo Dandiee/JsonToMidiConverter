@@ -10,8 +10,8 @@ using Melanchall.DryWetMidi.Tools;
 
 var songPairs = new Dictionary<string, string>
 {
-    //[@"References\Linkin Park-In The End-11-12-2025(3).mid"] = "In the end",
-    //[@"References\Nirvana.mid"] = "Come as you are",
+    [@"References\Linkin Park-In The End-11-12-2025(3).mid"] = "In the end",
+    [@"References\Nirvana.mid"] = "Come as you are",
     //[@"References\Tool.mid"] = "Pneuma",
     //[@"References\LedZeppelin.mid"] = "Stairway to heaven",
     //[@"References\Metallica.mid"] = "Nothing else matters",

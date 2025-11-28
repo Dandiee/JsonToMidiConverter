@@ -31,6 +31,7 @@ public partial class Beat
     public string? VibratoWithTremoloBar { get; set; }
     public string? PickStroke { get; set; }
     public Bend? TremoloBar { get; set; }
+    public bool WideVibrato { get; set; }
 
     public Beat Clone() => new()
     {
@@ -59,6 +60,7 @@ public partial class Beat
         GradualVelocity = GradualVelocity,
         VibratoWithTremoloBar = VibratoWithTremoloBar,
         PickStroke = PickStroke,
-        TremoloBar = TremoloBar?.Clone()
+        TremoloBar = TremoloBar?.Clone(),
+        WideVibrato = WideVibrato
     };
 }

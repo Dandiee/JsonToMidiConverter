@@ -23,6 +23,7 @@ public sealed partial class Nóta
     public Bend? Bend { get; set; }
     public bool Dead { get; set; }
     public List<double> Tremolo { get; set; } = [];
+    public bool WideVibrato { get; set; }
 
     public Nóta Clone() => new()
     {
@@ -40,7 +41,8 @@ public sealed partial class Nóta
         HarmonicFret = HarmonicFret,
         Bend = Bend?.Clone(),
         Dead = Dead,
-        Tremolo = Tremolo.Select(e => e).ToList()
+        Tremolo = Tremolo.Select(e => e).ToList(),
+        WideVibrato = WideVibrato,
     };
 }
 

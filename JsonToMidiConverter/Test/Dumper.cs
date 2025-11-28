@@ -12,7 +12,7 @@ using Slide = JsonToMidiConverter.Context.Slide;
 
 namespace JsonToMidiConverter.Test;
 
-public record Event(MidiEvent MidiEvent, long Time);
+public record MidiNoteEvent(TimedMidiEvent On, TimedMidiEvent Off);
 
 public static class Dumper
 {
@@ -69,6 +69,7 @@ public static class Dumper
             sb.AppendLine(partTitle);
             sb.AppendLine(separator);
 
+            var writtenOnEvents = new HashSet<int>();
 
             foreach (var measure in part.Measures.Where(e => !e.Rest))
             {
@@ -81,40 +82,35 @@ public static class Dumper
                         sb.AppendLine($"\r\n\t{beat}, Attr = [{GetAttributes(beat)}], Input = {GetJson(beat)}");
                         foreach (var note in beat.Notes)
                         {
+
                             var slideMarker = note.Slide != Slide.None ? $" Slide = {note.Slide} " : "";
                             var tieMarker = note.Tie ? " Tie " : "";
 
-                            sb.AppendLine($"\t\t{note} {slideMarker}{tieMarker} CH{note.Channel} NN{note.NoteNumber} Attr = [{GetAttributes(beat)}] Input = {GetJson(note)}");
+                            sb.AppendLine($"\t\t{note} {slideMarker}{tieMarker} CH {note.Channel}, NN {note.NoteNumber} Attr = [{GetAttributes(beat)}] Input = {GetJson(note)}");
 
-                            if (note.MidiStartEventIndex.HasValue)
+                            if (note.Is("N0 B5 V0 M20 P0"))
                             {
-                                var on = events[note.MidiOnEventIndex.Value];
-                                var off = events[note.MidiOffEventIndex.Value];
 
-                                for (var i = note.MidiStartEventIndex.Value - 1; i < note.MidiEndEventIndex.Value - 1; i++)
-                                {
-                                    var timedEvent = events[i];
-                                    if (timedEvent.Event.EventType == MidiEventType.PitchBend) continue;
-                                    if (timedEvent == on)
-                                    {
-                                        var duration = off.Time - on.Time;
-                                        sb.AppendLine($"\t\t\t {GetMidiEventString(timedEvent, off.Time, duration)}");
-                                    }
-                                    else
-                                    {
-                                        sb.AppendLine($"\t\t\t {GetMidiEventString(timedEvent)}");
-                                    }
-                                }
                             }
+
+                            foreach (var midiNoteEvent in note.MidiNoteEvents)
+                            {
+                                sb.AppendLine($"\t\t\t {GetMidiEventString(midiNoteEvent.On, midiNoteEvent.Off.Time)}");
+                            }
+
                         }
                     }
                 }
             }
+
+            var missingOns = events.Where(e => e.Event is NoteOnEvent && !writtenOnEvents.Contains(e.Index)).ToList();
+
+            //Debug.Assert(missingOns.Count == 0);
         }
         File.WriteAllText($"{record.Title}_Bible", sb.ToString());
     }
 
-    private static bool IsMatchingNoteEvent(MidiEvent midiEvent, Nóta note) 
+    private static bool IsMatchingNoteEvent(MidiEvent midiEvent, Nóta note)
         => midiEvent is NoteEvent noteEvent && noteEvent.Channel == note.Channel && noteEvent.NoteNumber == note.NoteNumber;
 
     public static bool ShouldISkipThisBecauseTheyFuckedUpTheirMidi(Nóta note)
@@ -174,72 +170,112 @@ public static class Dumper
         }
     }
 
+    private static IEnumerable<MidiNoteEvent> GatherNoteOnOffParis(List<TimedMidiEvent> events)
+    {
+        var noteOns = events.Where(e => e.Event.EventType == MidiEventType.NoteOn).ToList();
+        var noteOffs = events.Where(e => e.Event.EventType == MidiEventType.NoteOff).ToList();
+
+        Debug.Assert(noteOffs.Count == noteOns.Count);
+
+        foreach (var noteOn in noteOns)
+        {
+            var on = noteOn.Event as NoteOnEvent;
+            var noteOff = noteOffs.First(e =>
+            {
+                var off = e.Event as NoteOffEvent;
+                return on.Channel == off.Channel && on.NoteNumber == off.NoteNumber;
+            });
+
+            noteOffs.Remove(noteOff);
+
+            yield return new(noteOn, noteOff);
+        }
+    }
+
     public static void AssignNotesToMidiEvents(Song song, MidiFile midi)
     {
         foreach (var part in song.Parts)
         {
-            var events = midi.GetEvents(part.Index);
+            var allEvents = midi.GetEvents(part.Index).ToList();
+            var events = GatherNoteOnOffParis(allEvents).ToList();
 
-            foreach (var measure in part.Measures.Where(e => !KnownFuckedUpMeasures.Contains(e.ToString())))
+            var usedIndexes = new HashSet<int>();
+
+            var notes = part.Measures
+                .SelectMany(e => e.Voices)
+                .SelectMany(e => e.Beats)
+                .SelectMany(n => n.Notes)
+                .Where(e => !e.Rest && !e.Tie && !ShouldISkipThisBecauseTheyFuckedUpTheirMidi(e))
+                .OrderBy(e => e.GetStartTime().Tick)
+                .ThenBy(e => e.Index)
+                .ToList();
+
+            for (var i = 0; i < notes.Count; i++)
             {
-                
+                var note = notes[i];
 
-                var measureEvents = events.GetMeasureEvents(measure);
+                var ch = note.GetNoteChannel();
+                var nn = note.GetNoteNumber();
 
-                var noteOnEvents = measureEvents
-                    .Where(e => e.Event.EventType == MidiEventType.NoteOn)
-                    .ToList();
 
-                var noteOffEvents = measureEvents
-                    .Where(e => e.Event.EventType == MidiEventType.NoteOff)
-                    .ToList();
 
-                var notes = measure.Voices
-                    .SelectMany(e => e.Beats)
-                    .SelectMany(n => n.Notes)
-                    .Where(e => !e.Rest && !e.Tie && !ShouldISkipThisBecauseTheyFuckedUpTheirMidi(e))
-                    .OrderBy(e => e.GetStartTime().Tick)
-                    .ThenBy(e => e.Index)
-                    .ToList();
+                var noteEvent = events
+                    .SkipWhile(e => !IsMatchingNoteEvent(e.On.Event, note))
+                    .First();
 
-                for (var i = 0; i < notes.Count; i++)
+                if (note.Is("N0 B5 V0 M118 P6"))
                 {
-                    var note = notes[i];
 
-                    if (note.Is("N3 B10 V0 M45 P2"))
+                }
+
+                var measureFound = false;
+                for (var m = noteEvent.On.Index; m > -1; m--)
+                {
+                    if (allEvents[m].Event is MarkerEvent marker)
                     {
+                        Debug.Assert(marker.Text == $"MEASURE_{note.Measure.Index}");
+                        measureFound = true;
+                        break;
 
                     }
+                }
+                Debug.Assert(measureFound);
 
-                    var nextNote = i == notes.Count - 1 ? null : notes[i + 1];
+                note.MidiNoteEvents.Add(noteEvent);
 
-                    var ch = note.GetNoteChannel();
-                    var nn = note.GetNoteNumber();
+                var isItFuckinDannyCarey = note.Part.Name == "Drums - Danny Carey";
 
-                    var noteOnEvent = noteOnEvents
-                        .SkipWhile(e => !IsMatchingNoteEvent(e.Event, note))
-                        .First();
+                var nextChannelNote = notes
+                    .Skip(i + 1)
+                    .SkipWhile(e => !(e.Part.InstrumentId == 1024 
+                ? e.NoteNumber == note.NoteNumber
+                : e.StringNumber == note.StringNumber))
+                    // TODO: maybe this should be ch compare
+                    // : e.StringNumber == note.StringNumber))
+                    .FirstOrDefault();
 
-                    noteOnEvents.Remove(noteOnEvent);
+                var nextChannelNoteEvent = nextChannelNote != null
+                    ? events.SkipWhile(e => !(IsMatchingNoteEvent(e.On.Event, nextChannelNote) && 
+                                              e.On.Time >= nextChannelNote.Beat.AbsoluteBeatStartTime.Tick )).First()
+                    : null;
 
-                    var noteOffEvent = events.
-                        SkipWhile(e => e.Time <= noteOnEvent.Time || !IsMatchingNoteEvent(e.Event, note))
-                        .First();
+                var nextChannelNoteEventIndex = nextChannelNoteEvent?.On.Index ?? -1;
+                
+                var inBetweenNotes = events
+                    .SkipWhile(e => e.On.Index <= noteEvent.On.Index)
+                    .TakeWhile(e => e.On.Index < nextChannelNoteEventIndex)
+                    .Where(e => e.On.Event is NoteOnEvent on && 
+                                (
+                                    on.Channel == 9 
+                                        ? on.NoteNumber == nn
+                                        : on.Channel == ch))
+                    .ToList();
 
-                    noteOffEvents.Remove(noteOffEvent);
+                note.MidiNoteEvents.AddRange(inBetweenNotes);
 
-                    var closingEvent = i == notes.Count - 1
-                        ? measureEvents[^1]
-                        : noteOnEvents
-                            .SkipWhile(e => !IsMatchingNoteEvent(e.Event, nextNote))
-                            .First();
-
-                    
-
-                    note.MidiStartEventIndex = i == 0 ? measureEvents[0].Index : noteOnEvent.Index;
-                    note.MidiEndEventIndex = closingEvent.Index + (closingEvent == noteOnEvent ? 1 : 0);
-                    note.MidiOffEventIndex = noteOffEvent.Index;
-                    note.MidiOnEventIndex = noteOnEvent.Index;
+                foreach (var assignedEvent in note.MidiNoteEvents)
+                {
+                    events.Remove(assignedEvent);
                 }
             }
         }
@@ -281,7 +317,7 @@ public static class Dumper
                         sb.AppendLine($"\t\t\tB{b} V{v} M{m} P{p} {GetJson(beat)}");
                         foreach (var note in beat.Notes)
                         {
-                            
+
                             sb.AppendLine($"\t\t\t\tN{n} B{b} V{v} M{m} P{p} {GetJson(note)}");
                             n++;
                         }
@@ -345,7 +381,7 @@ public static class Dumper
                 var q = partEvents.Where(e => e.Event.EventType == MidiEventType.Marker).ToList();
 
                 var time = 0L;
-                foreach (var timedEvent in events)
+                foreach (var timedEvent in events.Where(e => e.Event.EventType != MidiEventType.PitchBend))
                 {
                     sb.AppendLine($"\t\t {GetMidiEventString(timedEvent)}");
                 }
@@ -371,7 +407,7 @@ public static class Dumper
         File.WriteAllText($"{record.Title}_MidiRaw.dani", sb.ToString());
     }
 
-    private static string GetMidiEventString(TimedMidiEvent timedEvent, long? end = null, long? duration = null)
+    private static string GetMidiEventString(TimedMidiEvent timedEvent, long? end = null)
     {
         EventTypeNames.TryGetValue(timedEvent.Event.EventType, out var niceName);
 
@@ -390,13 +426,14 @@ public static class Dumper
         var timing = $"Start: {timedEvent.Time}";
         if (end.HasValue)
         {
-            timing += $", End: {end.Value}, Duration: {duration.Value}";
+            var duration = end.Value - timedEvent.Time;
+            timing += $", End: {end.Value}, Duration: {duration,5}";
         }
 
         return
-            $"{timedEvent.Index.ToString(),5} {(niceName ?? timedEvent.Event.EventType.ToString()),-10} " +
+            $"{timedEvent.Index.ToString(),5} {(niceName ?? timedEvent.Event.EventType.ToString()),-5} " +
             $"Note: {nn,2}; {timing}; Ch: {ch}; " +
-            $"Delta: {timedEvent.Event.DeltaTime.ToString(),6} {attributes}";
+            $"{attributes}";
     }
 
     public static string GetAttributes(object model)
