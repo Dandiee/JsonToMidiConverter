@@ -40,11 +40,13 @@ public sealed partial class Nóta
     [JsonIgnore] public Time PlayedDuration { get; private set; }
     [JsonIgnore] public Nóta? Next { get; private set; }
     [JsonIgnore] public Nóta? Previous { get; private set; }
+    [JsonIgnore] public bool LastInBeat { get; private set; }
 
     public void SetNavigation(Beat beat, int index)
     {
         Index = index;
         Beat = beat;
+        LastInBeat = Index == Beat.Notes.Count - 1;
 
         var prevBeat = Beat.Previous;
         while (prevBeat != null && Previous == null)

@@ -21,11 +21,14 @@ public sealed partial class Beat
     [JsonIgnore] public string Nameplate => $"{Index}{Measure.Index}{Part.Index}";
     [JsonIgnore] public Beat? Next { get; private set; }
     [JsonIgnore] public Beat? Previous { get; private set; }
+    [JsonIgnore] public bool LastInMeasure { get; private set; }
+    [JsonIgnore] public Time RawDuration { get; private set; }
 
     public void SetNavigation(Voice voice, int index)
     {
         Index = index;
         Voice = voice;
+        LastInMeasure = Index == Measure.Voices[Voice.Index].Beats.Count - 1;
 
         if (Index > 0)
         {
@@ -59,9 +62,20 @@ public sealed partial class Beat
 
     public void Build()
     {
-        MusicalDuration = Previous?.GraceNote == "onBeat"
-            ? new Time(Duration[0], Duration[1]) - Previous.MusicalDuration
-            : new Time(Duration[0], Duration[1]);
+        var rawDuration = new Time(Duration[0], Duration[1]);
+
+        if (Previous?.GraceNote == "onBeat")
+        {
+            rawDuration -= Previous.MusicalDuration;
+        }
+
+        if (Next?.GraceNote == "beforeBeat")
+        {
+            var nextGraceDuration = new Time(Next.Duration[0], Next.Duration[1]);
+            rawDuration -= nextGraceDuration;
+        }
+
+        MusicalDuration = rawDuration;
 
         IsAccord = Notes.Count > 1;
 

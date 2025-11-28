@@ -197,6 +197,7 @@ public static class Dumper
         foreach (var part in song.Parts)
         {
             var allEvents = midi.GetEvents(part.Index).ToList();
+            var assertEvents = allEvents.ToList();
             var events = GatherNoteOnOffParis(allEvents).ToList();
 
             var usedIndexes = new HashSet<int>();
@@ -223,10 +224,7 @@ public static class Dumper
                     .SkipWhile(e => !IsMatchingNoteEvent(e.On.Event, note))
                     .First();
 
-                if (note.Is("N0 B5 V0 M118 P6"))
-                {
-
-                }
+                
 
                 var measureFound = false;
                 for (var m = noteEvent.On.Index; m > -1; m--)
@@ -241,16 +239,19 @@ public static class Dumper
                 }
                 Debug.Assert(measureFound);
 
-                note.MidiNoteEvents.Add(noteEvent);
+                if (note.Is("N0 B0 V0 M119 P6"))
+                {
 
-                var isItFuckinDannyCarey = note.Part.Name == "Drums - Danny Carey";
+                }
+
+                note.MidiNoteEvents.Add(noteEvent);
 
                 var nextChannelNote = notes
                     .Skip(i + 1)
                     .SkipWhile(e => !(e.Part.InstrumentId == 1024 
                 ? e.NoteNumber == note.NoteNumber
                 : e.StringNumber == note.StringNumber))
-                    // TODO: maybe this should be ch compare
+                    // TODO: maybe this should be ch comparis
                     // : e.StringNumber == note.StringNumber))
                     .FirstOrDefault();
 
@@ -259,8 +260,8 @@ public static class Dumper
                                               e.On.Time >= nextChannelNote.Beat.AbsoluteBeatStartTime.Tick )).First()
                     : null;
 
-                var nextChannelNoteEventIndex = nextChannelNoteEvent?.On.Index ?? -1;
-                
+                var nextChannelNoteEventIndex = nextChannelNoteEvent?.On.Index ?? int.MaxValue;
+              
                 var inBetweenNotes = events
                     .SkipWhile(e => e.On.Index <= noteEvent.On.Index)
                     .TakeWhile(e => e.On.Index < nextChannelNoteEventIndex)
@@ -277,7 +278,13 @@ public static class Dumper
                 {
                     events.Remove(assignedEvent);
                 }
+
             }
+
+
+            Debug.Assert(events.Count == 0);
+
+
         }
     }
 
