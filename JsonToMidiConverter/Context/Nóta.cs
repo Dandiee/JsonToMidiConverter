@@ -10,7 +10,7 @@ using Note = Melanchall.DryWetMidi.Interaction.Note;
 
 namespace JsonToMidiConverter.Models.Song;
 
-public record Slide(int Steps, Time HoldDuration, Time SlideWindow, Time StepDuration, int Direction, bool IsStepped, int TimeDirection);
+public record Slide(int Steps, Time HoldDuration, Time SlideWindow, Time StepDuration, int Direction, bool IsStepped, int TimeDirection, bool PlayHold);
 
 
 [DebuggerDisplay("N{Index} B{Beat.Index} V{Voice.Index} M{Measure.Index} P{Part.Index}")]
@@ -22,7 +22,7 @@ public sealed partial class Nóta
     [JsonIgnore] public Measure Measure => Voice.Measure;
     [JsonIgnore] public Part Part => Measure.Part;
     [JsonIgnore] public Song Song => Part.Song;
-    [JsonIgnore] public FourBitNumber Channel { get; private set; }
+    [JsonIgnore] public int Channel { get; private set; }
     [JsonIgnore] public List<TimedEvent> Events { get; } = new();
     [JsonIgnore] public SevenBitNumber NoteNumber { get; set; }
     [JsonIgnore] public Time ActualDuration { get; private set; }
@@ -32,6 +32,8 @@ public sealed partial class Nóta
     [JsonIgnore] public Queue<(MidiEvent Event, Time Time)> PendingEvents { get; private set; } = new();
     [JsonIgnore] public int? MidiStartEventIndex { get; set; }
     [JsonIgnore] public int? MidiEndEventIndex { get; set; }
+    [JsonIgnore] public int? MidiOffEventIndex { get; set; }
+    [JsonIgnore] public int? MidiOnEventIndex { get; set; }
 
     [JsonIgnore] public TieContext? TieDetails { get; private set; }
     [JsonIgnore] public Tie TieType { get; private set; }
@@ -57,7 +59,7 @@ public sealed partial class Nóta
         }
     }
 
-    public void Build(Beat beat, int index)
+    public void Build()
     {
         NoteNumber = GetNoteNumber().To7();
         Channel = GetNoteChannel();
@@ -65,8 +67,8 @@ public sealed partial class Nóta
         Slide = SlideString?.ToSlide() ?? Context.Slide.None;
 
         RawDuration = Staccato
-            ? beat.MusicalDuration.Clone() / 2
-            : beat.MusicalDuration.Clone();
+            ? Beat.MusicalDuration.Clone() / 2
+            : Beat.MusicalDuration.Clone();
 
 
         ActualDuration = RawDuration;
@@ -87,7 +89,7 @@ public sealed partial class Nóta
 
     }
 
-    public Time GetStrum() => new((long)(1.17 * Part.TempoMap.GetTempoAtTime(Beat.AbsoluteBeatStartTime.Span).BeatsPerMinute) + 1);
+    public Time GetStrum() => new((long)(1.16 * Part.TempoMap.GetTempoAtTime(Beat.AbsoluteBeatStartTime.Span).BeatsPerMinute) + 1);
 
     public Time GetStartTime()
     {
@@ -276,19 +278,25 @@ public sealed partial class Nóta
         if (Slide == Context.Slide.Below)
         {
             var belowSlideWindow = new Time(1920);
-            return new Slide(steps, ActualDuration, belowSlideWindow, belowSlideWindow / steps, -1, true, -1);
+            return new Slide(steps, ActualDuration, belowSlideWindow, belowSlideWindow / steps, -1, true, -1, true);
         }
 
         var duration = TieDetails?.Destination.ActualDuration ?? ActualDuration;
+        
+        if (Tie)
+        {
+            duration = TieDetails.Source.ActualDuration;
+        }
+
         var direction = Math.Sign(landingNoteNumber - NoteNumber);
 
-
+        var playHold = !Tie;
 
         if (steps < 1 || Vibrato)
         {
             var legatoHold = Vibrato ? ActualDuration / 2 : ActualDuration;
 
-            return new Slide(steps, legatoHold, new Time(), new Time(10), direction, false, 1);
+            return new Slide(steps, legatoHold, new Time(), new Time(10), direction, false, 1, playHold);
         }
 
         var defaultSlideWindow = Slide == Context.Slide.Downwards || Slide == Context.Slide.Upwards
@@ -302,7 +310,12 @@ public sealed partial class Nóta
         var slideWindow = new Time((long)(stepSize * steps));
         var holdDuration = duration - slideWindow;
 
-        return new Slide(steps, holdDuration, slideWindow, new Time((long)stepSize), direction, true, 1);
+        if (Tie)
+        {
+            holdDuration += TieDetails.Source.ActualDuration;
+        }
+
+        return new Slide(steps, holdDuration, slideWindow, new Time((long)stepSize), direction, true, 1, playHold);
     }
 
     public long GetShiftStepSizeTicks()
@@ -389,7 +402,7 @@ public sealed partial class Nóta
             ? (int)StringNumber // Fallback
             : Part.Tuning[(int)StringNumber];
 
-
+        // öt az eltérés?
 
 
         if (Harmonic == "natural")

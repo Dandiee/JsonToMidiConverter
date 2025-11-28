@@ -12,19 +12,20 @@ using Slide = JsonToMidiConverter.Context.Slide;
 
 namespace JsonToMidiConverter;
 
+public record ProcessedEvent(TimedEvent Event, Nóta Note);
+
 [DebuggerDisplay("[{TimedEvents.Count} Last at [{LastEvent.Time}]: {LastNote}]")]
-public class Events : IEnumerable<TimedEvent>
+public class Events : IEnumerable<ProcessedEvent>
 {
     public static bool SuspendValidation;
-    public List<TimedEvent> TimedEvents { get; private set; } = new();
-    public IReadOnlyList<TimedEvent> Recap { get; private set; }
-    public TimedEvent? LastEvent { get; private set; }
+    public List<ProcessedEvent> TimedEvents { get; private set; } = new();
+    public IReadOnlyList<ProcessedEvent> Recap { get; private set; }
+    public ProcessedEvent? LastEvent { get; private set; }
     public Nóta? LastNote { get; private set; }
-    public List<(TimedEvent TimedEvent, Nóta Note, long EndTick)> NoteOns { get; private set; } = new();
 
-    public TimedEvent this[int index] => TimedEvents[index];
+    public ProcessedEvent this[int index] => TimedEvents[index];
     public int Count => TimedEvents.Count;
-    public IEnumerator<TimedEvent> GetEnumerator() => TimedEvents.GetEnumerator();
+    public IEnumerator<ProcessedEvent> GetEnumerator() => TimedEvents.GetEnumerator();
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
 
@@ -36,17 +37,6 @@ public class Events : IEnumerable<TimedEvent>
         int? partId = null,
         SevenBitNumber? noteNumberOverride = null)
     {
-
-        if (TimedEvents.Count == 994 && note != null && note.Part.Index == 4)
-        {
-
-        }
-
-        if ((note?.Is("N1 B5 M30 P4") ?? false) && time == new Time(1889421))
-        {
-
-        }
-
         if (noteNumberOverride != null)
         {
             note.NoteNumber = noteNumberOverride.Value;
@@ -57,62 +47,13 @@ public class Events : IEnumerable<TimedEvent>
             var w = note?.GetNoteChannel();
             channelEvent.Channel = (channelOverride ?? note.Channel).To4();
         }
-
         Recap = TimedEvents.Skip(Math.Max(0, TimedEvents.Count - 30)).ToList();
-
-        TimedEvents.Add(new TimedEvent(midiEvent, time.Tick));
-        //if (note != null && !SuspendValidation)
-        //{
-        //    MarkForDeath(newEvent, note);
-        //
-        //    note.Events.Add(newEvent);
-        //}
-
-        //if (noteNumberOverride != null)
-        //{
-        //    note.NoteNumber = origNoteNumber.Value;
-        //}
-
+        TimedEvents.Add(new ProcessedEvent(new TimedEvent(midiEvent, time.Tick), note));
         LastNote = note;
 
         return null;
     }
 
-    private void MarkForDeath(TimedEvent timedEvent, Nóta note)
-    {
-        if (timedEvent.Event is NoteOnEvent on)
-        {
-            if (note.Is("N0 B5 M47 P8"))
-            {
-
-            }
-
-            var noteDuration = note.ActualDuration.Tick;
-
-            if (note.WillBeTied)
-            {
-                noteDuration = note.GetForwardTies().Sum(e => e.ActualDuration.Tick);
-            }
-
-            if (note.Slide != Slide.None)
-            {
-                
-                var slide = note.Beat.Notes[0].GetSlide();
-                noteDuration = slide.IsStepped 
-                    ? slide.StepDuration.Tick 
-                    : slide.HoldDuration.Tick;
-            }
-
-            var endTime = timedEvent.Time + noteDuration;
-
-            NoteOns.Add(new(timedEvent, note, endTime));
-        }
-        else if (timedEvent.Event is NoteOffEvent off)
-        {
-            var pair = NoteOns.Single(e => ((NoteOnEvent)e.TimedEvent.Event).NoteNumber == off.NoteNumber);
-            NoteOns.Remove(pair);
-        }
-    }
 
 
 }

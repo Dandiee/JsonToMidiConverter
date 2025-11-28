@@ -20,12 +20,9 @@ internal static class Converter
     private const ushort PitchBendCenter = 8192;
 
     public static readonly SevenBitNumber DefaultVelocity = 112.To7();
-    public static List<(long AbsoluteTime, MidiEvent Event)>[] ReferenceData;
-    public static readonly long StandardSlideStepSize = 960;
 
     public static MidiFile Convert(Song song, MidiFile referenceMidi)
     {
-        ReferenceData = GetReferenceMidiData(referenceMidi);
         var midiFile = new MidiFile { TimeDivision = new TicksPerQuarterNoteTimeDivision(TicksPerQuarter) };
         Time.Map = song.Parts[0].GetTempo(midiFile);
         midiFile.ReplaceTempoMap(Time.Map);
@@ -46,6 +43,12 @@ internal static class Converter
                     {
                         foreach (var note in beat.Notes.Where(e => !e.Rest))
                         {
+
+                            if (note.Is("N0 B5 V0 M48 P2"))
+                            {
+
+                            }
+
 
                             var start = note.GetStartTime();
                             var end = note.GetEndTime();
@@ -109,11 +112,17 @@ internal static class Converter
                                         strummul = 2;
                                     }
 
+                                    var noteStart = note.GetStartTime();
+                                    var noteEnd = note.GetEndTime();
+
                                     var holdFrom = start;
                                     var holdTo = holdFrom + slide.HoldDuration -
                                                  (note.Index * note.GetStrum().Tick / 2) * strummul;
 
-                                    On(events, note, note.NoteNumber, holdFrom, holdTo);
+                                    if (slide.PlayHold)
+                                    {
+                                        On(events, note, note.NoteNumber, holdFrom, holdTo);
+                                    }
 
                                     var startTime = slide.TimeDirection < 0 ? holdFrom : holdTo;
 
@@ -141,8 +150,8 @@ internal static class Converter
                                 var leftoverDuration = noteDuration - quarterDuration;
 
 
-                                events.Add(new ControlChangeEvent(1.To7(), 110.To7()), start, note);
-                                events.Add(new ControlChangeEvent(1.To7(), 0.To7()), end, note);
+                                //events.Add(new ControlChangeEvent(1.To7(), 110.To7()), start, note);
+                                //events.Add(new ControlChangeEvent(1.To7(), 0.To7()), end, note);
 
                                 if (!note.Tie) // tie roots are not ties, attack note is already playing
                                 {
@@ -175,7 +184,7 @@ internal static class Converter
                                 Debug.Assert(noteEnd != noteStart);
                                 Debug.Assert(noteEnd > noteStart);
 
-
+                                var w = note.GetNoteNumber();
                                 On(events, note, note.NoteNumber, noteStart, note.GetEndTime());
                             }
 
@@ -191,8 +200,8 @@ internal static class Converter
                 }
             }
 
-            Validate(events, part);
-            midiFile.Chunks.Add(events.ToTrackChunk());
+            Validate(events, part, referenceMidi);
+            //midiFile.Chunks.Add(events.ToTrackChunk());
         }
 
         return midiFile;
@@ -205,100 +214,34 @@ internal static class Converter
         events.Add(new NoteOffEvent((SevenBitNumber)noteNumber, DefaultVelocity), to, note);
     }
 
-    public static void Validate(Events events, Part part)
+    public static void Validate(Events events, Part part, MidiFile reference)
     {
-        var chunk = ReferenceData[part.PartId];
+        var chunk = reference.GetEvents(part.Index);
 
-        var isStarted = false;
-        for (var i = 0; i < chunk.Count; i++)
+        foreach (var measure in part.Measures)
         {
-            var referenceEvent = chunk[i];
-            isStarted |= referenceEvent.Event.Is<MarkerEvent>();
-
-            if (!isStarted) continue;
-            if (referenceEvent.Event.DeltaTime < 11 && referenceEvent.Event.Is<PitchBendEvent>()) continue;
-            if (referenceEvent.Event is MarkerEvent mark && mark.Text == "END_OF_VOICE") break;
-            if (referenceEvent.Event.EventType == MidiEventType.PitchBend)
+            var referenceEvents = chunk.GetMeasureEvents(measure);
+            foreach (var referenceEvent in referenceEvents.Where(e => e.Event is NoteEvent))
             {
-                var pitchBendEventsCount = 0;
-                for (; chunk[i + pitchBendEventsCount].Event.EventType == MidiEventType.PitchBend; pitchBendEventsCount++) ;
-                if (pitchBendEventsCount > 10)
-                {
-                    i += pitchBendEventsCount - 1;
-                    continue;
-                }
-            }
-            if (referenceEvent.Event is ControlChangeEvent cc && cc.ControlNumber == 1) continue; // i have no fuckin clue how do you know if its a slight vibrato
+                var match = events
+                    .Where(e => e.Event.Event.EventType == referenceEvent.Event.EventType)
+                    .Where(e =>
+                        e.Event.Event is NoteEvent on &&
+                        referenceEvent.Event is NoteEvent ron &&
+                        on.NoteNumber == ron.NoteNumber &&
+                        on.Channel == ron.Channel)
+                    .OrderBy(e => Math.Abs(e.Event.Time - referenceEvent.Time))
+                    .First();
 
-            var cursor = i + 2;
-            var time = referenceEvent.AbsoluteTime;
-            var type = referenceEvent.Event.EventType;
-            var partDetails = $"P{part.Index} {part.Name} - {part.Instrument}";
+                var acceptableDrift = (match.Note.Index + 1) * 15;
+                var distance = Math.Abs(match.Event.Time - referenceEvent.Time);
+                var referenceIndex = referenceEvent.Index;
+                var partDetails = part.ToString();
 
-            var matchesByTime = events.Where(e => Math.Abs(e.Time - referenceEvent.AbsoluteTime) < 11).Where(e => e.Event.EventType == referenceEvent.Event.EventType).ToList();
-            var closest = events.Where(e => e.Event.EventType == referenceEvent.Event.EventType).MinBy(e => Math.Abs(e.Time - referenceEvent.AbsoluteTime));
-            var distance = closest.Time - referenceEvent.AbsoluteTime;
-
-            if (matchesByTime.Count > 1)
-            {
-                if (referenceEvent.Event.Is<ChannelEvent>()) matchesByTime = matchesByTime.Where(e => e.Event.As<ChannelEvent>().Channel == referenceEvent.Event.As<ChannelEvent>().Channel).ToList();
-                if (referenceEvent.Event.Is<NoteEvent>()) matchesByTime = matchesByTime.Where(e => e.Event.As<NoteEvent>().NoteNumber == referenceEvent.Event.As<NoteEvent>().NoteNumber).ToList();
-                if (referenceEvent.Event.Is<ControlChangeEvent>()) matchesByTime = matchesByTime.Where(e => e.Event.As<ControlChangeEvent>().ControlValue == referenceEvent.Event.As<ControlChangeEvent>().ControlValue).ToList();
-                if (referenceEvent.Event.Is<ControlChangeEvent>()) matchesByTime = matchesByTime.Where(e => e.Event.As<ControlChangeEvent>().ControlValue == referenceEvent.Event.As<ControlChangeEvent>().ControlValue).ToList();
-                if (referenceEvent.Event.Is<PitchBendEvent>()) matchesByTime = matchesByTime.OrderBy(e => Math.Abs(e.Time - referenceEvent.AbsoluteTime)).Take(1).ToList();
-            }
-
-            var asd = matchesByTime.Select(e => new
-            {
-                IndexOf = events.TimedEvents.IndexOf(e),
-                Itme = e
-            }).ToList();
-
-            var match = matchesByTime.Single();
-
-            if (match.Is<NoteEvent>())
-            {
-                Debug.Assert(match.As<NoteEvent>().NoteNumber == referenceEvent.Event.As<NoteEvent>().NoteNumber);
-            }
-
-            if (match.Is<ChannelEvent>())
-            {
-                Debug.Assert(match.As<ChannelEvent>().Channel == referenceEvent.Event.As<ChannelEvent>().Channel);
-            }
-
-            if (match.Is<ControlChangeEvent>())
-            {
-                Debug.Assert(match.As<ControlChangeEvent>().ControlNumber == referenceEvent.Event.As<ControlChangeEvent>().ControlNumber);
-                Debug.Assert(match.As<ControlChangeEvent>().ControlValue == referenceEvent.Event.As<ControlChangeEvent>().ControlValue);
-            }
-
-            if (match.Is<TextEvent>())
-            {
-                Debug.Assert(match.As<TextEvent>().Text == referenceEvent.Event.As<TextEvent>().Text);
-            }
-
-            if (match.Is<SetTempoEvent>())
-            {
-                Debug.Assert(match.As<SetTempoEvent>().MicrosecondsPerQuarterNote == referenceEvent.Event.As<SetTempoEvent>().MicrosecondsPerQuarterNote);
+                Debug.Assert(acceptableDrift > distance);
             }
         }
-    }
 
-    public static bool AreVerySame(TimedEvent lhs, TimedEvent rhs)
-    {
-        if (lhs.Event.EventType != rhs.Event.EventType) return false;
-        if (lhs.Time != rhs.Time) return false;
-
-        var props = lhs.Event.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public);
-        foreach (var prop in props)
-        {
-            var lhsValue = prop.GetValue(lhs);
-            var rhsValue = prop.GetValue(rhs);
-
-            if (lhsValue.ToString() != rhsValue.ToString()) return false;
-        }
-
-        return true;
     }
 
     public static void AddMeasureMarker(Events events, Measure measure)
@@ -365,31 +308,4 @@ internal static class Converter
                 null, null, part.PartId);
         }
     }
-
-    private static List<(long AbsoluteTime, MidiEvent Event)>[] GetReferenceMidiData(MidiFile referenceMidi)
-    {
-        var results = new List<(long AbsoluteTime, MidiEvent Event)>[referenceMidi.Chunks.Count];
-
-        for (var i = 0; i < referenceMidi.Chunks.Count; i++)
-        {
-            results[i] = new List<(long AbsoluteTime, MidiEvent Event)>();
-            var time = 0l;
-            foreach (var midiEvent in (referenceMidi.Chunks[i] as TrackChunk)!.Events)
-            {
-
-                if (time == 0 && (midiEvent is TimeSignatureEvent || midiEvent is SetTempoEvent))
-                {
-                    continue;
-                }
-
-                time += midiEvent.DeltaTime;
-                results[i].Add(new(time, midiEvent));
-
-            }
-        }
-
-        return results;
-    }
-
-
 }

@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Text.Json.Serialization;
+using Melanchall.DryWetMidi.Interaction;
 
 namespace JsonToMidiConverter.Models.Song;
 
@@ -14,7 +15,6 @@ public sealed partial class Beat
     [JsonIgnore] public Time MusicalDuration { get; private set; }
     [JsonIgnore] public Time RelativeBeatStartTime { get; private set; }
     [JsonIgnore] public Time AbsoluteBeatStartTime { get; private set; }
-    [JsonIgnore] public List<Nóta> ReversedNotes { get; set; }
     [JsonIgnore] public byte Numerator => (byte)Duration[0];
     [JsonIgnore] public byte Denominator => (byte)Duration[1];
     [JsonIgnore] public bool IsAccord { get; private set; }
@@ -45,6 +45,12 @@ public sealed partial class Beat
             Previous.Next = this;
         }
 
+
+        if (!Part.IsPianoLike) // for piano we dont change the fuckin note order
+        {
+            Notes = Notes.OrderByDescending(e => e.StringNumber).ToList();
+        }
+
         for (var i = 0; i < Notes.Count; i++)
         {
             Notes[i].SetNavigation(this, i);
@@ -53,8 +59,6 @@ public sealed partial class Beat
 
     public void Build()
     {
-        ReversedNotes = Notes;
-
         MusicalDuration = Previous?.GraceNote == "onBeat"
             ? new Time(Duration[0], Duration[1]) - Previous.MusicalDuration
             : new Time(Duration[0], Duration[1]);
@@ -67,18 +71,7 @@ public sealed partial class Beat
 
         AbsoluteBeatStartTime = Measure.StartTime + RelativeBeatStartTime;
 
-
-        Notes = Notes.OrderBy(e => e.StringNumber).ToList();
-
-        if (!Part.IsPianoLike) // for piano we dont change the fuckin note order
-        {
-            //Notes = Notes.Reverse().ToArray();
-        }
-
-        for (var i = 0; i < Notes.Count; i++)
-        {
-            Notes[i].Build(this, i);
-        }
+        Notes.ForEach(e => e.Build());
     }
 
     public bool Is(string nameplate) => nameplate == $"{this}";
