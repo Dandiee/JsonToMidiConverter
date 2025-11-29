@@ -2,8 +2,10 @@
 using JsonToMidiConverter.Models.Song;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
+using Melanchall.DryWetMidi.MusicTheory;
 using System.Diagnostics;
 using System.Reflection;
+using System.Runtime;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -12,7 +14,46 @@ using Slide = JsonToMidiConverter.Context.Slide;
 
 namespace JsonToMidiConverter.Test;
 
-public record MidiNoteEvent(TimedMidiEvent On, TimedMidiEvent Off);
+public record MidiNoteEvent(TimedMidiEvent On, TimedMidiEvent Off)
+{
+
+    public long Duration => Off.Time - On.Time;
+
+    public bool IsMatching(int channel, int noteNumber)
+    {
+        var on = On.Event as NoteEvent;
+        return on.NoteNumber == noteNumber && on.Channel == channel;
+    }
+}
+
+
+public class SlideCase
+{
+    public List<InputNoteInfo> InputSourceNotes { get; set; } = [];
+    public List<InputNoteInfo> InputDestinationNotes { get; set; } = [];
+    public List<OutputNoteInfo> OutputNotes { get; set; } = [];
+}
+
+public class InputNoteInfo
+{
+    public string Id { get; set; }
+    public bool IsEntryPoint { get; set; }
+    public long BeatStartsAtTick { get; set; }
+    public long DurationTick { get; set; }
+    public int NumberOfDots { get; set; }
+    public string Slide { get; set; }
+    public string? TargetNoteId { get; set; }
+    public int Fret { get; set; }
+}
+
+public class OutputNoteInfo
+{
+    public int NoteNumber { get; set; }
+    public long StartsPlayingAt { get; set; }
+    public long StopsPlayingAt { get; set; }
+    public long PlayDuration { get; set; }
+}
+
 
 public static class Dumper
 {
@@ -27,7 +68,6 @@ public static class Dumper
             [MidiEventType.ControlChange] = "Control",
         };
 
-    public static readonly HashSet<string> KnownFuckedUpMeasures = new[] { "M3 P6", "M17 P1" }.ToHashSet();
 
     public static readonly IReadOnlyDictionary<Type, JsonSerializerOptions> JsonOptions =
         new Dictionary<Type, JsonSerializerOptions>
@@ -45,6 +85,324 @@ public static class Dumper
     {
         "Channel", "DeltaTime", "EventType", "NoteNumber"
     }.ToHashSet();
+
+    public static long slideAttempt1(Nota note)
+    {
+        var targetPitch = note.GetSlideTargetPitch();
+        var pitchDistance = Math.Abs(targetPitch - note.NoteNumber);
+
+        int bridgeSteps = pitchDistance > 1 ? pitchDistance - 1 : 1;
+        double ratio = note.Slide == Slide.Shift 
+            ? 0.5 
+            : 0.75; // Default for Downwards/Upwards/Below
+        
+        if (note.Slide == Slide.Legato)
+        {
+            ratio = targetPitch > note.NoteNumber ? 0.5 : 0.25;
+        }
+
+        var maxSlideDuration = (long)(note.ActualDuration.Tick * ratio);
+
+        if (bridgeSteps * 960 <= maxSlideDuration) 
+            return 960;
+        
+        return maxSlideDuration / bridgeSteps;
+    }
+
+    public static long slideAttempt2(Nota note)
+    {
+        // 1. Calculate Distances
+        var targetPitch = note.GetSlideTargetPitch();
+        var pitchDistance = Math.Abs(targetPitch - note.NoteNumber);
+        int bridgeSteps = (pitchDistance > 1) ? pitchDistance - 1 : 1;
+
+        // 2. Determine Ratio based on Slide Type
+        // Legato and Shift are stricter (50%), while Indeterminate slides use 75%.
+        double ratio = 0.75;
+        if (note.Slide == Context.Slide.Legato || note.Slide == Context.Slide.Shift)
+        {
+            ratio = 0.50;
+        }
+
+        // 3. Calculate Durations
+        long maxSlideDuration = (long)(note.ActualDuration.Tick * ratio);
+        long idealSlideDuration = bridgeSteps * 960;
+        long stepDuration;
+
+        // 4. Decision
+        if (idealSlideDuration <= maxSlideDuration)
+        {
+            return 960;
+        }
+        else
+        {
+            return maxSlideDuration / bridgeSteps;
+        }
+    }
+
+    public static long slideAttempt3(Nota note)
+    {
+        // 1. Calculate the Target Pitch and Distance
+        var targetPitch = note.GetSlideTargetPitch();
+        var pitchDistance = Math.Abs(targetPitch - note.NoteNumber);
+
+        // 2. Bridge Steps Logic
+        int bridgeSteps = (pitchDistance > 1) ? pitchDistance - 1 : 1;
+
+        // 3. Determine the Ratio (Asymmetric for Legato)
+        double ratio = 0.75; // Default for Indeterminate (Up/Down/Below)
+
+        if (note.Slide == Context.Slide.Shift)
+        {
+            ratio = 0.5;
+        }
+        else if (note.Slide == Context.Slide.Legato)
+        {
+            // Legato is strictly tighter when going Downwards
+            bool isUpwards = targetPitch > note.NoteNumber;
+            ratio = isUpwards ? 0.5 : 0.25;
+        }
+
+        // 4. Calculate Durations
+        long maxSlideDuration = (long)(note.ActualDuration.Tick * ratio);
+        long idealSlideDuration = bridgeSteps * 960;
+
+        long stepDuration;
+
+        // 5. Decision Logic
+        if (idealSlideDuration <= maxSlideDuration)
+        {
+            return 960;
+        }
+        else
+        {
+            return maxSlideDuration / bridgeSteps;
+        }
+
+    }
+
+    public static long slideAttempt4(Nota note)
+    {
+        // 1. Calculate Distance
+        var targetPitch = note.GetSlideTargetPitch();
+        var pitchDistance = Math.Abs(targetPitch - note.NoteNumber);
+        int bridgeSteps = (pitchDistance > 1) ? pitchDistance - 1 : 1;
+
+        // 2. Determine Ratio
+        double ratio = 0.75; // Default for Upwards/Downwards/Below
+
+        if (note.Slide == Context.Slide.Shift)
+        {
+            ratio = 0.5;
+        }
+        else if (note.Slide == Context.Slide.Legato)
+        {
+            // Default Legato ratio is 50%
+            ratio = 0.5;
+
+            var targetNote = note.GetSlideTargetNote();
+            // EXCEPT when Legato flows into a Shift slide (Chain).
+            // In that specific case, it compresses to 25%.
+            if (targetNote != null && targetNote.Slide == Slide.Shift)
+            {
+                ratio = 0.25;
+            }
+        }
+
+        // 3. Calculate Durations
+        long maxSlideDuration = (long)(note.ActualDuration.Tick * ratio);
+        long idealSlideDuration = bridgeSteps * 960;
+
+        long stepDuration;
+
+        // 4. Decision
+        if (idealSlideDuration <= maxSlideDuration)
+        {
+            return 960;
+        }
+        else
+        {
+            return maxSlideDuration / bridgeSteps;
+        }
+    }
+
+    public static void TestSlides(Song song, MidiFile midi, RecordModel record)
+    {
+        AssignNotesToMidiEvents(song, midi);
+
+        var notes = song.Parts
+            .SelectMany(e => e.Measures)
+            .SelectMany(e => e.Voices)
+            .SelectMany(e => e.Beats)
+            .SelectMany(e => e.Notes);
+
+        var multiEventNotes = notes
+            .Where(e => e.MidiNoteEvents.Count > 1)
+            .Where(e => e.SourceSlide == Slide.None)
+            .Where(e => e.Part.InstrumentId != 1024)
+            .ToList();
+        Debug.Assert(multiEventNotes.Count == 0);
+
+        var slides = notes.Where(e => e.Slide != Slide.None) // its a slide
+            .Where(e => e.Index == 0) // its a leading attack note
+                                      //.Where(e => e.MidiNoteEvents.Count > 1) // its not pitch bending
+            .ToList();
+
+        var results = new List<SlideCase>();
+
+        foreach (var note in slides)
+        {
+            var slide = note.GetSlide();
+
+            if (!slide.IsStepped) continue;
+
+            if (note.Is("N0 B6 V0 M27 P8"))
+            {
+
+            }
+
+            var events = (note.TieDetails?.Source ?? note).MidiNoteEvents;
+
+            var attackNote = events[0];
+            var steps = events.Count - 1;
+            if (steps == 0)
+            {
+                //continue;
+            }
+            var REFERENCE_HoldDuration = attackNote.Off.Time - attackNote.On.Time;
+            var REFERENCE_StepDuration = steps == 0 ? 0 : events.Skip(1)
+                .Average(e => e.Off.Time - e.On.Time);
+            var REFERENCE_totalDuration = REFERENCE_StepDuration * steps + REFERENCE_StepDuration;
+            var REFERENCE_tieDuration = note.TieDetails?.FullDuration.Tick ?? 0;
+            var REFERENCE_attackNoteDuration = note.ActualDuration;
+            var REFERENCE_slideWindow = events.Skip(1).Sum(e => e.Off.Time - e.On.Time);
+            var REFERENCE_targetPitch = (events.Last().On.Event as NoteEvent).NoteNumber;
+
+
+
+
+            var stepDuration = slideAttempt1(note);
+            //stepDuration = slideAttempt2(note);
+            //stepDuration = slideAttempt1(note);
+
+            // Validation
+            var error = Math.Abs(stepDuration - REFERENCE_StepDuration);
+            // ... rest of your error handling
+            if (error > 5)
+            {
+                var part = note.Part.Name + " - " + note.Part.Instrument;
+                var id = $"{note} S{note.Song.SongId}";
+                throw new Exception(
+                    "Why do I have to run these tests manually if I sent the test cases for the AI and it made the algo?");
+            }
+            else
+            {
+
+            }
+
+
+            if (note.Slide == Slide.Legato || note.Slide == Slide.Shift)
+            {
+
+
+            }
+
+            if (error > 5)
+            {
+
+            }
+
+            var affectedNotes = new List<InputNoteInfo>();
+
+
+
+            var affectedDestinationNotes = new List<InputNoteInfo>();
+            var target = note.GetSlideTargetNote();
+
+            if (target != null)
+            {
+                if (target.TieDetails != null)
+                {
+                    foreach (var tieNote in target.TieDetails.FullChain)
+                    {
+                        affectedDestinationNotes.Add(CreateInputNoteInfo(tieNote, null, false));
+                    }
+                }
+                else affectedDestinationNotes.Add(CreateInputNoteInfo(target, null, false));
+            }
+
+            if (note.TieDetails != null)
+            {
+                foreach (var tieNote in note.TieDetails.FullChain)
+                {
+                    var isTheSource = tieNote == note;
+
+                    affectedNotes.Add(CreateInputNoteInfo(tieNote, isTheSource ? target : null, isTheSource));
+                }
+            }
+            else affectedNotes.Add(CreateInputNoteInfo(note, target, true));
+
+
+            var sourceNote = note.Tie
+                ? note.TieDetails.Source
+                : note;
+
+            if (affectedNotes.Count > 1)
+            {
+
+            }
+
+            results.Add(new SlideCase
+            {
+                InputSourceNotes = affectedNotes,
+                InputDestinationNotes = affectedDestinationNotes,
+                OutputNotes = sourceNote.MidiNoteEvents.Select(CreateOutputNoteInfo).ToList()
+            });
+
+            //var targetPitch = GetTargetPitch(note);
+            //var semitoneDistance = targetPitch - note.NoteNumber;
+            //var slideSteps = Math.Abs(semitoneDistance) - 1;
+        }
+
+        File.WriteAllText($"Slides_{song.SongId}.json", JsonSerializer.Serialize(results));
+    }
+
+    public static OutputNoteInfo CreateOutputNoteInfo(MidiNoteEvent note)
+    {
+        var on = note.On.Event as NoteEvent;
+        return new OutputNoteInfo
+        {
+            NoteNumber = on.NoteNumber,
+            PlayDuration = note.Off.Time - note.On.Time,
+            StartsPlayingAt = note.On.Time,
+            StopsPlayingAt = note.Off.Time
+        };
+    }
+
+    public static InputNoteInfo CreateInputNoteInfo(Nota note, Nota? targetNote, bool isTheSource)
+    {
+        return new InputNoteInfo()
+        {
+            Id = $"{note} S{note.Song.SongId}",
+            BeatStartsAtTick = note.Beat.AbsoluteBeatStartTime.Tick,
+            DurationTick = note.ActualDuration.Tick,
+            NumberOfDots = note.Beat.Dots,
+            Fret = note.Fret,
+            TargetNoteId = targetNote == null ? null : $"{targetNote} S{targetNote.Song.SongId}",
+            Slide = note.Slide.ToString(),
+            IsEntryPoint = true
+        };
+    }
+
+    public static int GetTargetPitch(Nota note)
+    {
+        if (note.SourceSlide == Slide.Shift) return note.GetNextStringSibling().NoteNumber;
+        if (note.SourceSlide == Slide.Downwards) return (note.NoteNumber - Math.Min(10, note.Fret)).To7();
+        if (note.SourceSlide == Slide.Upwards) return (note.NoteNumber + 10).To7();
+        if (note.SourceSlide == Slide.Legato) return note.GetNextStringSibling().NoteNumber;
+        if (note.SourceSlide == Slide.Below) return (note.NoteNumber - Math.Min(10, note.Fret)).To7();
+        throw new Exception("what slide");
+    }
 
     public static void Dump(Song song, MidiFile midi, RecordModel record)
     {
@@ -79,14 +437,14 @@ public static class Dumper
                     sb.AppendLine($"\r\n\r\n{voice}, Input = {GetJson(voice)}");
                     foreach (var beat in voice.Beats.Where(e => !e.Rest))
                     {
-                        sb.AppendLine($"\r\n\t{beat}, Attr = [{GetAttributes(beat)}], Input = {GetJson(beat)}");
+                        sb.AppendLine($"\r\n\t{beat}, Starts: {beat.AbsoluteBeatStartTime.Tick}, Attr = [{GetAttributes(beat)}], Input = {GetJson(beat)}");
                         foreach (var note in beat.Notes)
                         {
 
                             var slideMarker = note.Slide != Slide.None ? $" Slide = {note.Slide} " : "";
                             var tieMarker = note.Tie ? " Tie " : "";
 
-                            sb.AppendLine($"\t\t{note} {slideMarker}{tieMarker} CH {note.Channel}, NN {note.NoteNumber} Attr = [{GetAttributes(beat)}] Input = {GetJson(note)}");
+                            sb.AppendLine($"\t\t{note} {slideMarker}{tieMarker} CH {note.Channel}, NN {note.NoteNumber} Dur: {note.ActualDuration.Tick}, Attr = [{GetAttributes(beat)}] Input = {GetJson(note)}");
 
                             if (note.Is("N0 B5 V0 M20 P0"))
                             {
@@ -96,6 +454,17 @@ public static class Dumper
                             foreach (var midiNoteEvent in note.MidiNoteEvents)
                             {
                                 sb.AppendLine($"\t\t\t {GetMidiEventString(midiNoteEvent.On, midiNoteEvent.Off.Time)}");
+                            }
+
+                            if (note.MidiNoteEvents.Count > 1)
+                            {
+                                var total = note.MidiNoteEvents.Sum(e => e.Duration);
+                                var hold = note.MidiNoteEvents.OrderByDescending(e => e.Duration).First().Duration;
+                                var slide = total - hold;
+                                var steps = note.MidiNoteEvents.Count - 1;
+                                var ratio = (double)slide / total;
+                                
+                                sb.AppendLine($"\t\t\t ----- Total: {total}, Hold: {hold}, Slide: {slide}, Steps: {steps}, Slide Ratio: {ratio:P2}");
                             }
 
                         }
@@ -110,10 +479,10 @@ public static class Dumper
         File.WriteAllText($"{record.Title}_Bible", sb.ToString());
     }
 
-    private static bool IsMatchingNoteEvent(MidiEvent midiEvent, Nóta note)
+    private static bool IsMatchingNoteEvent(MidiEvent midiEvent, Nota note)
         => midiEvent is NoteEvent noteEvent && noteEvent.Channel == note.Channel && noteEvent.NoteNumber == note.NoteNumber;
 
-    public static bool ShouldISkipThisBecauseTheyFuckedUpTheirMidi(Nóta note)
+    public static bool ShouldISkipThisBecauseTheyFuckedUpTheirMidi(Nota note)
     {
         if (note.Song.SongId == 14) // come as you are
         {
@@ -224,7 +593,7 @@ public static class Dumper
                     .SkipWhile(e => !IsMatchingNoteEvent(e.On.Event, note))
                     .First();
 
-                
+
 
                 var measureFound = false;
                 for (var m = noteEvent.On.Index; m > -1; m--)
@@ -248,7 +617,7 @@ public static class Dumper
 
                 var nextChannelNote = notes
                     .Skip(i + 1)
-                    .SkipWhile(e => !(e.Part.InstrumentId == 1024 
+                    .SkipWhile(e => !(e.Part.InstrumentId == 1024
                 ? e.NoteNumber == note.NoteNumber
                 : e.StringNumber == note.StringNumber))
                     // TODO: maybe this should be ch comparis
@@ -256,18 +625,18 @@ public static class Dumper
                     .FirstOrDefault();
 
                 var nextChannelNoteEvent = nextChannelNote != null
-                    ? events.SkipWhile(e => !(IsMatchingNoteEvent(e.On.Event, nextChannelNote) && 
-                                              e.On.Time >= nextChannelNote.Beat.AbsoluteBeatStartTime.Tick )).First()
+                    ? events.SkipWhile(e => !(IsMatchingNoteEvent(e.On.Event, nextChannelNote) &&
+                                              e.On.Time >= nextChannelNote.Beat.AbsoluteBeatStartTime.Tick)).First()
                     : null;
 
                 var nextChannelNoteEventIndex = nextChannelNoteEvent?.On.Index ?? int.MaxValue;
-              
+
                 var inBetweenNotes = events
                     .SkipWhile(e => e.On.Index <= noteEvent.On.Index)
                     .TakeWhile(e => e.On.Index < nextChannelNoteEventIndex)
-                    .Where(e => e.On.Event is NoteOnEvent on && 
+                    .Where(e => e.On.Event is NoteOnEvent on &&
                                 (
-                                    on.Channel == 9 
+                                    on.Channel == 9
                                         ? on.NoteNumber == nn
                                         : on.Channel == ch))
                     .ToList();
@@ -321,11 +690,11 @@ public static class Dumper
                     foreach (var beat in voice.Beats)
                     {
                         var n = 0;
-                        sb.AppendLine($"\t\t\tB{b} V{v} M{m} P{p} {GetJson(beat)}");
+                        sb.AppendLine($"\t\t\tB{b} V{v} M{m} P{p} Starts: {beat.AbsoluteBeatStartTime.Tick} {GetJson(beat)}");
                         foreach (var note in beat.Notes)
                         {
 
-                            sb.AppendLine($"\t\t\t\tN{n} B{b} V{v} M{m} P{p} {GetJson(note)}");
+                            sb.AppendLine($"\t\t\t\tN{n} B{b} V{v} M{m} P{p} Dur: {note.ActualDuration.Tick} {GetJson(note)}");
                             n++;
                         }
 
@@ -447,7 +816,7 @@ public static class Dumper
     {
         return model switch
         {
-            Nóta note => string.Join(", ", note.Rest ? "Rest" : "", note.Tie ? "Tie" : ""),
+            Nota note => string.Join(", ", note.Rest ? "Rest" : "", note.Tie ? "Tie" : ""),
             Beat beat => string.Join(", ", beat.Rest ? "Rest" : ""),
 
             _ => string.Empty

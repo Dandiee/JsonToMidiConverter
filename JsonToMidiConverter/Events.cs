@@ -12,7 +12,7 @@ using Slide = JsonToMidiConverter.Context.Slide;
 
 namespace JsonToMidiConverter;
 
-public record ProcessedEvent(TimedEvent Event, Nóta Note);
+public record ProcessedEvent(TimedEvent Event, Nota Note);
 
 [DebuggerDisplay("[{TimedEvents.Count} Last at [{LastEvent.Time}]: {LastNote}]")]
 public class Events : IEnumerable<ProcessedEvent>
@@ -21,7 +21,7 @@ public class Events : IEnumerable<ProcessedEvent>
     public List<ProcessedEvent> TimedEvents { get; private set; } = new();
     public IReadOnlyList<ProcessedEvent> Recap { get; private set; }
     public ProcessedEvent? LastEvent { get; private set; }
-    public Nóta? LastNote { get; private set; }
+    public Nota? LastNote { get; private set; }
 
     public ProcessedEvent this[int index] => TimedEvents[index];
     public int Count => TimedEvents.Count;
@@ -32,7 +32,7 @@ public class Events : IEnumerable<ProcessedEvent>
     public TimedEvent Add(
         MidiEvent midiEvent,
         Time time,
-        Nóta? note,
+        Nota? note,
         int? channelOverride = null,
         int? partId = null,
         SevenBitNumber? noteNumberOverride = null)

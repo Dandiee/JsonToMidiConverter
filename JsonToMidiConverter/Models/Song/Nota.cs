@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace JsonToMidiConverter.Models.Song;
 
 [DebuggerDisplay("N{Index} B{Beat.Index} M{Measure.Index} P{Part.Index} STR{StringNumber}/FRT{Fret} NN{NoteNumber}")]
-public sealed partial class Nóta
+public sealed partial class Nota
 {
     public int Fret { get; set; }
     [JsonPropertyName("string")]
@@ -25,7 +25,7 @@ public sealed partial class Nóta
     public List<double> Tremolo { get; set; } = [];
     public bool WideVibrato { get; set; }
 
-    public Nóta Clone() => new()
+    public Nota Clone() => new()
     {
         Fret = Fret,
         StringNumber = StringNumber,

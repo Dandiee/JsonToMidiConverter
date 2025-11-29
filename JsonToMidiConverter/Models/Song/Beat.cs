@@ -5,7 +5,7 @@ namespace JsonToMidiConverter.Models.Song;
 [DebuggerDisplay("B{Index} M{Measure.Index} P{Part.Index}")]
 public partial class Beat
 {
-    public List<Nóta> Notes { get; set; } = [];
+    public List<Nota> Notes { get; set; } = [];
     public string Velocity { get; set; } = string.Empty;
     public int Type { get; set; }
     public bool PalmMute { get; set; }

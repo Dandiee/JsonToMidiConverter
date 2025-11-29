@@ -15,7 +15,7 @@ public record Slide(int Steps, Time HoldDuration, Time SlideWindow, Time StepDur
 
 
 [DebuggerDisplay("N{Index} B{Beat.Index} V{Voice.Index} M{Measure.Index} P{Part.Index}")]
-public sealed partial class Nóta
+public sealed partial class Nota
 {
     [JsonIgnore] public int Index { get; private set; }
     [JsonIgnore] public Beat Beat { get; private set; }
@@ -38,9 +38,10 @@ public sealed partial class Nóta
     [JsonIgnore] public TieContext? TieDetails { get; private set; }
     [JsonIgnore] public Tie TieType { get; private set; }
     [JsonIgnore] public Time PlayedDuration { get; private set; }
-    [JsonIgnore] public Nóta? Next { get; private set; }
-    [JsonIgnore] public Nóta? Previous { get; private set; }
+    [JsonIgnore] public Nota? Next { get; private set; }
+    [JsonIgnore] public Nota? Previous { get; private set; }
     [JsonIgnore] public bool LastInBeat { get; private set; }
+    [JsonIgnore] public Context.Slide SourceSlide { get; private set; }
 
     public void SetNavigation(Beat beat, int index)
     {
@@ -73,7 +74,8 @@ public sealed partial class Nóta
             : Beat.MusicalDuration.Clone();
 
 
-        ActualDuration = RawDuration;
+
+        ActualDuration = RawDuration * (2 - 1 / Math.Pow(2, Beat.Dots));
         WillBeTied = GetWillBeTied();
 
         if (Tie && !WillBeTied)
@@ -87,6 +89,20 @@ public sealed partial class Nóta
 
             TieDetails.Source.TieType = Models.Song.Tie.Source;
             TieDetails.Destination.TieType = Models.Song.Tie.Destination;
+        }
+
+        if (!Tie)
+        {
+            SourceSlide = Slide;
+        }
+        else if (!WillBeTied)
+        {
+            TieDetails.Source.SourceSlide = Slide;
+        }
+
+        if (Slide != Context.Slide.None && Tie && WillBeTied)
+        {
+            throw new Exception("i sure hope not!");
         }
 
     }
@@ -177,7 +193,7 @@ public sealed partial class Nóta
         return ActualDuration;
     }
 
-    public Nóta GetTie()
+    public Nota GetTie()
     {
         if (!Tie) throw new Exception("The note is not tied.");
 
@@ -195,7 +211,7 @@ public sealed partial class Nóta
         throw new Exception("If its a tie, why isnt there a next note");
     }
 
-    public IEnumerable<Nóta> GetTies()
+    public IEnumerable<Nota> GetTies()
     {
         if (!Tie) throw new Exception("The note is not tied.");
 
@@ -218,7 +234,7 @@ public sealed partial class Nóta
 
     public string GetName() => $"N{Index} B{Beat.Index} M{Measure.Index} P{Part.Index}";
 
-    public Nóta GetForwardTie()
+    public Nota GetForwardTie()
     {
         if (!WillBeTied) throw new Exception();
 
@@ -234,7 +250,7 @@ public sealed partial class Nóta
         }
     }
 
-    public IEnumerable<Nóta> GetForwardTies()
+    public IEnumerable<Nota> GetForwardTies()
     {
         if (!WillBeTied) throw new Exception();
 
@@ -254,7 +270,7 @@ public sealed partial class Nóta
         }
     }
 
-    public Nóta GetNextStringSibling()
+    public Nota GetNextStringSibling()
     {
         var nextBeat = Beat.Next;
         while (true)
@@ -285,7 +301,7 @@ public sealed partial class Nóta
 
         var duration = TieDetails?.Destination.ActualDuration ?? ActualDuration;
         
-        if (Tie)
+        if (Tie && steps > 1)
         {
             duration = TieDetails.Source.ActualDuration;
         }
@@ -380,7 +396,7 @@ public sealed partial class Nóta
         return nextBeat.Notes.Any(e => e.Tie && e.IsPitchEqual(this));
     }
 
-    public bool IsPitchEqual(Nóta note) => note.Fret == Fret && (int)note.StringNumber == (int)StringNumber;
+    public bool IsPitchEqual(Nota note) => note.Fret == Fret && (int)note.StringNumber == (int)StringNumber;
 
     public bool Is(string id) => id == ToString();
 
@@ -462,6 +478,17 @@ public sealed partial class Nóta
         return (openStringPitch + Fret + (int)HarmonicFret) + randomOffset;
     }
 
+    public Nota? GetSlideTargetNote()
+    {
+        if (Slide == Context.Slide.Shift) return GetNextStringSibling();
+        if (Slide == Context.Slide.Downwards) return null;
+        if (Slide == Context.Slide.Upwards) return null;
+        if (Slide == Context.Slide.Legato) return GetNextStringSibling();
+        if (Slide == Context.Slide.Below) return null;
+
+        throw new Exception("what slide");
+    }
+
     public SevenBitNumber GetSlideTargetPitch()
     {
         if (Slide == Context.Slide.Shift) return GetNextStringSibling().NoteNumber;
@@ -517,7 +544,7 @@ public sealed partial class Nóta
 
     public override string ToString() => $"N{Index} {Beat}";
 
-    public Nóta? GetNextDontUse()
+    public Nota? GetNextDontUse()
     {
         var currentBeat = Beat;
         var currentMeasure = Beat.Voice.Measure;
@@ -560,13 +587,13 @@ public enum Tie
 
 public sealed class TieContext
 {
-    public Nóta Source { get; }
-    public Nóta Destination { get; }
-    public IReadOnlyList<Nóta> InBetweenNotes { get; }
-    public IReadOnlyList<Nóta> FullChain { get; }
+    public Nota Source { get; }
+    public Nota Destination { get; }
+    public IReadOnlyList<Nota> InBetweenNotes { get; }
+    public IReadOnlyList<Nota> FullChain { get; }
     public Time FullDuration { get; }
 
-    public TieContext(Nóta destinationNote)
+    public TieContext(Nota destinationNote)
     {
         if (!destinationNote.Tie || destinationNote.WillBeTied) throw new Exception("no");
 

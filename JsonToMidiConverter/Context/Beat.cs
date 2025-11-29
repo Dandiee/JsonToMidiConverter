@@ -75,6 +75,9 @@ public sealed partial class Beat
             rawDuration -= nextGraceDuration;
         }
 
+        if (GraceNote != null && GraceNote != "onBeat" && GraceNote != "beforeBeat")
+            throw new Exception("wtf is this then");
+
         MusicalDuration = rawDuration;
 
         IsAccord = Notes.Count > 1;
