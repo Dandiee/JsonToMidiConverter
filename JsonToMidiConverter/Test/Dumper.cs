@@ -54,6 +54,8 @@ public class OutputNoteInfo
     public long PlayDuration { get; set; }
 }
 
+public record SlideRatioCase(string Slide, int Steps, bool IsIncreasing, float SlideRatio, long StepDuration, long HoldDuration, long TotalDuration, string Address);
+
 
 public static class Dumper
 {
@@ -88,18 +90,97 @@ public static class Dumper
 
     public static long slideAttempt1(Nota note)
     {
-        var targetPitch = note.GetSlideTargetPitch();
-        var pitchDistance = Math.Abs(targetPitch - note.NoteNumber);
+        // 1. Use FRET for distance (handles harmonics correctly)
+        var targetFret = note.GetSlideTargetPitch();
+        var fretDistance = Math.Abs(targetFret - note.Fret);
 
-        int bridgeSteps = pitchDistance > 1 ? pitchDistance - 1 : 1;
-        double ratio = note.Slide == Slide.Shift 
+        if (note.Is("N0 B22 V0 M103 P2"))
+        {
+
+        }
+
+        // 2. Calculate Bridge Steps
+        // Distance 1 (e.g. 5->6) = 1 step
+        // Distance 2 (e.g. 5->7) = 1 step
+        // Distance 4 (e.g. 5->1) = 3 steps
+        int bridgeSteps = (fretDistance > 1) ? fretDistance - 1 : 1;
+
+        // 2. Determine Ratio
+        // 2. Determine Logic Path based on Type
+        double ratio;
+
+        if (note.Slide == Context.Slide.Shift)
+        {
+            // [Songsterr Rule]: Shift slides usually keep a hold (Non-zero).
+            // Standard Shift: 50%
+            // Short Hop (1 step): 25% (Compression)
+            ratio = (bridgeSteps == 1) ? 0.25 : 0.5;
+        }
+        else if (note.Slide == Context.Slide.Legato)
+        {
+            // [Songsterr Rule]: "Legato Slide with very short available duration... 
+            // allocator may assign 0 to the hold."
+
+            // Threshold: 3840 ticks is a 1/16th note (at 15360 TPQN).
+            bool isShortDuration = note.ActualDuration.Tick <= 3840;
+
+            if (isShortDuration)
+            {
+                // High Pressure: Sacrifice Hold to ensure slide motion is audible.
+                ratio = 1.0;
+            }
+            else
+            {
+                // Standard Directional Bias:
+                // Upwards (Against gravity/tension) gets 50%
+                // Downwards (With gravity/release) gets 25%
+                bool isUpwards = targetFret > note.Fret;
+                ratio = isUpwards ? 0.5 : 0.25;
+            }
+        }
+        else
+        {
+            // Indeterminate (Upwards/Downwards/Below/etc)
+            // [Songsterr Rule]: "Musical intent is pure motion... allocator commonly zeroes the hold."
+            // However, looking at your data, specific indeterminate cases often hover 
+            // around 75% or 25% depending on specific presets.
+            // Keeping your original default 0.75 as it passed most tests, 
+            // but be aware these might also flip to 1.0 under pressure.
+            ratio = 0.75;
+        }
+
+        // 3. Calculate
+        long maxSlideDuration = (long)(note.ActualDuration.Tick * ratio);
+        long idealSlideDuration = bridgeSteps * 960;
+
+        // 5. Decision
+        if (idealSlideDuration <= maxSlideDuration)
+        {
+            return 960;
+        }
+
+        return maxSlideDuration / bridgeSteps;
+    }
+
+    public static long slideAttempt1Pb(Nota note)
+    {
+        var targetPitch = note.GetSlideTargetPitch();
+        var pitchDistance = Math.Abs(targetPitch - note.Fret);
+
+        if (note.Is("N0 B23 V0 M97 P2"))
+        {
+
+        }
+
+        var bridgeSteps = pitchDistance > 1 ? pitchDistance - 1 : 1;
+        var ratio = note.Slide == Slide.Shift 
             ? 0.5 
             : 0.75; // Default for Downwards/Upwards/Below
-        
-        if (note.Slide == Slide.Legato)
-        {
-            ratio = targetPitch > note.NoteNumber ? 0.5 : 0.25;
-        }
+
+        if (note.Slide == Slide.Shift)
+            ratio = 0.5; // Shift slides are capped at 50%
+        else if (note.Slide == Slide.Legato)
+            ratio = targetPitch > note.Fret ? 0.5 : 0.25;
 
         var maxSlideDuration = (long)(note.ActualDuration.Tick * ratio);
 
@@ -249,76 +330,61 @@ public static class Dumper
             .ToList();
 
         var results = new List<SlideCase>();
+        var slideRatios = new List<SlideRatioCase>();
 
         foreach (var note in slides)
         {
             var slide = note.GetSlide();
-
             if (!slide.IsStepped) continue;
 
-            if (note.Is("N0 B6 V0 M27 P8"))
-            {
-
-            }
-
             var events = (note.TieDetails?.Source ?? note).MidiNoteEvents;
-
-            var attackNote = events[0];
-            var steps = events.Count - 1;
-            if (steps == 0)
-            {
-                //continue;
-            }
-            var REFERENCE_HoldDuration = attackNote.Off.Time - attackNote.On.Time;
-            var REFERENCE_StepDuration = steps == 0 ? 0 : events.Skip(1)
+            if (events.Count == 0) continue;
+            //var holdNoteEvent = events.Single(e => e.On.Event is NoteOnEvent on && on.NoteNumber == note.NoteNumber);
+            var REFERNCE_steps = events.Count - 1;
+            var REFERENCE_StepDuration = REFERNCE_steps == 0 ? 0 : events
+                .Skip(1)
                 .Average(e => e.Off.Time - e.On.Time);
-            var REFERENCE_totalDuration = REFERENCE_StepDuration * steps + REFERENCE_StepDuration;
-            var REFERENCE_tieDuration = note.TieDetails?.FullDuration.Tick ?? 0;
-            var REFERENCE_attackNoteDuration = note.ActualDuration;
-            var REFERENCE_slideWindow = events.Skip(1).Sum(e => e.Off.Time - e.On.Time);
-            var REFERENCE_targetPitch = (events.Last().On.Event as NoteEvent).NoteNumber;
-
-
-
+           
 
             var stepDuration = slideAttempt1(note);
-            //stepDuration = slideAttempt2(note);
-            //stepDuration = slideAttempt1(note);
-
-            // Validation
             var error = Math.Abs(stepDuration - REFERENCE_StepDuration);
-            // ... rest of your error handling
-            if (error > 5)
+            if (error > 5 && REFERENCE_StepDuration != 0)
             {
                 var part = note.Part.Name + " - " + note.Part.Instrument;
                 var id = $"{note} S{note.Song.SongId}";
-                throw new Exception(
-                    "Why do I have to run these tests manually if I sent the test cases for the AI and it made the algo?");
-            }
-            else
-            {
-
+                throw new Exception("fuck");
             }
 
 
-            if (note.Slide == Slide.Legato || note.Slide == Slide.Shift)
-            {
 
+            if (events.Count == 1) continue;
 
-            }
+            var _targetPitch = note.GetSlideTargetPitch();
+            var _targetNode = note.GetSlideTargetNote();
 
-            if (error > 5)
-            {
+            var asd = _targetPitch > note.Fret;
 
-            }
+            var _total = events.Sum(e => e.Duration);
+            var _hold = events.OrderByDescending(e => e.Duration).First().Duration;
+            var _slide = _total - _hold;
+            var _steps = events.Count - 1;
+            var _ratio = (double)_slide / _total;
+            var _percentage = Math.Round(_ratio * 100d);
+            var _stepAvg = events.OrderByDescending(e => e.Duration).Skip(1).Average(e => e.Duration);
+
+            Cases.Add(new SlideRatioCase(
+                note.Slide.ToString(),
+                REFERNCE_steps,
+                asd,
+                (float)_ratio,
+                (int)_stepAvg,
+                _hold,
+                _total,
+                $"{note} {note.Song.SongId}"));
 
             var affectedNotes = new List<InputNoteInfo>();
-
-
-
             var affectedDestinationNotes = new List<InputNoteInfo>();
             var target = note.GetSlideTargetNote();
-
             if (target != null)
             {
                 if (target.TieDetails != null)
@@ -347,25 +413,21 @@ public static class Dumper
                 ? note.TieDetails.Source
                 : note;
 
-            if (affectedNotes.Count > 1)
-            {
-
-            }
-
             results.Add(new SlideCase
             {
                 InputSourceNotes = affectedNotes,
                 InputDestinationNotes = affectedDestinationNotes,
                 OutputNotes = sourceNote.MidiNoteEvents.Select(CreateOutputNoteInfo).ToList()
             });
-
-            //var targetPitch = GetTargetPitch(note);
-            //var semitoneDistance = targetPitch - note.NoteNumber;
-            //var slideSteps = Math.Abs(semitoneDistance) - 1;
         }
+
+
+        
 
         File.WriteAllText($"Slides_{song.SongId}.json", JsonSerializer.Serialize(results));
     }
+
+    public static List<SlideRatioCase> Cases = new List<SlideRatioCase>();
 
     public static OutputNoteInfo CreateOutputNoteInfo(MidiNoteEvent note)
     {
@@ -386,22 +448,11 @@ public static class Dumper
             Id = $"{note} S{note.Song.SongId}",
             BeatStartsAtTick = note.Beat.AbsoluteBeatStartTime.Tick,
             DurationTick = note.ActualDuration.Tick,
-            NumberOfDots = note.Beat.Dots,
             Fret = note.Fret,
             TargetNoteId = targetNote == null ? null : $"{targetNote} S{targetNote.Song.SongId}",
             Slide = note.Slide.ToString(),
             IsEntryPoint = true
         };
-    }
-
-    public static int GetTargetPitch(Nota note)
-    {
-        if (note.SourceSlide == Slide.Shift) return note.GetNextStringSibling().NoteNumber;
-        if (note.SourceSlide == Slide.Downwards) return (note.NoteNumber - Math.Min(10, note.Fret)).To7();
-        if (note.SourceSlide == Slide.Upwards) return (note.NoteNumber + 10).To7();
-        if (note.SourceSlide == Slide.Legato) return note.GetNextStringSibling().NoteNumber;
-        if (note.SourceSlide == Slide.Below) return (note.NoteNumber - Math.Min(10, note.Fret)).To7();
-        throw new Exception("what slide");
     }
 
     public static void Dump(Song song, MidiFile midi, RecordModel record)

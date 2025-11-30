@@ -278,6 +278,26 @@ public sealed partial class Nota
             var targetNote = nextBeat.Notes.SingleOrDefault(e => e.StringNumber == StringNumber);
             if (targetNote != null)
             {
+                if (targetNote != Next)
+                {
+
+                }
+
+                return targetNote;
+            }
+
+            nextBeat = nextBeat.Next;
+        }
+    }
+
+    public Nota GetPreviousStringSibling()
+    {
+        var nextBeat = Beat.Next;
+        while (true)
+        {
+            var targetNote = nextBeat.Notes.SingleOrDefault(e => e.StringNumber == StringNumber);
+            if (targetNote != null)
+            {
                 return targetNote;
             }
 
@@ -489,13 +509,13 @@ public sealed partial class Nota
         throw new Exception("what slide");
     }
 
-    public SevenBitNumber GetSlideTargetPitch()
+    public int GetSlideTargetPitch()
     {
-        if (Slide == Context.Slide.Shift) return GetNextStringSibling().NoteNumber;
-        if (Slide == Context.Slide.Downwards) return (NoteNumber - Math.Min(10, Fret)).To7();
-        if (Slide == Context.Slide.Upwards) return (NoteNumber + 10).To7();
-        if (Slide == Context.Slide.Legato) return GetNextStringSibling().NoteNumber;
-        if (Slide == Context.Slide.Below) return (NoteNumber - Math.Min(10, Fret)).To7();
+        if (Slide == Context.Slide.Shift) return GetNextStringSibling().Fret;
+        if (Slide == Context.Slide.Downwards) return (Fret - Math.Min(10, Fret)).To7();
+        if (Slide == Context.Slide.Upwards) return (Fret + 10).To7();
+        if (Slide == Context.Slide.Legato) return GetNextStringSibling().Fret;
+        if (Slide == Context.Slide.Below) return (Fret - Math.Min(10, Fret)).To7();
 
         throw new Exception("what slide");
     }

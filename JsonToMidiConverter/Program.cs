@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Text;
+using System.Text.Json;
 using JsonToMidiConverter;
 using JsonToMidiConverter.Models.Song;
 using JsonToMidiConverter.Test;
@@ -34,11 +35,25 @@ foreach (var pair in songPairs)
 
 
     var reference = GetNormalizedMidi(pair.Key);
-    //Dumper.TestSlides(song, reference, match);
+    Dumper.TestSlides(song, reference, match);
     //Converter.Convert(song, reference);
-    Dumper.Dump(song, reference, match);
+    //Dumper.Dump(song, reference, match);
 
 }
+
+var miniResults = Dumper.Cases.OrderByDescending(e => e.Slide).ThenByDescending(e => e.IsIncreasing)
+    .Where(e => !(e.StepDuration > 958 && e.StepDuration < 961))
+    .ToList();
+var sb = new StringBuilder();
+foreach (var res in miniResults)
+{
+    sb.AppendLine($"{res.SlideRatio:P2} {res.Slide,-9} {(res.IsIncreasing ? "Increase" : "Decrease")}, Steps: {res.Steps,2}, StepDur: {res.StepDuration,3}, HoldDur: {res.HoldDuration,5}, TotalDur: {res.TotalDuration,5}, Address: {res.Address,4}");
+}
+
+File.WriteAllText($"Slides_Mini.text", sb.ToString());
+File.WriteAllText($"Slides_Mini.json", JsonSerializer.Serialize(miniResults));
+
+
 
 static MidiFile GetNormalizedMidi(string file)
 {
