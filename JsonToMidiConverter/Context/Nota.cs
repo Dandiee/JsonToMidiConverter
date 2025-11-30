@@ -455,60 +455,44 @@ public sealed partial class Nota
 
         // öt az eltérés?
 
-
-        if (Harmonic == "natural")
+        if (Harmonic != null)
         {
-            switch (Fret) // Or note.harmonicFret
+            if (Harmonic == "natural")
             {
-                case 12: return (openStringPitch + 12);
-                case 7: return (openStringPitch + 19);
-                case 5: return (openStringPitch + 24);
-                case 4: return (openStringPitch + 28);
-                case 9: return (openStringPitch + 28); // 9th fret harmonic is same as 4th
-                case 3: return (openStringPitch + 31); // 3rd fret is +2 Octaves + 5th
+                switch (Fret) // Or note.harmonicFret
+                {
+                    case 12: return (openStringPitch + 12);
+                    case 7: return (openStringPitch + 19);
+                    case 5: return (openStringPitch + 24);
+                    case 4: return (openStringPitch + 28);
+                    case 9: return (openStringPitch + 28); // 9th fret harmonic is same as 4th
+                    case 3: return (openStringPitch + 31); // 3rd fret is +2 Octaves + 5th
+                    default: throw new Exception("");
+                }
             }
+            else if (Harmonic == "artificial")
+            {
+                switch ((int)HarmonicFret)
+                {
+                    case 12: return openStringPitch + Fret + 12;
+                    case 10: return openStringPitch + Fret + 12;
+                    case 5: return openStringPitch + Fret + 24;
+                    default: throw new Exception("");
+                }
+            }
+            else if (Harmonic == "pinch")
+            {
+                switch ((int)HarmonicFret)
+                {
+                    case 12: return openStringPitch + Fret + 12;
+                    default: throw new Exception("");
+                }
+            }
+            else throw new Exception("not suppoorted");
         }
 
-        if (Harmonic == "artificial")
-        {
-            switch ((int)HarmonicFret)
-            {
-                case 12: return openStringPitch + Fret + 12;
-                case 10: return openStringPitch + Fret + 12;
-                case 5: return openStringPitch + Fret + 24;
-            }
-        }
 
         return openStringPitch + Fret;
-
-        var q = this;
-        //if (Fret == 12) return openStringPitch;
-        var w = HarmonicFret;
-        // 4. STANDARD FRETTED NOTE
-
-        var randomOffset = Part.InstrumentId == 67
-            ? 10
-            : 0;
-
-        randomOffset = 0;
-        // 55 a target
-        if (Part.InstrumentId == 30)
-        {
-            //if (Fret == 12 && StringNumber == 4) return 45;
-        }
-
-        if (Part.InstrumentId == 27)
-        {
-            return openStringPitch + Fret + 0;
-        }
-
-        if (Part.InstrumentId == 33)
-        {
-            return 24 + Fret;
-        }
-
-
-        return (openStringPitch + Fret + (int)HarmonicFret) + randomOffset;
     }
 
     public Nota? GetSlideTargetNote()

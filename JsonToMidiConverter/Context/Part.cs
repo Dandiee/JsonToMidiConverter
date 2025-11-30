@@ -5,13 +5,15 @@ using Melanchall.DryWetMidi.Interaction;
 
 namespace JsonToMidiConverter.Models.Song;
 
-[DebuggerDisplay("P{Index} {Instrument} {Name}")]
+[DebuggerDisplay("P{Index} {Song.Name} {Instrument} {Name}")]
 public sealed partial class Part
 {
     [JsonIgnore] public int Index { get; private set; }
     [JsonIgnore]public Song Song { get; private set; }
     [JsonIgnore]public bool IsPianoLike { get; private set; }
     [JsonIgnore]public TempoMap TempoMap { get; private set; }
+    [JsonIgnore] public string FullName { get; private set; }
+    [JsonIgnore] public Time AnacrusisOffset { get; set; }
 
     public void Build(Song song, int index)
     {
@@ -19,6 +21,7 @@ public sealed partial class Part
         Index = index;
         Song = song;
         IsPianoLike = PianoLikeInstruments.Contains(InstrumentId);
+        FullName = $"{song.Name} {Instrument} {Name}";
 
         Measures = GetLinearMeasures();
 

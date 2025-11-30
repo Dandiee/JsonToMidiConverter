@@ -11,21 +11,6 @@ using Melanchall.DryWetMidi.Tools;
 using Slide = JsonToMidiConverter.Context.Slide;
 
 
-var songPairs = new Dictionary<string, string>
-{
-    [@"References\Linkin Park-In The End-11-12-2025(3).mid"] = "In the end",
-    [@"References\Nirvana.mid"] = "Come as you are",
-    //[@"References\Tool.mid"] = "Pneuma",
-    //    [@"References\LedZeppelin.mid"] = "Stairway to heaven",
-    //[@"References\Metallica.mid"] = "Nothing else matters",
-    [@"References\Rage Against The Machine-Killing in the Name-11-24-2025.mid"] = "Killing in the name",
-    [@"References\Red Hot Chili Peppers-Can't Stop-11-15-2025.mid"] = "Can't stop"
-};
-
-//await Database.RefreshSong(385697);
-
-var records = Database.GetTop50();
-
 var midis = Directory.GetFiles("FreshSong");
 
 foreach (var midiPath in midis)
@@ -37,16 +22,15 @@ foreach (var midiPath in midis)
     var record = Database.Search(artist, title).First();
     var song = Database.GetMidiData(record.SongId);
 
-    //var midiFileName = $"{SanitizeRecordName(midiPath.Artist)}-{SanitizeRecordName(midiPath.Title)}-";
-    //var midiFilePath = Directory.GetFiles("FreshSong", $"{midiFileName}*").Single();
-
     var mid = new MidiFile { TimeDivision = Converter.Tpqn };
     Time.Map = song.Parts[0].GetTempo(mid);
     mid.ReplaceTempoMap(Time.Map);
-    song.Build(mid);
+    song.Build(mid, record);
 
     var reference = GetNormalizedMidi(midiPath);
+    Dumper.Dump(song, reference, record);
     //Dumper.TestSlides(song, reference, record);
+    
 }
 
 var miniResults = Dumper.Cases

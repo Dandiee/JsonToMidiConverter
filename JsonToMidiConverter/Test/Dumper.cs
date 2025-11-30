@@ -571,6 +571,8 @@ public static class Dumper
     {
         foreach (var part in song.Parts)
         {
+            Time.Map = part.TempoMap;
+
             var allEvents = midi.GetEvents(part.Index).ToList();
             var assertEvents = allEvents.ToList();
             var events = GatherNoteOnOffParis(allEvents).ToList();
@@ -588,18 +590,25 @@ public static class Dumper
 
             for (var i = 0; i < notes.Count; i++)
             {
+                
+
                 var note = notes[i];
+
+                var startTimes = note.Part.Measures.Select(e => e.StartTime).ToArray();
 
                 var ch = note.GetNoteChannel();
                 var nn = note.GetNoteNumber();
 
 
+                if (note.Is("N0 B1 V0 M9 P0"))
+                {
 
+                }
                 var noteEvent = events
                     .SkipWhile(e => !IsMatchingNoteEvent(e.On.Event, note))
                     .First();
 
-
+                var PartName = part.FullName;
 
                 var measureFound = false;
                 for (var m = noteEvent.On.Index; m > -1; m--)

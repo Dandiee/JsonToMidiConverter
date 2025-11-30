@@ -29,7 +29,6 @@ internal static class Converter
         var midiFile = new MidiFile { TimeDivision = new TicksPerQuarterNoteTimeDivision(TicksPerQuarter) };
         Time.Map = song.Parts[0].GetTempo(midiFile);
         midiFile.ReplaceTempoMap(Time.Map);
-        song.Build(midiFile);
 
         foreach (var part in song.Parts)
         {

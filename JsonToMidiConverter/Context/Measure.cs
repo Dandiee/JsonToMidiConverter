@@ -38,6 +38,21 @@ public sealed partial class Measure
         var startTime = TimeConverter.ConvertTo<MetricTimeSpan>(new BarBeatFractionTimeSpan(Index), Part.TempoMap);
         StartTime = new Time(TimeConverter.ConvertFrom(startTime, Part.TempoMap));
 
+        if (Part.Anacrusis)
+        {
+            if (Index == 1)
+            {
+                var firstMeasureActualLength = Part.Measures[0].Voices[0].Beats.Sum(e => e.MusicalDuration.Tick);
+                var firstMeasureExpectedLength = Part.Measures[1].StartTime - Part.Measures[0].StartTime;
+                Part.AnacrusisOffset = firstMeasureExpectedLength - firstMeasureActualLength;
+            }
+            
+            if (Index > 0)
+            {
+                StartTime -= Part.AnacrusisOffset;
+            }
+        }
+
         if (Signature.Count == 2)
         {
             SignatureNominator = (byte)Signature[0];

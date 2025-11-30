@@ -7,8 +7,12 @@ public sealed partial class Song
 {
     [JsonIgnore] public MidiFile Midi { get; private set; }
 
-    public void Build(MidiFile midi)
+    public string Name { get; private set; }
+
+    public void Build(MidiFile midi, RecordModel record)
     {
+        Name = $"{record.Artist} {record.Title}";
+
         Midi = midi;
         Parts = Parts.OrderBy(e => e.PartId).ToArray();
 
