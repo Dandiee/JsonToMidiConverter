@@ -58,18 +58,18 @@ public class OutputNoteInfo
 public record SlideRatioCase(
     string Slide,
     int Steps,
-    bool Overlap,
+    //bool Overlap,
     long StepDuration,
-    long HoldDuration,
-    bool Tie,
+    //long HoldDuration,
+    //bool Tie,
     long TiedDuration,
-    long EventsDuration,
-    //double ConditionalRatio,
-    //double SlideTiedRatio,
-    double DefaultSpacing,
-    double SlideNoteRatio,
-    double Guess,
-    bool IsCorrect,
+    long RawNoteDuration,
+    //long EventsDuration,
+    //double DefaultSpacing,
+    //double SlideNoteRatio,
+    //double Guess,
+    //double RatioGuess,
+    //bool IsCorrect,
     string Address);
 
 
@@ -243,7 +243,7 @@ public static class Dumper
 
             var holdDurationSlideDurationRatio = (double)holdDuration / totalSlideDuration;
             var tiedDuration = note.Tie ? note.TieDetails.FullDuration.Tick : note.ActualDuration.Tick;
-
+            var rawNoteDuration = note.ActualDuration.Tick;
             var isOverlapping = holdNoteEvent.Off.Time > slideStartsAt;
 
             var holdSlideRatio = (double)holdDuration / totalSlideDuration;
@@ -253,95 +253,73 @@ public static class Dumper
 
 
 
-            var defaultSpacing = (double)tiedDuration / slideStepCount;
+            
 
 
-            // legato
-            var isCollapsingHold = (note.Slide == Slide.Legato || note.Slide == Slide.Shift) && slideStepCount > 8 &&
-                                   tiedDuration <= 3840;
-            var guess = 1.0;
-            if (!isCollapsingHold)
+
+            if (note.Is("N0 B5 V0 M31 P0"))
             {
-                if (note.Slide == Slide.Legato)
-                {
-                    if (defaultSpacing > 423 && defaultSpacing < 854)
-                    {
-                        guess = 1 / 2.0;
-                    }
-                    else if (defaultSpacing > 1051 && defaultSpacing < 5000)
-                    {
-                        guess = 1 / 3.0;
-                    }
-                    else if (defaultSpacing > 5119 && defaultSpacing < 6000)
-                    {
-                        guess = 1 / 4.0;
-                    }
-                    else if (defaultSpacing > 7679 && defaultSpacing < 7700)
-                    {
-                        guess = 1 / 5.0;
-                    }
-                }
-                else if (note.Slide == Slide.Shift)
-                {
-                    if (defaultSpacing > 423 && defaultSpacing < 1921)
-                    {
-                        guess = 1 / 2.0;
-                    }
-                    else if (defaultSpacing > 2555 && defaultSpacing < 11521)
-                    {
-                        guess = 1 / 4.0;
-                    }
-                    else
-                    {
-                        guess = -999;
-                    }
-                }
-                else if (note.Slide == Slide.Downwards)
-                {
-                    if (defaultSpacing < 150)
-                    {
-                        guess = 2 / 3.0;
-                    }
-                    else if (defaultSpacing < 7467)
-                    {
-                        guess = 3 / 4.0;
-                    }
-                    else guess = -999;
-                }
-                else if (note.Slide == Slide.Upwards)
-                {
-                    if (defaultSpacing < 854)
-                    {
-                        guess = 3 / 4.0;
-                    }
-                    else if (defaultSpacing < 1281)
-                    {
-                        guess = 1 / 2.0;
-                    }
-                    else guess = -999;
-                }
+
             }
 
-            // shift
+            // legato
+            var defaultSpacing = (double)tiedDuration / slideStepCount;
+            var guess = -1.0;
+            var targetStepDuration = -1.0;
+            if (note.Slide == Slide.Legato)
+            {
+                if (slideStepCount > 8 && defaultSpacing < 960 / 2) guess = 1 / 1.0;
+                else if (defaultSpacing < 960 * 1) guess = 1 / 2.0;
+                else if (defaultSpacing < 960 * 2) guess = 1 / 3.0;
+                else if (defaultSpacing < 960 * 6) guess = 1 / 4.0;
+                else guess = 1 / 5.0;
 
+                targetStepDuration = Math.Min(960, (rawNoteDuration * guess) / slideStepCount);
+            }
+            else if (note.Slide == Slide.Shift)
+            {
+                if (slideStepCount > 8 && defaultSpacing < 960 / 2) guess = 1 / 1.0;
+                else if (defaultSpacing <= 960 * 2) guess = 1 / 2.0;
+                else guess = 1 / 4.0;
+
+                targetStepDuration = Math.Min(960, (rawNoteDuration * guess) / slideStepCount);
+            }
+            else if (note.Slide == Slide.Downwards)
+            {
+                if (defaultSpacing < 690) guess = 0.5;
+                else if (defaultSpacing < 7466) guess = 1 / 6.0;
+                else guess = 0.75;
+
+                targetStepDuration =(note.ActualDuration.Tick * guess) / slideStepCount;
+            }
+            else if (note.Slide == Slide.Upwards)
+            {
+                if (defaultSpacing < 960 * 1) guess = 3 / 4.0;
+                else guess = 1 / 2.0;
+
+                targetStepDuration = Math.Min(960, (note.ActualDuration.Tick * guess) / slideStepCount);
+            }
 
             Cases.Add(new SlideRatioCase(
                 Slide: note.Slide.ToString(),
                 Steps: slideStepCount,
-                Overlap: isOverlapping,
+                
                 StepDuration: slideStepSize,
-                HoldDuration: holdDuration,
-                Tie: note.Tie,
+                //Overlap: isOverlapping,
+                //HoldDuration: holdDuration,
+                //Tie: note.Tie,
+                //EventsDuration: totalDuration,
+                //SlideNoteRatio: slideNoteRatio,
+                //RatioGuess: guess,
+                //Guess: targetStepDuration,
+                //IsCorrect: Math.Abs(slideStepSize - targetStepDuration) < 5,
+                //DefaultSpacing: defaultSpacing,
                 TiedDuration: tiedDuration,
-                EventsDuration: totalDuration,
-                //ConditionalRatio: note.Tie ? slideTiedRatio : slideNoteRatio,
-                //SlideTiedRatio: slideTiedRatio,
-                SlideNoteRatio: slideNoteRatio,
-                Address: $"{note} S{note.Song.SongId}",
-
-                Guess: guess,
-                IsCorrect: slideStepSize >= 959 || Math.Abs(slideNoteRatio - guess) < 0.02,
-                DefaultSpacing: defaultSpacing));
+                RawNoteDuration: rawNoteDuration,
+                
+                Address: $"{note} S{note.Song.SongId}"
+                
+                ));
 
             var affectedNotes = new List<InputNoteInfo>();
             var affectedDestinationNotes = new List<InputNoteInfo>();

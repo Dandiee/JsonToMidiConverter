@@ -15,6 +15,8 @@ public static class Database
     public static readonly string DatabaseFile = Path.Combine(RootPath, "Database.json");
     public static readonly string DataPath = Path.Combine(RootPath, "Data");
 
+    public static readonly HashSet<char> WeirdoCharacters = new[] { '/', '?', '_' }.ToHashSet();
+
     private static List<RecordModel> Songs;
     private static readonly Dictionary<int, RecordModel> SongsById;
 
@@ -69,12 +71,32 @@ public static class Database
         return decompressedStream;
     }
 
+    public static string CleanString(string text)
+    {
+        var result = text;
+        foreach (var weirdoCharacter in WeirdoCharacters)
+        {
+            result = result.Replace(weirdoCharacter.ToString(), "");
+        }
+
+        return result;
+    }
+
+    public static IReadOnlyList<RecordModel> Search(string artist, string title)
+        => Songs.Where(e =>
+                (e.Title != null && CleanString(e.Title) == CleanString(title)) ||
+                (e.Artist != null && CleanString(e.Artist) == CleanString(artist)))
+            .OrderByDescending(e => e.Views)
+            .ToList();
+
     public static IReadOnlyList<RecordModel> Search(string filter)
         => Songs.Where(e =>
                 (e.Title != null && e.Title.Contains(filter, StringComparison.OrdinalIgnoreCase)) ||
                 (e.Artist != null && e.Artist.Contains(filter, StringComparison.OrdinalIgnoreCase)))
             .OrderByDescending(e => e.Views)
             .ToList();
+
+    public static IEnumerable<RecordModel> GetTop50() => Songs.OrderByDescending(e => e.Views).Take(50).ToList();
 
     public static SongMetaDataModel GetMetaData(int songId)
     {
@@ -183,5 +205,15 @@ public static class Database
         Songs = SongsById.Values.ToList();
 
         SaveDatabase(Songs);
+    }
+
+    public static async Task RefreshTopsSong()
+    {
+        var topSongs = Songs.OrderByDescending(e => e.Views).Take(50).ToList();
+        foreach (var topSong in topSongs)
+        {
+            await RefreshSong(topSong.SongId);
+        }
+
     }
 }

@@ -32,6 +32,9 @@ public partial class Beat
     public string? PickStroke { get; set; }
     public Bend? TremoloBar { get; set; }
     public bool WideVibrato { get; set; }
+    public BrushStroke? BrushStroke { get; set; }
+    public int DownArpeggio { get; set; }
+    public bool HasRasgueado { get; set; }
 
     public Beat Clone() => new()
     {
@@ -61,6 +64,22 @@ public partial class Beat
         VibratoWithTremoloBar = VibratoWithTremoloBar,
         PickStroke = PickStroke,
         TremoloBar = TremoloBar?.Clone(),
-        WideVibrato = WideVibrato
+        WideVibrato = WideVibrato,
+        BrushStroke = BrushStroke?.Clone(),
+        DownArpeggio = DownArpeggio,
+    };
+}
+
+public class BrushStroke
+{
+    public string Direction { get; set; }
+    public int Duration { get; set; }
+    public int Shift { get; set; }
+
+    public BrushStroke Clone() => new()
+    {
+        Direction = Direction,
+        Duration = Duration,
+        Shift = Shift
     };
 }

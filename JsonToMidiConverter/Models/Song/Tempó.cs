@@ -8,4 +8,6 @@ public sealed class Tempó
     public int Type { get; set; }
     public bool Visible { get; set; }
     public bool Linear { get; set; }
+    public string Text { get; set; }
+    public bool Dotted { get; set; }
 }

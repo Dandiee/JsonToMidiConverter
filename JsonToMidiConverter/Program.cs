@@ -1,6 +1,8 @@
-﻿using System.Text;
+﻿using System.Data;
+using System.Text;
 using System.Text.Json;
 using JsonToMidiConverter;
+using JsonToMidiConverter.Models;
 using JsonToMidiConverter.Models.Song;
 using JsonToMidiConverter.Test;
 using Melanchall.DryWetMidi.Core;
@@ -22,36 +24,37 @@ var songPairs = new Dictionary<string, string>
 
 //await Database.RefreshSong(385697);
 
+var records = Database.GetTop50();
 
-foreach (var pair in songPairs)
+var midis = Directory.GetFiles("FreshSong");
+
+foreach (var midiPath in midis)
 {
-    var match = Database.Search(pair.Value).First();
-    var song = Database.GetMidiData(match.SongId);
+    var pathParts = midiPath.Split('-');
+    var artist = pathParts[0];
+    var title = string.Join("-", pathParts.Skip(1).Take(pathParts.Length - 4));
+
+    var record = Database.Search(artist, title).First();
+    var song = Database.GetMidiData(record.SongId);
+
+    //var midiFileName = $"{SanitizeRecordName(midiPath.Artist)}-{SanitizeRecordName(midiPath.Title)}-";
+    //var midiFilePath = Directory.GetFiles("FreshSong", $"{midiFileName}*").Single();
 
     var mid = new MidiFile { TimeDivision = Converter.Tpqn };
     Time.Map = song.Parts[0].GetTempo(mid);
     mid.ReplaceTempoMap(Time.Map);
     song.Build(mid);
 
-
-    var reference = GetNormalizedMidi(pair.Key);
-    Dumper.TestSlides(song, reference, match);
-    //Converter.Convert(song, reference);
-    //Dumper.Dump(song, reference, match);
-
+    var reference = GetNormalizedMidi(midiPath);
+    //Dumper.TestSlides(song, reference, record);
 }
 
 var miniResults = Dumper.Cases
     .OrderByDescending(e => e.Slide)
     //.Where(e => !(e.StepDuration > 958 && e.StepDuration < 961))
     //.Where(e => e.HoldDuration != 0)
-    .Where(e =>
-                e.Slide == Slide.Shift.ToString() ||
-                e.Slide == Slide.Legato.ToString() ||
-                e.Slide == Slide.Upwards.ToString() ||
-                e.Slide == Slide.Downwards.ToString() ||
-                e.Slide == Slide.Below.ToString())
-    .OrderByDescending(e => e.SlideNoteRatio)
+   
+    //.OrderByDescending(e => e.SlideNoteRatio)
     .ToList();
 
 var w = Dumper.Cases.MinBy(e => e.StepDuration);
@@ -68,7 +71,10 @@ File.WriteAllText($"Slides_Mini.json", JsonSerializer.Serialize(miniResults, new
     WriteIndented = true
 }));
 
+//await Database.RefreshTopsSong();
 
+static string NormalizeMidiName(string name) => name.Replace("_", "/");
+static string SanitizeRecordName(string name) => name.Replace("/", "_");
 
 static MidiFile GetNormalizedMidi(string file)
 {

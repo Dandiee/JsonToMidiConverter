@@ -43,6 +43,20 @@ public class SongMetaDataModel
     public int FavoritesCount { get; set; }
     public bool IsCollaborative { get; set; }
     public bool IsRestricted { get; set; }
+    public string? NextAudio { get; set; }
+    public string? NextAudioGenerated { get; set; }
+
+    public string? NextMidi { get; set; }
+    public string? NextMidiGenerated { get; set; }
+    public AudioMeta NextAudioMeta { get; set; }
+
+}
+
+
+public  class AudioMeta
+{
+    public bool HasQuickMix { get; set; }
+    public bool HasMixLayout { get; set; }
 }
 
 public class Author

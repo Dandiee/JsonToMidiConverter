@@ -36,17 +36,34 @@ public sealed partial class Part
     public List<Measure> GetLinearMeasures()
     {
         var measures = new List<Measure>();
+        var repeats = new List<Measure>();
 
         foreach (var measure in Measures)
         {
             if (measure.RepeatStart)
             {
+                repeats.Add(measure);
+            }
+
+            if (repeats.Count == 0)
+            {
+                measures.Add(measure);
+            }
+
+            if (measure.Repeat > 0)
+            {
                 for (var i = 0; i < measure.Repeat; i++)
                 {
-                    measures.Add(measure.Clone());
+                    foreach (var repeat in repeats)
+                    {
+                        measures.Add(repeat.Clone());
+                    }
                 }
+
+                repeats.Clear();
             }
-            else measures.Add(measure);
+
+           
         }
 
         return measures;

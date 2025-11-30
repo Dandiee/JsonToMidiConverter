@@ -11,6 +11,9 @@ public sealed partial class Measure
     public bool Rest { get; set; }
     public bool RepeatStart { get; set; }
     public int Repeat { get; set; }
+    public bool DoubleBarline { get; set; }
+    public int[] AlternateEnding { get; set; }
+    public string TripletFeel { get; set; }
 
     public Measure Clone() => new()
     {
@@ -19,6 +22,8 @@ public sealed partial class Measure
         Marker = Marker?.Clone(),
         Rest = Rest,
         RepeatStart = RepeatStart,
-        Repeat = Repeat
+        Repeat = Repeat,
+        DoubleBarline = DoubleBarline,
+        TripletFeel = TripletFeel
     };
 }

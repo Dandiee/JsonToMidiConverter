@@ -102,7 +102,7 @@ public sealed partial class Nota
 
         if (Slide != Context.Slide.None && Tie && WillBeTied)
         {
-            throw new Exception("i sure hope not!");
+            Debug.Assert(false);
         }
 
     }
@@ -200,7 +200,14 @@ public sealed partial class Nota
         var prevNote = Previous;
         while (prevNote != null)
         {
-            if (prevNote.Fret == Fret)
+            if (Part.InstrumentId == 1024)
+            {
+                if (prevNote.NoteNumber == NoteNumber)
+                {
+                    return prevNote;
+                }
+            }
+            else if (prevNote.Fret == Fret)
             {
                 return prevNote;
             }
@@ -217,12 +224,18 @@ public sealed partial class Nota
 
         var tieNote = this;
         var q = this;
+        var w = 0;
         if (this.ToString() == "N0 B0 V0 M80 P0")
         {
 
         }
+
         while (true)
         {
+            if (w > 100)
+            {
+                throw new Exception("very unliekly");
+            }
             yield return tieNote;
             if (tieNote.Tie)
             {

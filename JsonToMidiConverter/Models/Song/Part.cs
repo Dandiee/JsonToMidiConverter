@@ -22,4 +22,6 @@ public sealed partial class Part
     public int RevisionId { get; set; }
     public bool WithLyrics { get; set; }
     public bool TuningFlat { get; set; }
+    public bool Anacrusis { get; set; }
+    public int Capo { get; set; }
 }
