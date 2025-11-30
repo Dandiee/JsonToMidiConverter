@@ -41,9 +41,15 @@ foreach (var pair in songPairs)
 
 }
 
-var miniResults = Dumper.Cases.OrderByDescending(e => e.Slide).ThenByDescending(e => e.IsIncreasing)
+var miniResults = Dumper.Cases
+    .OrderByDescending(e => e.Slide)
+    .ThenByDescending(e => e.IsIncreasing)
     .Where(e => !(e.StepDuration > 958 && e.StepDuration < 961))
+    .Where(e => e.HoldDuration == 0)
     .ToList();
+
+var w = Dumper.Cases.MinBy(e => e.StepDuration);
+
 var sb = new StringBuilder();
 foreach (var res in miniResults)
 {
@@ -51,7 +57,10 @@ foreach (var res in miniResults)
 }
 
 File.WriteAllText($"Slides_Mini.text", sb.ToString());
-File.WriteAllText($"Slides_Mini.json", JsonSerializer.Serialize(miniResults));
+File.WriteAllText($"Slides_Mini.json", JsonSerializer.Serialize(miniResults, new JsonSerializerOptions(JsonSerializerDefaults.General)
+{
+    WriteIndented = true
+}));
 
 
 

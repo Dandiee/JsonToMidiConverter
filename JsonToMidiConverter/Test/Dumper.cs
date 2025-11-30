@@ -109,43 +109,25 @@ public static class Dumper
         // 2. Determine Logic Path based on Type
         double ratio;
 
-        if (note.Slide == Context.Slide.Shift)
+        var isCollapsingHold = (note.Slide == Slide.Shift || note.Slide == Slide.Legato) && bridgeSteps > 8 &&
+                               note.ActualDuration.Tick <= 3840;
+
+        bool isShortDurationInGeneral = note.ActualDuration.Tick <= 3840;
+        if (isCollapsingHold)
         {
-            // [Songsterr Rule]: Shift slides usually keep a hold (Non-zero).
-            // Standard Shift: 50%
-            // Short Hop (1 step): 25% (Compression)
+            ratio = 1.0;
+        }
+        else if (note.Slide == Context.Slide.Shift)
+        {
             ratio = (bridgeSteps == 1) ? 0.25 : 0.5;
         }
         else if (note.Slide == Context.Slide.Legato)
         {
-            // [Songsterr Rule]: "Legato Slide with very short available duration... 
-            // allocator may assign 0 to the hold."
-
-            // Threshold: 3840 ticks is a 1/16th note (at 15360 TPQN).
-            bool isShortDuration = note.ActualDuration.Tick <= 3840;
-
-            if (isShortDuration)
-            {
-                // High Pressure: Sacrifice Hold to ensure slide motion is audible.
-                ratio = 1.0;
-            }
-            else
-            {
-                // Standard Directional Bias:
-                // Upwards (Against gravity/tension) gets 50%
-                // Downwards (With gravity/release) gets 25%
-                bool isUpwards = targetFret > note.Fret;
-                ratio = isUpwards ? 0.5 : 0.25;
-            }
+            bool isUpwards = targetFret > note.Fret;
+            ratio = isUpwards ? 0.5 : 0.25;
         }
         else
         {
-            // Indeterminate (Upwards/Downwards/Below/etc)
-            // [Songsterr Rule]: "Musical intent is pure motion... allocator commonly zeroes the hold."
-            // However, looking at your data, specific indeterminate cases often hover 
-            // around 75% or 25% depending on specific presets.
-            // Keeping your original default 0.75 as it passed most tests, 
-            // but be aware these might also flip to 1.0 under pressure.
             ratio = 0.75;
         }
 
@@ -173,8 +155,8 @@ public static class Dumper
         }
 
         var bridgeSteps = pitchDistance > 1 ? pitchDistance - 1 : 1;
-        var ratio = note.Slide == Slide.Shift 
-            ? 0.5 
+        var ratio = note.Slide == Slide.Shift
+            ? 0.5
             : 0.75; // Default for Downwards/Upwards/Below
 
         if (note.Slide == Slide.Shift)
@@ -184,9 +166,9 @@ public static class Dumper
 
         var maxSlideDuration = (long)(note.ActualDuration.Tick * ratio);
 
-        if (bridgeSteps * 960 <= maxSlideDuration) 
+        if (bridgeSteps * 960 <= maxSlideDuration)
             return 960;
-        
+
         return maxSlideDuration / bridgeSteps;
     }
 
@@ -344,7 +326,7 @@ public static class Dumper
             var REFERENCE_StepDuration = REFERNCE_steps == 0 ? 0 : events
                 .Skip(1)
                 .Average(e => e.Off.Time - e.On.Time);
-           
+
 
             var stepDuration = slideAttempt1(note);
             var error = Math.Abs(stepDuration - REFERENCE_StepDuration);
@@ -365,12 +347,12 @@ public static class Dumper
             var asd = _targetPitch > note.Fret;
 
             var _total = events.Sum(e => e.Duration);
-            var _hold = events.OrderByDescending(e => e.Duration).First().Duration;
+            var _hold = events.First().Duration;
             var _slide = _total - _hold;
             var _steps = events.Count - 1;
             var _ratio = (double)_slide / _total;
             var _percentage = Math.Round(_ratio * 100d);
-            var _stepAvg = events.OrderByDescending(e => e.Duration).Skip(1).Average(e => e.Duration);
+            var _stepAvg = events.Skip(1).Average(e => e.Duration);
 
             Cases.Add(new SlideRatioCase(
                 note.Slide.ToString(),
@@ -422,7 +404,7 @@ public static class Dumper
         }
 
 
-        
+
 
         File.WriteAllText($"Slides_{song.SongId}.json", JsonSerializer.Serialize(results));
     }
@@ -514,7 +496,7 @@ public static class Dumper
                                 var slide = total - hold;
                                 var steps = note.MidiNoteEvents.Count - 1;
                                 var ratio = (double)slide / total;
-                                
+
                                 sb.AppendLine($"\t\t\t ----- Total: {total}, Hold: {hold}, Slide: {slide}, Steps: {steps}, Slide Ratio: {ratio:P2}");
                             }
 
