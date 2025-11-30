@@ -17,6 +17,7 @@ namespace JsonToMidiConverter.Test;
 public record MidiNoteEvent(TimedMidiEvent On, TimedMidiEvent Off)
 {
 
+    public int NoteNumber => (On.Event as NoteOnEvent).NoteNumber;
     public long Duration => Off.Time - On.Time;
 
     public bool IsMatching(int channel, int noteNumber)
@@ -54,7 +55,22 @@ public class OutputNoteInfo
     public long PlayDuration { get; set; }
 }
 
-public record SlideRatioCase(string Slide, int Steps, bool IsIncreasing, float SlideRatio, long StepDuration, long HoldDuration, long TotalDuration, string Address);
+public record SlideRatioCase(
+    string Slide,
+    int Steps,
+    bool Overlap,
+    long StepDuration,
+    long HoldDuration,
+    bool Tie,
+    long TiedDuration,
+    long EventsDuration,
+    //double ConditionalRatio,
+    //double SlideTiedRatio,
+    double DefaultSpacing,
+    double SlideNoteRatio,
+    double Guess,
+    bool IsCorrect,
+    string Address);
 
 
 public static class Dumper
@@ -113,6 +129,15 @@ public static class Dumper
                                note.ActualDuration.Tick <= 3840;
 
         bool isShortDurationInGeneral = note.ActualDuration.Tick <= 3840;
+
+
+
+        var tiedDuration = note.Tie
+            ? note.TieDetails.FullDuration
+            : note.ActualDuration;
+
+        var stepToDurationRatio = (double)tiedDuration.Tick / bridgeSteps;
+
         if (isCollapsingHold)
         {
             ratio = 1.0;
@@ -125,6 +150,11 @@ public static class Dumper
         {
             bool isUpwards = targetFret > note.Fret;
             ratio = isUpwards ? 0.5 : 0.25;
+
+            if (stepToDurationRatio > 280 && stepToDurationRatio < 600)
+            {
+                ratio = 0.5;
+            }
         }
         else
         {
@@ -141,153 +171,12 @@ public static class Dumper
             return 960;
         }
 
-        return maxSlideDuration / bridgeSteps;
-    }
-
-    public static long slideAttempt1Pb(Nota note)
-    {
-        var targetPitch = note.GetSlideTargetPitch();
-        var pitchDistance = Math.Abs(targetPitch - note.Fret);
-
-        if (note.Is("N0 B23 V0 M97 P2"))
-        {
-
-        }
-
-        var bridgeSteps = pitchDistance > 1 ? pitchDistance - 1 : 1;
-        var ratio = note.Slide == Slide.Shift
-            ? 0.5
-            : 0.75; // Default for Downwards/Upwards/Below
-
-        if (note.Slide == Slide.Shift)
-            ratio = 0.5; // Shift slides are capped at 50%
-        else if (note.Slide == Slide.Legato)
-            ratio = targetPitch > note.Fret ? 0.5 : 0.25;
-
-        var maxSlideDuration = (long)(note.ActualDuration.Tick * ratio);
-
-        if (bridgeSteps * 960 <= maxSlideDuration)
-            return 960;
+        var stepp = tiedDuration * ratio / bridgeSteps;
 
         return maxSlideDuration / bridgeSteps;
     }
 
-    public static long slideAttempt2(Nota note)
-    {
-        // 1. Calculate Distances
-        var targetPitch = note.GetSlideTargetPitch();
-        var pitchDistance = Math.Abs(targetPitch - note.NoteNumber);
-        int bridgeSteps = (pitchDistance > 1) ? pitchDistance - 1 : 1;
 
-        // 2. Determine Ratio based on Slide Type
-        // Legato and Shift are stricter (50%), while Indeterminate slides use 75%.
-        double ratio = 0.75;
-        if (note.Slide == Context.Slide.Legato || note.Slide == Context.Slide.Shift)
-        {
-            ratio = 0.50;
-        }
-
-        // 3. Calculate Durations
-        long maxSlideDuration = (long)(note.ActualDuration.Tick * ratio);
-        long idealSlideDuration = bridgeSteps * 960;
-        long stepDuration;
-
-        // 4. Decision
-        if (idealSlideDuration <= maxSlideDuration)
-        {
-            return 960;
-        }
-        else
-        {
-            return maxSlideDuration / bridgeSteps;
-        }
-    }
-
-    public static long slideAttempt3(Nota note)
-    {
-        // 1. Calculate the Target Pitch and Distance
-        var targetPitch = note.GetSlideTargetPitch();
-        var pitchDistance = Math.Abs(targetPitch - note.NoteNumber);
-
-        // 2. Bridge Steps Logic
-        int bridgeSteps = (pitchDistance > 1) ? pitchDistance - 1 : 1;
-
-        // 3. Determine the Ratio (Asymmetric for Legato)
-        double ratio = 0.75; // Default for Indeterminate (Up/Down/Below)
-
-        if (note.Slide == Context.Slide.Shift)
-        {
-            ratio = 0.5;
-        }
-        else if (note.Slide == Context.Slide.Legato)
-        {
-            // Legato is strictly tighter when going Downwards
-            bool isUpwards = targetPitch > note.NoteNumber;
-            ratio = isUpwards ? 0.5 : 0.25;
-        }
-
-        // 4. Calculate Durations
-        long maxSlideDuration = (long)(note.ActualDuration.Tick * ratio);
-        long idealSlideDuration = bridgeSteps * 960;
-
-        long stepDuration;
-
-        // 5. Decision Logic
-        if (idealSlideDuration <= maxSlideDuration)
-        {
-            return 960;
-        }
-        else
-        {
-            return maxSlideDuration / bridgeSteps;
-        }
-
-    }
-
-    public static long slideAttempt4(Nota note)
-    {
-        // 1. Calculate Distance
-        var targetPitch = note.GetSlideTargetPitch();
-        var pitchDistance = Math.Abs(targetPitch - note.NoteNumber);
-        int bridgeSteps = (pitchDistance > 1) ? pitchDistance - 1 : 1;
-
-        // 2. Determine Ratio
-        double ratio = 0.75; // Default for Upwards/Downwards/Below
-
-        if (note.Slide == Context.Slide.Shift)
-        {
-            ratio = 0.5;
-        }
-        else if (note.Slide == Context.Slide.Legato)
-        {
-            // Default Legato ratio is 50%
-            ratio = 0.5;
-
-            var targetNote = note.GetSlideTargetNote();
-            // EXCEPT when Legato flows into a Shift slide (Chain).
-            // In that specific case, it compresses to 25%.
-            if (targetNote != null && targetNote.Slide == Slide.Shift)
-            {
-                ratio = 0.25;
-            }
-        }
-
-        // 3. Calculate Durations
-        long maxSlideDuration = (long)(note.ActualDuration.Tick * ratio);
-        long idealSlideDuration = bridgeSteps * 960;
-
-        long stepDuration;
-
-        // 4. Decision
-        if (idealSlideDuration <= maxSlideDuration)
-        {
-            return 960;
-        }
-        else
-        {
-            return maxSlideDuration / bridgeSteps;
-        }
-    }
 
     public static void TestSlides(Song song, MidiFile midi, RecordModel record)
     {
@@ -319,50 +208,140 @@ public static class Dumper
             var slide = note.GetSlide();
             if (!slide.IsStepped) continue;
 
-            var events = (note.TieDetails?.Source ?? note).MidiNoteEvents;
-            if (events.Count == 0) continue;
+            var midiEvents = (note.TieDetails?.Source ?? note).MidiNoteEvents;
+            if (midiEvents.Count == 0) continue;
             //var holdNoteEvent = events.Single(e => e.On.Event is NoteOnEvent on && on.NoteNumber == note.NoteNumber);
-            var REFERNCE_steps = events.Count - 1;
-            var REFERENCE_StepDuration = REFERNCE_steps == 0 ? 0 : events
+            var REFERNCE_steps = midiEvents.Count - 1;
+            var REFERENCE_StepDuration = REFERNCE_steps == 0 ? 0 : midiEvents
                 .Skip(1)
                 .Average(e => e.Off.Time - e.On.Time);
 
 
-            var stepDuration = slideAttempt1(note);
-            var error = Math.Abs(stepDuration - REFERENCE_StepDuration);
+            var result = slideAttempt1(note);
+            var error = Math.Abs(result - REFERENCE_StepDuration);
             if (error > 5 && REFERENCE_StepDuration != 0)
             {
                 var part = note.Part.Name + " - " + note.Part.Instrument;
                 var id = $"{note} S{note.Song.SongId}";
-                throw new Exception("fuck");
+                //throw new Exception("fuck");
             }
 
 
 
-            if (events.Count == 1) continue;
+            if (midiEvents.Count == 1) continue;
 
-            var _targetPitch = note.GetSlideTargetPitch();
-            var _targetNode = note.GetSlideTargetNote();
+            var originatingNote = note.Tie ? note.TieDetails.Source : note;
+            var holdNoteEvent = midiEvents.First();
+            var holdDuration = holdNoteEvent.Duration;
+            var stepNoteEvents = midiEvents.Where(e => e != holdNoteEvent).ToList();
+            var slideStartsAt = stepNoteEvents.Min(e => e.On.Time);
+            var slideEndsAt = stepNoteEvents.Max(e => e.Off.Time);
+            var totalSlideDuration = slideEndsAt - slideStartsAt;
+            var slideStepCount = stepNoteEvents.Count;
+            var slideStepSize = (long)stepNoteEvents.Average(a => a.Duration);
+            var totalDuration = midiEvents.Max(e => e.Off.Time) - midiEvents.Min(e => e.On.Time);
 
-            var asd = _targetPitch > note.Fret;
+            var holdDurationSlideDurationRatio = (double)holdDuration / totalSlideDuration;
+            var tiedDuration = note.Tie ? note.TieDetails.FullDuration.Tick : note.ActualDuration.Tick;
 
-            var _total = events.Sum(e => e.Duration);
-            var _hold = events.First().Duration;
-            var _slide = _total - _hold;
-            var _steps = events.Count - 1;
-            var _ratio = (double)_slide / _total;
-            var _percentage = Math.Round(_ratio * 100d);
-            var _stepAvg = events.Skip(1).Average(e => e.Duration);
+            var isOverlapping = holdNoteEvent.Off.Time > slideStartsAt;
+
+            var holdSlideRatio = (double)holdDuration / totalSlideDuration;
+            var slideTiedRatio = (double)totalSlideDuration / tiedDuration;
+
+            var slideNoteRatio = (double)totalSlideDuration / note.ActualDuration.Tick;
+
+
+
+            var defaultSpacing = (double)tiedDuration / slideStepCount;
+
+
+            // legato
+            var isCollapsingHold = (note.Slide == Slide.Legato || note.Slide == Slide.Shift) && slideStepCount > 8 &&
+                                   tiedDuration <= 3840;
+            var guess = 1.0;
+            if (!isCollapsingHold)
+            {
+                if (note.Slide == Slide.Legato)
+                {
+                    if (defaultSpacing > 423 && defaultSpacing < 854)
+                    {
+                        guess = 1 / 2.0;
+                    }
+                    else if (defaultSpacing > 1051 && defaultSpacing < 5000)
+                    {
+                        guess = 1 / 3.0;
+                    }
+                    else if (defaultSpacing > 5119 && defaultSpacing < 6000)
+                    {
+                        guess = 1 / 4.0;
+                    }
+                    else if (defaultSpacing > 7679 && defaultSpacing < 7700)
+                    {
+                        guess = 1 / 5.0;
+                    }
+                }
+                else if (note.Slide == Slide.Shift)
+                {
+                    if (defaultSpacing > 423 && defaultSpacing < 1921)
+                    {
+                        guess = 1 / 2.0;
+                    }
+                    else if (defaultSpacing > 2555 && defaultSpacing < 11521)
+                    {
+                        guess = 1 / 4.0;
+                    }
+                    else
+                    {
+                        guess = -999;
+                    }
+                }
+                else if (note.Slide == Slide.Downwards)
+                {
+                    if (defaultSpacing < 150)
+                    {
+                        guess = 2 / 3.0;
+                    }
+                    else if (defaultSpacing < 7467)
+                    {
+                        guess = 3 / 4.0;
+                    }
+                    else guess = -999;
+                }
+                else if (note.Slide == Slide.Upwards)
+                {
+                    if (defaultSpacing < 854)
+                    {
+                        guess = 3 / 4.0;
+                    }
+                    else if (defaultSpacing < 1281)
+                    {
+                        guess = 1 / 2.0;
+                    }
+                    else guess = -999;
+                }
+            }
+
+            // shift
+
 
             Cases.Add(new SlideRatioCase(
-                note.Slide.ToString(),
-                REFERNCE_steps,
-                asd,
-                (float)_ratio,
-                (int)_stepAvg,
-                _hold,
-                _total,
-                $"{note} {note.Song.SongId}"));
+                Slide: note.Slide.ToString(),
+                Steps: slideStepCount,
+                Overlap: isOverlapping,
+                StepDuration: slideStepSize,
+                HoldDuration: holdDuration,
+                Tie: note.Tie,
+                TiedDuration: tiedDuration,
+                EventsDuration: totalDuration,
+                //ConditionalRatio: note.Tie ? slideTiedRatio : slideNoteRatio,
+                //SlideTiedRatio: slideTiedRatio,
+                SlideNoteRatio: slideNoteRatio,
+                Address: $"{note} S{note.Song.SongId}",
+
+                Guess: guess,
+                IsCorrect: slideStepSize >= 959 || Math.Abs(slideNoteRatio - guess) < 0.02,
+                DefaultSpacing: defaultSpacing));
 
             var affectedNotes = new List<InputNoteInfo>();
             var affectedDestinationNotes = new List<InputNoteInfo>();
@@ -491,13 +470,29 @@ public static class Dumper
 
                             if (note.MidiNoteEvents.Count > 1)
                             {
-                                var total = note.MidiNoteEvents.Sum(e => e.Duration);
-                                var hold = note.MidiNoteEvents.OrderByDescending(e => e.Duration).First().Duration;
-                                var slide = total - hold;
-                                var steps = note.MidiNoteEvents.Count - 1;
-                                var ratio = (double)slide / total;
 
-                                sb.AppendLine($"\t\t\t ----- Total: {total}, Hold: {hold}, Slide: {slide}, Steps: {steps}, Slide Ratio: {ratio:P2}");
+                                var midiEvents = note.MidiNoteEvents;
+
+                                var originatingNote = note.Tie ? note.TieDetails.Source : note;
+                                var holdNoteEvent = midiEvents.First();
+                                var holdDuration = holdNoteEvent.Duration;
+                                var stepNoteEvents = midiEvents.Where(e => e != holdNoteEvent).ToList();
+                                var slideStartsAt = stepNoteEvents.Min(e => e.On.Time);
+                                var slideEndsAt = stepNoteEvents.Max(e => e.Off.Time);
+                                var totalSlideDuration = slideEndsAt - slideStartsAt;
+                                var slideStepCount = stepNoteEvents.Count;
+                                var slideStepSize = (long)stepNoteEvents.Average(a => a.Duration);
+                                var totalDuration = midiEvents.Max(e => e.Off.Time) - midiEvents.Min(e => e.On.Time);
+
+                                var holdDurationSlideDurationRatio = (double)holdDuration / totalSlideDuration;
+                                var tiedDuration = note.Tie ? note.TieDetails.FullDuration.Tick : note.ActualDuration.Tick;
+
+                                var isOverlapping = holdNoteEvent.Off.Time > slideStartsAt;
+
+                                var holdSlideRatio = (double)holdDuration / totalSlideDuration;
+                                var slideTiedRatio = (double)totalSlideDuration / tiedDuration;
+
+                                sb.AppendLine($"\t\t\t ----- Overlap: {isOverlapping}, Total: {totalDuration}, Tied: {tiedDuration}  Hold: {holdDuration}, Slide: {totalSlideDuration}, Steps: {slideStepCount}, Hold-Slide: {holdSlideRatio:P2}, Slide-Tie: {slideTiedRatio:P2}");
                             }
 
                         }

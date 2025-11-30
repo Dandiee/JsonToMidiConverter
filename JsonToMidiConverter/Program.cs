@@ -6,7 +6,7 @@ using JsonToMidiConverter.Test;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using Melanchall.DryWetMidi.Tools;
-
+using Slide = JsonToMidiConverter.Context.Slide;
 
 
 var songPairs = new Dictionary<string, string>
@@ -14,7 +14,7 @@ var songPairs = new Dictionary<string, string>
     [@"References\Linkin Park-In The End-11-12-2025(3).mid"] = "In the end",
     [@"References\Nirvana.mid"] = "Come as you are",
     //[@"References\Tool.mid"] = "Pneuma",
-//    [@"References\LedZeppelin.mid"] = "Stairway to heaven",
+    //    [@"References\LedZeppelin.mid"] = "Stairway to heaven",
     //[@"References\Metallica.mid"] = "Nothing else matters",
     [@"References\Rage Against The Machine-Killing in the Name-11-24-2025.mid"] = "Killing in the name",
     [@"References\Red Hot Chili Peppers-Can't Stop-11-15-2025.mid"] = "Can't stop"
@@ -43,9 +43,15 @@ foreach (var pair in songPairs)
 
 var miniResults = Dumper.Cases
     .OrderByDescending(e => e.Slide)
-    .ThenByDescending(e => e.IsIncreasing)
-    .Where(e => !(e.StepDuration > 958 && e.StepDuration < 961))
-    .Where(e => e.HoldDuration == 0)
+    //.Where(e => !(e.StepDuration > 958 && e.StepDuration < 961))
+    //.Where(e => e.HoldDuration != 0)
+    .Where(e =>
+                e.Slide == Slide.Shift.ToString() ||
+                e.Slide == Slide.Legato.ToString() ||
+                e.Slide == Slide.Upwards.ToString() ||
+                e.Slide == Slide.Downwards.ToString() ||
+                e.Slide == Slide.Below.ToString())
+    .OrderByDescending(e => e.SlideNoteRatio)
     .ToList();
 
 var w = Dumper.Cases.MinBy(e => e.StepDuration);
@@ -53,7 +59,7 @@ var w = Dumper.Cases.MinBy(e => e.StepDuration);
 var sb = new StringBuilder();
 foreach (var res in miniResults)
 {
-    sb.AppendLine($"{res.SlideRatio:P2} {res.Slide,-9} {(res.IsIncreasing ? "Increase" : "Decrease")}, Steps: {res.Steps,2}, StepDur: {res.StepDuration,3}, HoldDur: {res.HoldDuration,5}, TotalDur: {res.TotalDuration,5}, Address: {res.Address,4}");
+    //sb.AppendLine($"{res.SlideRatio:P2} {res.Slide,-9} Steps: {res.Steps,2}, StepDur: {res.StepDuration,3}, HoldDur: {res.HoldDuration,5}, TotalDur: {res.TotalDuration,5}, Address: {res.Address,4}");
 }
 
 File.WriteAllText($"Slides_Mini.text", sb.ToString());
