@@ -509,6 +509,11 @@ public sealed partial class Nota
                 for (var i = 0; i < repeats; i++)
                 {
                     yield return NoteNumber;
+
+                    if (Tie && i > 0)
+                    {
+                        yield return NoteNumber;
+                    }
                 }
             }
         }

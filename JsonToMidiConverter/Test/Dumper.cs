@@ -619,7 +619,7 @@ public static class Dumper
 
                 var notesFromI = notes.Skip(i).ToList();
 
-                if (note.Is("N0 B0 V0 M115 P4"))
+                if (note.Is("N0 B0 V0 M92 P6"))
                 {
 
                 }
@@ -633,11 +633,20 @@ public static class Dumper
                         .SkipWhile(e => !IsMatchingNoteEvent(e.On.Event, note.Channel, emittedNote))
                         .First();
 
-                    events.RemoveAll(e => e.NoteNumber == noteEvent.NoteNumber &&
-                                          e.Channel == noteEvent.Channel &&
-                                          e.On.Time == noteEvent.On.Time);
+                    if (true || part.InstrumentId == 1024)
+                    {
+                        events.Remove(noteEvent); // drums can emit the same note twice at the same time
+                    }
+                    else
+                    {
+                        // guys at songster cant really do programming so tied tremolos are duplicated, ggwp
+                        events.RemoveAll(e => e.NoteNumber == noteEvent.NoteNumber &&
+                                              e.Channel == noteEvent.Channel &&
+                                              e.On.Time == noteEvent.On.Time);
+                    }
 
-                    note.MidiNoteEvents.Add(noteEvent);
+
+                        note.MidiNoteEvents.Add(noteEvent);
 
                     success++;
                 }
