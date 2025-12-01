@@ -48,8 +48,13 @@ public static class Extensions
         "shift" => Slide.Shift,
         "legato" => Slide.Legato,
         "below" => Slide.Below,
+        "above" => Slide.Above,
+        "belowlegato" => Slide.BelowLegato,
+        "" => Slide.None,
 
-        _ => Slide.None,
+
+
+        _ => throw new Exception(),
     };
 
     public static bool Is<TMidiEvent>(this TimedEvent timedEvent)

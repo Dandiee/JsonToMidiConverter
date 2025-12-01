@@ -23,7 +23,7 @@ public sealed partial class Part
         IsPianoLike = PianoLikeInstruments.Contains(InstrumentId);
         FullName = $"{song.Name} {Instrument} {Name}";
 
-        Measures = GetLinearMeasures();
+        Measures = UnfoldRepeats();
 
         for (var i = 0; i < Measures.Count; i++)
         {
@@ -36,14 +36,27 @@ public sealed partial class Part
         Debug.Assert(Measures.All(e => e.Voices.Count <= 1 || e.Voices.Count == maximumVoiceChannelCount));
     }
 
-    public List<Measure> GetLinearMeasures()
+    public List<Measure> UnfoldRepeats()
     {
         var measures = new List<Measure>();
         var repeats = new List<Measure>();
+        var part = FullName;
+        if (Song.SongId == 580)
+        {
 
+        }
+
+        var c = 0;
         foreach (var measure in Measures)
         {
-            if (measure.RepeatStart)
+            measure.OriginalIndex = c++;
+
+            if (measure.AlternateEnding.Length > 1)
+            {
+                throw new Exception("whats happening");
+            }
+
+            if (measure.RepeatStart || repeats.Count > 0)
             {
                 repeats.Add(measure);
             }
@@ -57,9 +70,18 @@ public sealed partial class Part
             {
                 for (var i = 0; i < measure.Repeat; i++)
                 {
+                    var alternateEndings = new List<int>();
                     foreach (var repeat in repeats)
                     {
-                        measures.Add(repeat.Clone());
+                        if (repeat.AlternateEnding.Length > 0)
+                        {
+                            alternateEndings.AddRange(repeat.AlternateEnding);
+                        }
+
+                        if (alternateEndings.Count == 0 || alternateEndings.Contains(i + 1))
+                        {
+                            measures.Add(repeat.Clone());
+                        }
                     }
                 }
 

@@ -10,6 +10,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
+using System.Xml.Linq;
 using Note = Melanchall.DryWetMidi.MusicTheory.Note;
 using Slide = JsonToMidiConverter.Context.Slide;
 
@@ -77,6 +78,8 @@ public record SlideRatioCase(
 
 public static class Dumper
 {
+    public const string DumperRoot = "Dumper";
+
     public static readonly IReadOnlyDictionary<MidiEventType, string> EventTypeNames =
         new Dictionary<MidiEventType, string>
         {
@@ -192,7 +195,7 @@ public static class Dumper
 
         var multiEventNotes = notes
             .Where(e => e.MidiNoteEvents.Count > 1)
-            .Where(e => e.SourceSlide == Slide.None)
+            //.Where(e => e.SourceSlide == slide.None)
             .Where(e => e.Part.InstrumentId != 1024)
             .ToList();
         Debug.Assert(multiEventNotes.Count == 0);
@@ -362,10 +365,7 @@ public static class Dumper
             });
         }
 
-
-
-
-        File.WriteAllText($"Slides_{song.SongId}.json", JsonSerializer.Serialize(results));
+        Save(JsonSerializer.Serialize(results), "slide", record);
     }
 
     public static List<SlideRatioCase> Cases = new List<SlideRatioCase>();
@@ -433,7 +433,7 @@ public static class Dumper
                         foreach (var note in beat.Notes)
                         {
 
-                            var slideMarker = note.Slide != Slide.None ? $" Slide = {note.Slide} " : "";
+                            var slideMarker = note.Slide != Slide.None ? $" slide = {note.Slide} " : "";
                             var tieMarker = note.Tie ? " Tie " : "";
 
                             sb.AppendLine($"\t\t{note} {slideMarker}{tieMarker} CH {note.Channel}, NN {note.NoteNumber} Dur: {note.ActualDuration.Tick}, Attr = [{GetAttributes(beat)}] Input = {GetJson(note)}");
@@ -472,7 +472,7 @@ public static class Dumper
                                 var holdSlideRatio = (double)holdDuration / totalSlideDuration;
                                 var slideTiedRatio = (double)totalSlideDuration / tiedDuration;
 
-                                sb.AppendLine($"\t\t\t ----- Overlap: {isOverlapping}, Total: {totalDuration}, Tied: {tiedDuration}  Hold: {holdDuration}, Slide: {totalSlideDuration}, Steps: {slideStepCount}, Hold-Slide: {holdSlideRatio:P2}, Slide-Tie: {slideTiedRatio:P2}");
+                                sb.AppendLine($"\t\t\t ----- Overlap: {isOverlapping}, Total: {totalDuration}, Tied: {tiedDuration}  Hold: {holdDuration}, slide: {totalSlideDuration}, Steps: {slideStepCount}, Hold-slide: {holdSlideRatio:P2}, slide-Tie: {slideTiedRatio:P2}");
                             }
 
                         }
@@ -484,11 +484,15 @@ public static class Dumper
 
             //Debug.Assert(missingOns.Count == 0);
         }
-        File.WriteAllText($"{record.Title}_Bible", sb.ToString());
+
+        Save(sb.ToString(), "Bible", record);
     }
 
     private static bool IsMatchingNoteEvent(MidiEvent midiEvent, Nota note)
         => midiEvent is NoteEvent noteEvent && noteEvent.Channel == note.Channel && noteEvent.NoteNumber == note.NoteNumber;
+
+    private static bool IsMatchingNoteEvent(MidiEvent midiEvent, int channel, int noteNumber)
+        => midiEvent is NoteEvent noteEvent && noteEvent.Channel == channel && noteEvent.NoteNumber == noteNumber;
 
     public static bool ShouldISkipThisBecauseTheyFuckedUpTheirMidi(Nota note)
     {
@@ -501,6 +505,8 @@ public static class Dumper
         return false;
     }
 
+    private static string CleanName(string name) => name.Replace('\u0013', '–');
+
     private static void ChannelSanityCheck(Song song, MidiFile midi)
     {
 
@@ -512,10 +518,11 @@ public static class Dumper
             var midiInstrumentName = chunk.FirstOrDefault(e => e.Event.Is<InstrumentNameEvent>())?.Event.As<InstrumentNameEvent>().Text;
             var midiTrackName = chunk.FirstOrDefault(e => e.Event.Is<SequenceTrackNameEvent>())?.Event.As<SequenceTrackNameEvent>().Text;
 
-            Debug.Assert(part.Measures.Count == chunk.Count(e => e.Event is MarkerEvent marker && marker.Text.StartsWith("MEASURE")));
+            var measuresInMidi = chunk.Count(e => e.Event is MarkerEvent marker && marker.Text.StartsWith("MEASURE"));
+            Debug.Assert(part.Measures.Count == measuresInMidi);
             Debug.Assert(part.InstrumentId.To7() == midiInstrumentId);
             Debug.Assert(midiInstrumentName == null || part.Instrument == midiInstrumentName);
-            Debug.Assert(midiTrackName == null || part.Name == midiTrackName);
+            Debug.Assert(midiTrackName == null || part.Name == CleanName(midiTrackName));
 
             var firstBeat = part.Measures
                     .SelectMany(e => e.Voices)
@@ -598,118 +605,58 @@ public static class Dumper
                 .SelectMany(e => e.Voices)
                 .SelectMany(e => e.Beats)
                 .SelectMany(n => n.Notes)
-                .Where(e => !e.Rest && !e.Tie && !ShouldISkipThisBecauseTheyFuckedUpTheirMidi(e))
-                .OrderBy(e => e.GetStartTime().Tick)
-                .ThenBy(e => e.Index)
+                .Where(e => !e.Rest)
+                //.Where(e => !e.Tie)
+                .Where(e => !ShouldISkipThisBecauseTheyFuckedUpTheirMidi(e))
+                //.OrderBy(e => e.GetStartTime().Tick)
+                //.ThenBy(e => e.Index)
                 .ToList();
 
             for (var i = 0; i < notes.Count; i++)
             {
-                
-
                 var note = notes[i];
+                var nicePartName = note.Part.FullName;
 
-                var measureStartTimes = note.Part.Measures.Select(e => e.StartTime).ToArray();
-                var beatStartTimes = note.Measure.Voices[note.Voice.Index].Beats.Select(e => e.AbsoluteBeatStartTime)
-                    .ToArray();
+                var notesFromI = notes.Skip(i).ToList();
 
-                var ch = note.GetNoteChannel();
-                var nn = note.GetNoteNumber();
-
-
-                var noteEvent = events
-                    .SkipWhile(e => !IsMatchingNoteEvent(e.On.Event, note))
-                    .First();
-
-                var PartName = part.FullName;
-
-                var noteEventMeasure = GetMeasureIndex(allEvents, noteEvent);
-                Debug.Assert(noteEventMeasure == note.Measure.Index);
-
-                if (note.Is("N1 B21 V0 M106 P2"))
+                if (note.Is("N0 B0 V0 M115 P4"))
                 {
 
                 }
 
-                note.MidiNoteEvents.Add(noteEvent);
+                var emittedNotes = note.GetEmittedNotes().ToList();
 
-                var nextChannelNote = notes
-                    .Skip(i + 1)
-                    .SkipWhile(e => 
-                        !(e.Part.InstrumentId == 1024 
-                            ? e.NoteNumber == note.NoteNumber
-                            : e.StringNumber == note.StringNumber))
-                    .FirstOrDefault();
-
-                var nextChannelNoteEvent = nextChannelNote != null
-                    ? events
-                        .SkipWhile(e =>
-                            !(IsMatchingNoteEvent(e.On.Event, nextChannelNote) &&
-                              e.On.Time >= nextChannelNote.Beat.AbsoluteBeatStartTime.Tick))
-                        .First()
-                    : null;
-
-                if (nextChannelNote != null && nextChannelNote.Slide == Slide.Below)
+                var success = 0;
+                foreach (var emittedNote in emittedNotes)
                 {
-                    var a = nextChannelNote.Beat.Previous.AbsoluteBeatStartTime;
-                    var b = a + nextChannelNote.Beat.Previous.MusicalDuration;
+                    var noteEvent = events
+                        .SkipWhile(e => !IsMatchingNoteEvent(e.On.Event, note.Channel, emittedNote))
+                        .First();
 
-                    var seekFrom = events.IndexOf(nextChannelNoteEvent);
-                    var seekTo = events.IndexOf(noteEvent);
+                    events.RemoveAll(e => e.NoteNumber == noteEvent.NoteNumber &&
+                                          e.Channel == noteEvent.Channel &&
+                                          e.On.Time == noteEvent.On.Time);
 
-                    for (var j = seekFrom; j > seekTo; j--)
-                    {
-                        var prevEvent = events[j];
-                        if (prevEvent.On.Time <= b.Tick && prevEvent.Channel == noteEvent.Channel)
-                        {
-                            nextChannelNoteEvent = prevEvent;
-                        }
-                        else break;
-                    }
+                    note.MidiNoteEvents.Add(noteEvent);
 
-                    //Debug.Assert(prevEventFound);
+                    success++;
                 }
-
-                var leftoversFromBehind = events
-                    .Where(e => e.Channel == noteEvent.Channel)
-                    .Where(e => e.On.Index < noteEvent.On.Index)
-                    .ToList();
-
-                if (leftoversFromBehind.Count > 0)
-                {
-                    if (note.Slide != Slide.Below) throw new Exception("you cant have leftovers here mate");
-
-                    note.MidiNoteEvents.AddRange(leftoversFromBehind);
-                }
-                    
-                var nextChannelNoteEventIndex = nextChannelNoteEvent?.On.Index ?? int.MaxValue;
-
-                var inBetweenNotes = events
-                    .SkipWhile(e => e.On.Index <= noteEvent.On.Index)
-                    .TakeWhile(e => e.On.Index < nextChannelNoteEventIndex)
-                    .Where(e => e.On.Event is NoteOnEvent on &&
-                                (
-                                    on.Channel == 9
-                                        ? on.NoteNumber == nn
-                                        : on.Channel == ch))
-                    .ToList();
-
-                note.MidiNoteEvents.AddRange(inBetweenNotes);
 
                 foreach (var assignedEvent in note.MidiNoteEvents)
                 {
                     var assignedEventMeasure = GetMeasureIndex(allEvents, assignedEvent);
-
                     var acceptedUpperMeasureLimit = IsEmittingExtraNotes(note)
                             ? ((note.TieDetails?.Destination) ?? note).Measure.Index
                             : note.Measure.Index;
 
                     Debug.Assert(assignedEventMeasure <= acceptedUpperMeasureLimit);
-                    Debug.Assert(assignedEventMeasure >= note.Measure.Index);
-
-                    events.Remove(assignedEvent);
+                    //Debug.Assert(assignedEventMeasure >= note.Measure.Index);
                 }
 
+                if (note.LastInBeat && note.Beat.LastInMeasure)
+                {
+                    Debug.Assert(events.All(e => GetMeasureIndex(allEvents, e) >= note.Measure.Index));
+                }
             }
 
             Debug.Assert(events.Count == 0);
@@ -779,7 +726,7 @@ public static class Dumper
             p++;
         }
 
-        File.WriteAllText($"{record.Title}_JsonMini.json", sb.ToString());
+        Save(sb.ToString(), "JsonMini", record);
     }
 
     private static void WriteMeasuredMidiData(Song song, MidiFile midi, RecordModel record)
@@ -818,7 +765,7 @@ public static class Dumper
             }
         }
 
-        File.WriteAllText($"{record.Title}_MidiMeasured.dani", sb.ToString());
+        Save(sb.ToString(), "MidiMeasured", record);
     }
 
     private static void WriteRawMidiData(Song song, MidiFile midi, RecordModel record)
@@ -834,7 +781,7 @@ public static class Dumper
             }
         }
 
-        File.WriteAllText($"{record.Title}_MidiRaw.dani", sb.ToString());
+        Save(sb.ToString(), "MidiRaw", record);
     }
 
     private static string GetMidiEventString(TimedMidiEvent timedEvent, long? end = null)
@@ -906,6 +853,26 @@ public static class Dumper
                 }
             }
         };
+    }
+
+    private static void Save(string content, string name, RecordModel record)
+    {
+        var title = Database.CleanString(record.Title);
+        var artist = Database.CleanString(record.Artist);
+
+        var folderRoot = Path.Combine(DumperRoot, artist, title);
+        if (!Directory.Exists(folderRoot))
+        {
+            Directory.CreateDirectory(folderRoot);
+        }
+
+        var filePath = Path.Combine(folderRoot, name + ".js");
+        if (File.Exists(filePath))
+        {
+            if (File.ReadAllText(filePath) == content) return;
+        }
+
+        File.WriteAllText(filePath, content);
     }
 
 }

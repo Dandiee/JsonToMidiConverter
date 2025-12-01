@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 using JsonToMidiConverter.Context;
 using JsonToMidiConverter.Test;
@@ -41,7 +42,7 @@ public sealed partial class Nota
     [JsonIgnore] public Nota? Next { get; private set; }
     [JsonIgnore] public Nota? Previous { get; private set; }
     [JsonIgnore] public bool LastInBeat { get; private set; }
-    [JsonIgnore] public Context.Slide SourceSlide { get; private set; }
+    [JsonIgnore] public Time? TremoloDuration { get; private set; }
 
     public void SetNavigation(Beat beat, int index)
     {
@@ -67,6 +68,11 @@ public sealed partial class Nota
         NoteNumber = GetNoteNumber().To7();
         Channel = GetNoteChannel();
 
+        if (Tremolo.Count > 0)
+        {
+            TremoloDuration = new Time(Tremolo[0], Tremolo[1]);
+        }
+
         Slide = SlideString?.ToSlide() ?? Context.Slide.None;
 
         RawDuration = Staccato
@@ -91,14 +97,6 @@ public sealed partial class Nota
             TieDetails.Destination.TieType = Models.Song.Tie.Destination;
         }
 
-        if (!Tie)
-        {
-            SourceSlide = Slide;
-        }
-        else if (!WillBeTied)
-        {
-            TieDetails.Source.SourceSlide = Slide;
-        }
 
         if (Slide != Context.Slide.None && Tie && WillBeTied)
         {
@@ -333,7 +331,7 @@ public sealed partial class Nota
         }
 
         var duration = TieDetails?.Destination.ActualDuration ?? ActualDuration;
-        
+
         if (Tie && steps > 1)
         {
             duration = TieDetails.Source.ActualDuration;
@@ -355,7 +353,7 @@ public sealed partial class Nota
             : Math.Min(steps * 960d, duration.Tick / 2d);
 
         var vibratoMultiplier = Vibrato ? 1.33333 : 1.0;
-        var dotMultiplier = (2 - (1 / Math.Pow(2, Beat.Dots)));
+        var dotMultiplier = 2 - 1 / Math.Pow(2, Beat.Dots);
         var stepSize = Math.Min(960, defaultSlideWindow / steps) * dotMultiplier * vibratoMultiplier;
 
         var slideWindow = new Time((long)(stepSize * steps));
@@ -382,7 +380,7 @@ public sealed partial class Nota
         var isSlideOut = Slide == Context.Slide.Downwards || Slide == Context.Slide.Upwards;
         var totalTicks = ActualDuration;
         var maxDuration = isSlideOut
-            ? (totalTicks * 3) / 4  // 75% Cap
+            ? totalTicks * 3 / 4  // 75% Cap
             : totalTicks / 2;       // 50% Cap
 
 
@@ -433,66 +431,112 @@ public sealed partial class Nota
 
     public bool Is(string id) => id == ToString();
 
+    public static readonly IReadOnlyDictionary<int, int> FretHarmonicOffsets = new Dictionary<int, int>
+    {
+        [24] = 24,
+        [12] = 12,
+        [07] = 19,
+        [05] = 24,
+        [04] = 28,
+        [03] = 31,
+        [09] = 28
+    };
+
     public int GetNoteNumber()
     {
         if (Rest) return 0;
 
         if (Part.InstrumentId == 1024 || (int)StringNumber == -1)
         {
-            return DrumMapping.Mapping.TryGetValue(Fret, out var noteNumber)
-                ? noteNumber.NoteNumber
-                : Fret; // default to Acoustic Bass Drum
-            //if (Fret == 51) return 59; // nirvana, M5, P6, N1, N0
-            //if (Fret == 98 && StringNumber == -0.5) return 57;
-            //if (Fret == 85 && StringNumber == -1.5) return 76;
-            //if (Fret == 92 && StringNumber == -0.5) return 46;
-            //return Fret;
+            return DrumMapping.Mapping.TryGetValue(Fret, out var noteNumber) ? noteNumber.NoteNumber : Fret; // default to Acoustic Bass Drum
         }
 
-        int openStringPitch = Part.Tuning.Length == 0
-            ? (int)StringNumber // Fallback
-            : Part.Tuning[(int)StringNumber];
+        int open = Part.Tuning.Length == 0 ? (int)StringNumber : Part.Tuning[(int)StringNumber];
 
-        // öt az eltérés?
+        var q = this;
+        var p = this.Part.FullName;
 
-        if (Harmonic != null)
+        if (Harmonic == null) return open + Fret;
+
+        var harmonicOffset = FretHarmonicOffsets[(int)HarmonicFret];
+
+        if (Harmonic.Equals("natural", StringComparison.OrdinalIgnoreCase)) return open + harmonicOffset;
+
+        return open + harmonicOffset + Fret;
+    }
+
+    public IEnumerable<int> GetEmittedNotes()
+    {
+        if (!Tie && 
+            !TremoloDuration.HasValue && 
+            Slide != Context.Slide.Below && 
+            Slide != Context.Slide.BelowLegato &&
+            Slide != Context.Slide.Above)
         {
-            if (Harmonic == "natural")
+            yield return NoteNumber;
+        }
+
+        if (Slide != Context.Slide.None)
+        {
+            if (Slide == Context.Slide.BelowLegato)
             {
-                switch (Fret) // Or note.harmonicFret
-                {
-                    case 12: return (openStringPitch + 12);
-                    case 7: return (openStringPitch + 19);
-                    case 5: return (openStringPitch + 24);
-                    case 4: return (openStringPitch + 28);
-                    case 9: return (openStringPitch + 28); // 9th fret harmonic is same as 4th
-                    case 3: return (openStringPitch + 31); // 3rd fret is +2 Octaves + 5th
-                    default: throw new Exception("");
-                }
+                foreach (var note in GetSlideEmittedNotes(this, Context.Slide.Below))
+                    yield return note;
+
+                foreach (var note in GetSlideEmittedNotes(this, Context.Slide.Legato))
+                    yield return note;
             }
-            else if (Harmonic == "artificial")
+            else
             {
-                switch ((int)HarmonicFret)
-                {
-                    case 12: return openStringPitch + Fret + 12;
-                    case 10: return openStringPitch + Fret + 12;
-                    case 5: return openStringPitch + Fret + 24;
-                    default: throw new Exception("");
-                }
+                foreach (var note in GetSlideEmittedNotes(this, Slide))
+                    yield return note;
             }
-            else if (Harmonic == "pinch")
-            {
-                switch ((int)HarmonicFret)
-                {
-                    case 12: return openStringPitch + Fret + 12;
-                    default: throw new Exception("");
-                }
-            }
-            else throw new Exception("not suppoorted");
         }
 
 
-        return openStringPitch + Fret;
+        if (TremoloDuration.HasValue)
+        {
+            if (Dead)
+            {
+                if (!Tie)
+                {
+                    yield return NoteNumber;
+                }
+            }
+            else
+            {
+                var repeats = ActualDuration.Tick / TremoloDuration.Value.Tick;
+                for (var i = 0; i < repeats; i++)
+                {
+                    yield return NoteNumber;
+                }
+            }
+        }
+
+        var q = this;
+    }
+
+    private static IEnumerable<int> GetSlideEmittedNotes(Nota note, Context.Slide slide)
+    {
+        var target = GetSlideTargetPitch(slide, note);
+        var delta = target - note.Fret;
+        var sign = Math.Sign(delta);
+        var steps = Math.Abs(target - note.Fret);
+
+        if (slide == Context.Slide.Below || slide == Context.Slide.Above)
+        {
+            for (var i = 1; i < steps + 1; i++)
+            {
+                yield return note.NoteNumber + sign * (steps - i);
+            }
+        }
+        else
+        {
+            for (var i = 1; i < steps; i++)
+            {
+                yield return note.NoteNumber + sign * i;
+            }
+        }
     }
 
     public Nota? GetSlideTargetNote()
@@ -506,92 +550,43 @@ public sealed partial class Nota
         throw new Exception("what slide");
     }
 
-    public int GetSlideTargetPitch()
+    public static int GetSlideTargetPitch(Context.Slide slide, Nota note)
     {
-        if (Slide == Context.Slide.Shift) return GetNextStringSibling().Fret;
-        if (Slide == Context.Slide.Downwards) return (Fret - Math.Min(10, Fret)).To7();
-        if (Slide == Context.Slide.Upwards) return (Fret + 10).To7();
-        if (Slide == Context.Slide.Legato) return GetNextStringSibling().Fret;
-        if (Slide == Context.Slide.Below) return (Fret - Math.Min(10, Fret)).To7();
+        if (slide == Context.Slide.Above)
+        {
+
+        }
+
+        if (slide == Context.Slide.Shift) return note.GetNextStringSibling().Fret;
+
+        if (slide == Context.Slide.Legato) return note.GetNextStringSibling().Fret;
+
+        if (slide == Context.Slide.Upwards || slide == Context.Slide.Above) return (note.Fret + 10).To7();
+
+        if (slide == Context.Slide.Downwards || slide == Context.Slide.Below)
+        {
+            var minChordFret = note.Beat.Notes.Min(e => e.Fret);
+            var minTargetFret = minChordFret - Math.Min(10, minChordFret);
+            var minDistance = minTargetFret - minChordFret;
+
+            return note.Fret + minDistance;
+        }
+
+
 
         throw new Exception("what slide");
     }
+
+
+    public int GetSlideTargetPitch() => GetSlideTargetPitch(Slide, this);
 
     public FourBitNumber GetNoteChannel()
     {
         if (Part.InstrumentId == 1024) return 9.To4();
         return (FourBitNumber)StringNumber;
-
-
-
-
-        if (InstrumentChannels.TryGetValue(Part.InstrumentId, out int assignedChannel))
-        {
-            return (FourBitNumber)assignedChannel;
-        }
-
-        if (Part.InstrumentId == 0 || Part.InstrumentId == 48 || Part.InstrumentId == 34) // piano and sampler
-        {
-            return (FourBitNumber)(int)StringNumber;
-        }
-        var id = Part.InstrumentId;
-
-        if (id >= 0 && id <= 7 || Part.InstrumentId == 33) return 0.To4(); // Piano -> Ch 1
-        if (id >= 24 && id <= 34) return 1.To4(); // Guitar -> Ch 2
-        if (id >= 32 && id <= 39) return 2.To4(); // Bass   -> Ch 3
-        if (id >= 40 && id <= 55) return 3.To4(); // Strings/Voices -> Ch 4
-        if (id >= 56 && id <= 71) return 4.To4(); // Brass/Reeds -> Ch 5
-        if (id >= 16 && id <= 23) return 5.To4(); // Organ  -> Ch 6
-
-        return 6.To4();
     }
-
-    private static readonly IReadOnlyDictionary<int, int> InstrumentChannels = new Dictionary<int, int>
-    {
-        [71] = 1, // Clarinet (used for vocals) -> Ch 5
-        [68] = 4, // Oboe (used for vocals) -> Ch 5
-        [52] = 4, // Choir Aahs -> Ch 5
-        [53] = 4, // Voice Oohs -> Ch 5
-        [54] = 4, // Synth Voice -> Ch 5
-        [1024] = 9, // Standard Drums
-        [127] = 9, // Gunshot (sometimes used as a snare marker)
-        [119] = 8, // Reverse Cymbal -> Ch 9
-        [122] = 8, // Seashore -> Ch 9
-    };
 
     public override string ToString() => $"N{Index} {Beat}";
-
-    public Nota? GetNextDontUse()
-    {
-        var currentBeat = Beat;
-        var currentMeasure = Beat.Voice.Measure;
-
-        while (true)
-        {
-            if (currentBeat.Voice.Beats.Count == currentBeat.Index + 1)
-            {
-                if (currentMeasure.Index == currentMeasure.Part.Measures.Count - 1)
-                {
-                    return null;
-                }
-
-                currentMeasure = currentMeasure.Part.Measures[currentMeasure.Index + 1];
-                currentBeat = currentMeasure.Voices[Voice.Index].Beats[0];
-            }
-            else
-            {
-                currentBeat = currentMeasure.Voices[Voice.Index].Beats[currentBeat.Index + 1];
-            }
-
-            var note = currentBeat.Notes.SingleOrDefault(e => e.StringNumber == StringNumber);
-            if (note != null)
-            {
-                return note;
-            }
-        }
-    }
-
-    public long GetBeatStartDontUse() => Beat.AbsoluteBeatStartTime.Tick;
 }
 
 public enum Tie

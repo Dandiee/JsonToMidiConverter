@@ -22,7 +22,7 @@ public sealed partial class Nota
     public double HarmonicFret { get; set; }
     public Bend? Bend { get; set; }
     public bool Dead { get; set; }
-    public List<double> Tremolo { get; set; } = [];
+    public List<long> Tremolo { get; set; } = [];
     public bool WideVibrato { get; set; }
 
     public Nota Clone() => new()

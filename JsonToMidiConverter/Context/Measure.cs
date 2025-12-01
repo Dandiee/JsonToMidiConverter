@@ -15,6 +15,7 @@ public sealed partial class Measure
     [JsonIgnore] public byte? SignatureDenominator { get; private set; }
     [JsonIgnore] public Measure? Next { get; private set; }
     [JsonIgnore] public Measure? Previous { get; private set; }
+    [JsonIgnore] public int OriginalIndex { get; set; }
 
     public void SetNavigation(Part part, int index)
     {

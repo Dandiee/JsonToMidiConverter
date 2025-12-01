@@ -12,7 +12,7 @@ public sealed partial class Measure
     public bool RepeatStart { get; set; }
     public int Repeat { get; set; }
     public bool DoubleBarline { get; set; }
-    public int[] AlternateEnding { get; set; }
+    public int[] AlternateEnding { get; set; } = [];
     public string TripletFeel { get; set; }
 
     public Measure Clone() => new()
