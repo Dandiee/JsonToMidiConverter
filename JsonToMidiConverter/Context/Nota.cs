@@ -43,6 +43,7 @@ public sealed partial class Nota
     [JsonIgnore] public Nota? Previous { get; private set; }
     [JsonIgnore] public bool LastInBeat { get; private set; }
     [JsonIgnore] public Time? TremoloDuration { get; private set; }
+    [JsonIgnore] public int PureNoteNumber { get; private set; }
 
     public void SetNavigation(Beat beat, int index)
     {
@@ -66,6 +67,7 @@ public sealed partial class Nota
     public void Build()
     {
         NoteNumber = GetNoteNumber().To7();
+        PureNoteNumber = GetNoteNumber(false);
         Channel = GetNoteChannel();
 
         if (Tremolo.Count > 0)
@@ -81,7 +83,7 @@ public sealed partial class Nota
 
 
 
-        ActualDuration = RawDuration * (2 - 1 / Math.Pow(2, Beat.Dots));
+        ActualDuration = RawDuration.ApplyDots(Beat.Dots);
         WillBeTied = GetWillBeTied();
 
         if (Tie && !WillBeTied)
@@ -431,18 +433,21 @@ public sealed partial class Nota
 
     public bool Is(string id) => id == ToString();
 
-    public static readonly IReadOnlyDictionary<int, int> FretHarmonicOffsets = new Dictionary<int, int>
+    public static readonly IReadOnlyDictionary<double, int> FretHarmonicOffsets = new Dictionary<double, int>
     {
-        [24] = 24,
+        [2.4] = 36,
+        [3.2] = 31,
+        [3] = 31,
+        [4] = 28,
+        [5] = 24,
+        [7] = 19,
+        [9] = 28,
         [12] = 12,
-        [07] = 19,
-        [05] = 24,
-        [04] = 28,
-        [03] = 31,
-        [09] = 28
+        [19] = 19,
+        [24] = 24,
     };
 
-    public int GetNoteNumber()
+    public int GetNoteNumber(bool withHarmonic = true)
     {
         if (Rest) return 0;
 
@@ -453,25 +458,21 @@ public sealed partial class Nota
 
         int open = Part.Tuning.Length == 0 ? (int)StringNumber : Part.Tuning[(int)StringNumber];
 
-        var q = this;
-        var p = this.Part.FullName;
-
-        if (Harmonic == null) return open + Fret;
-
-        var harmonicOffset = FretHarmonicOffsets[(int)HarmonicFret];
-
+        if (Harmonic == null || !withHarmonic) return open + Fret;
+        var harmonicOffset = FretHarmonicOffsets[HarmonicFret];
         if (Harmonic.Equals("natural", StringComparison.OrdinalIgnoreCase)) return open + harmonicOffset;
-
+        //if (Harmonic.Equals("pinch", StringComparison.OrdinalIgnoreCase)) return open + harmonicOffset - Fret;
         return open + harmonicOffset + Fret;
     }
 
     public IEnumerable<int> GetEmittedNotes()
     {
-        if (!Tie && 
-            !TremoloDuration.HasValue && 
-            Slide != Context.Slide.Below && 
+        if (!Tie &&
+            !TremoloDuration.HasValue &&
+            Slide != Context.Slide.Below &&
             Slide != Context.Slide.BelowLegato &&
-            Slide != Context.Slide.Above)
+            Slide != Context.Slide.Above &&
+            Slide != Context.Slide.BelowDownwards)
         {
             yield return NoteNumber;
         }
@@ -486,6 +487,14 @@ public sealed partial class Nota
                 foreach (var note in GetSlideEmittedNotes(this, Context.Slide.Legato))
                     yield return note;
             }
+            else if (Slide == Context.Slide.BelowDownwards)
+            {
+                foreach (var note in GetSlideEmittedNotes(this, Context.Slide.Below))
+                    yield return note;
+
+                foreach (var note in GetSlideEmittedNotes(this, Context.Slide.Downwards))
+                    yield return note;
+            }
             else
             {
                 foreach (var note in GetSlideEmittedNotes(this, Slide))
@@ -495,26 +504,21 @@ public sealed partial class Nota
 
 
         if (TremoloDuration.HasValue)
-        {
-            if (Dead)
-            {
-                if (!Tie)
-                {
-                    yield return NoteNumber;
-                }
-            }
-            else
-            {
-                var repeats = ActualDuration.Tick / TremoloDuration.Value.Tick;
-                for (var i = 0; i < repeats; i++)
-                {
-                    yield return NoteNumber;
 
-                    if (Tie && i > 0)
-                    {
-                        yield return NoteNumber;
-                    }
+        {
+            var noteDuration = WillBeTied ? TieDetails.FullDuration.Tick : RawDuration.Tick;
+            var repeats = noteDuration / TremoloDuration.Value.Tick;
+            for (var i = 0; i < repeats; i++)
+            {
+                if (Tie && i == 0) continue;
+                if (Dead)
+                {
+                    if (!Tie && i == 0) yield return NoteNumber;
+
+                    continue;
                 }
+
+                yield return NoteNumber;
             }
         }
 
@@ -523,23 +527,36 @@ public sealed partial class Nota
 
     private static IEnumerable<int> GetSlideEmittedNotes(Nota note, Context.Slide slide)
     {
-        var target = GetSlideTargetPitch(slide, note);
+        var target = GetSlideTargetPitch(slide, note, out var tagetNote);
         var delta = target - note.Fret;
         var sign = Math.Sign(delta);
         var steps = Math.Abs(target - note.Fret);
+
+
+        if (slide == Context.Slide.Shift && delta == 0 && note.WillBeTied)
+        {
+            sign = -1;
+            steps = 2;
+        }
+
+        if (slide == Context.Slide.Below && delta == 0)
+        {
+            sign = -1;
+            steps = 1;
+        }
 
         if (slide == Context.Slide.Below || slide == Context.Slide.Above)
         {
             for (var i = 1; i < steps + 1; i++)
             {
-                yield return note.NoteNumber + sign * (steps - i);
+                yield return note.PureNoteNumber + sign * (steps - i);
             }
         }
         else
         {
             for (var i = 1; i < steps; i++)
             {
-                yield return note.NoteNumber + sign * i;
+                yield return note.PureNoteNumber + sign * i;
             }
         }
     }
@@ -555,35 +572,38 @@ public sealed partial class Nota
         throw new Exception("what slide");
     }
 
-    public static int GetSlideTargetPitch(Context.Slide slide, Nota note)
+    public static int GetSlideTargetPitch(Context.Slide slide, Nota note, out Nota? targetNote)
     {
-        if (slide == Context.Slide.Above)
+        if (slide == Context.Slide.Shift || slide == Context.Slide.Legato)
         {
-
+            targetNote = note.GetNextStringSibling();
+            return targetNote.Fret;
         }
 
-        if (slide == Context.Slide.Shift) return note.GetNextStringSibling().Fret;
+        targetNote = null;
 
-        if (slide == Context.Slide.Legato) return note.GetNextStringSibling().Fret;
+        if (slide == Context.Slide.Upwards || slide == Context.Slide.Above)
+        {
+            var maxChordFret = note.Beat.Notes.Where(e => e.Slide == note.Slide).Max(e => e.Fret);
+            var maxTargetFret = Math.Min(24, maxChordFret + 10);
+            var maxDistance = maxTargetFret - maxChordFret;
 
-        if (slide == Context.Slide.Upwards || slide == Context.Slide.Above) return (note.Fret + 10).To7();
-
+            return note.Fret + maxDistance;
+        }
         if (slide == Context.Slide.Downwards || slide == Context.Slide.Below)
         {
-            var minChordFret = note.Beat.Notes.Min(e => e.Fret);
+            var minChordFret = note.Beat.Notes.Where(e => e.Slide == note.Slide).Min(e => e.Fret);
             var minTargetFret = minChordFret - Math.Min(10, minChordFret);
             var minDistance = minTargetFret - minChordFret;
 
             return note.Fret + minDistance;
         }
 
-
-
         throw new Exception("what slide");
     }
 
 
-    public int GetSlideTargetPitch() => GetSlideTargetPitch(Slide, this);
+    public int GetSlideTargetPitch() => GetSlideTargetPitch(Slide, this, out _);
 
     public FourBitNumber GetNoteChannel()
     {
@@ -609,6 +629,7 @@ public sealed class TieContext
     public IReadOnlyList<Nota> InBetweenNotes { get; }
     public IReadOnlyList<Nota> FullChain { get; }
     public Time FullDuration { get; }
+    public Time FullRawDuration { get; }
 
     public TieContext(Nota destinationNote)
     {
@@ -619,5 +640,6 @@ public sealed class TieContext
         Destination = FullChain[^1];
         InBetweenNotes = FullChain.Skip(1).Take(FullChain.Count - 2).ToList();
         FullDuration = new Time(FullChain.Sum(e => e.ActualDuration.Tick));
+        FullDuration = new Time(FullChain.Sum(e => e.RawDuration.Tick));
     }
 }

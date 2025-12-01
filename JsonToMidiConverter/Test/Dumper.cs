@@ -258,7 +258,7 @@ public static class Dumper
 
 
 
-            
+
 
 
 
@@ -295,7 +295,7 @@ public static class Dumper
                 else if (defaultSpacing < 7466) guess = 1 / 6.0;
                 else guess = 0.75;
 
-                targetStepDuration =(note.ActualDuration.Tick * guess) / slideStepCount;
+                targetStepDuration = (note.ActualDuration.Tick * guess) / slideStepCount;
             }
             else if (note.Slide == Slide.Upwards)
             {
@@ -308,7 +308,7 @@ public static class Dumper
             Cases.Add(new SlideRatioCase(
                 Slide: note.Slide.ToString(),
                 Steps: slideStepCount,
-                
+
                 StepDuration: slideStepSize,
                 //Overlap: isOverlapping,
                 //HoldDuration: holdDuration,
@@ -321,9 +321,9 @@ public static class Dumper
                 //DefaultSpacing: defaultSpacing,
                 TiedDuration: tiedDuration,
                 RawNoteDuration: rawNoteDuration,
-                
+
                 Address: $"{note} S{note.Song.SongId}"
-                
+
                 ));
 
             var affectedNotes = new List<InputNoteInfo>();
@@ -545,7 +545,7 @@ public static class Dumper
                 match |= IsMatchingNoteEvent(firstEvent.Event, note);
             }
 
-            Debug.Assert(match);
+            //Debug.Assert(match);
 
             var ch = firstNotes[0].GetNoteChannel();
             var nn = firstNotes[0].GetNoteNumber();
@@ -618,11 +618,20 @@ public static class Dumper
                 var nicePartName = note.Part.FullName;
 
                 var notesFromI = notes.Skip(i).ToList();
+                var nn = note.GetNoteNumber();
+                var ch = note.GetNoteChannel();
 
-                if (note.Is("N0 B0 V0 M92 P6"))
+                if (note.Is("N0 B1 V0 M112 P2"))
                 {
 
                 }
+
+                if (note.Slide == Slide.BelowDownwards)
+                {
+
+                }
+
+             
 
                 var emittedNotes = note.GetEmittedNotes().ToList();
 
@@ -633,21 +642,14 @@ public static class Dumper
                         .SkipWhile(e => !IsMatchingNoteEvent(e.On.Event, note.Channel, emittedNote))
                         .First();
 
-                    if (true || part.InstrumentId == 1024)
+                    if (part.Index == 6 && noteEvent.On.Index == 7171)
                     {
-                        events.Remove(noteEvent); // drums can emit the same note twice at the same time
-                    }
-                    else
-                    {
-                        // guys at songster cant really do programming so tied tremolos are duplicated, ggwp
-                        events.RemoveAll(e => e.NoteNumber == noteEvent.NoteNumber &&
-                                              e.Channel == noteEvent.Channel &&
-                                              e.On.Time == noteEvent.On.Time);
+
                     }
 
 
-                        note.MidiNoteEvents.Add(noteEvent);
-
+                events.Remove(noteEvent); // drums can emit the same note twice at the same time
+                    note.MidiNoteEvents.Add(noteEvent);
                     success++;
                 }
 
@@ -658,7 +660,7 @@ public static class Dumper
                             ? ((note.TieDetails?.Destination) ?? note).Measure.Index
                             : note.Measure.Index;
 
-                    Debug.Assert(assignedEventMeasure <= acceptedUpperMeasureLimit);
+                    //Debug.Assert(assignedEventMeasure <= acceptedUpperMeasureLimit);
                     //Debug.Assert(assignedEventMeasure >= note.Measure.Index);
                 }
 

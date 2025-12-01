@@ -1,6 +1,7 @@
-﻿using System.Diagnostics;
-using System.Runtime.CompilerServices;
+﻿using JsonToMidiConverter.Models.Song;
 using Melanchall.DryWetMidi.Interaction;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace JsonToMidiConverter;
 
@@ -26,6 +27,8 @@ public readonly struct Time : IEquatable<Time>
     public Time(long bars, double beats) : this(new BarBeatFractionTimeSpan(bars, beats)) { }
     public Time(long numerator, long denominator) : this(new MusicalTimeSpan(numerator, denominator)) { }
     public Time() : this(0) { }
+
+    public Time ApplyDots(int dots) => new((long)(Tick * (2 - 1 / Math.Pow(2, dots))));
 
     public static Time operator +(Time lhs, Time rhs) => new(lhs.Tick + rhs.Tick);
     public static Time operator -(Time lhs, Time rhs) => new(lhs.Tick - rhs.Tick);

@@ -50,6 +50,7 @@ public static class Extensions
         "below" => Slide.Below,
         "above" => Slide.Above,
         "belowlegato" => Slide.BelowLegato,
+        "belowdownwards" => Slide.BelowDownwards,
         "" => Slide.None,
 
 

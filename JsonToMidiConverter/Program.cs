@@ -12,8 +12,8 @@ using Slide = JsonToMidiConverter.Context.Slide;
 
 
 var midis = Directory.GetFiles("FreshSong");
-
-foreach (var midiPath in midis)
+var c = 0;
+foreach (var midiPath in midis.Skip(39))
 {
     var pathParts = midiPath.Split('-');
     var artist = pathParts[0];
@@ -30,7 +30,8 @@ foreach (var midiPath in midis)
     var reference = GetNormalizedMidi(midiPath);
     Dumper.Dump(song, reference, record);
     //Dumper.TestSlides(song, reference, record);
-    
+    c++;
+
 }
 
 var miniResults = Dumper.Cases
