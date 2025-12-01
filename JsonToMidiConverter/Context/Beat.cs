@@ -71,9 +71,11 @@ public sealed partial class Beat
 
         if (Next?.GraceNote == "beforeBeat")
         {
+            
             var nextGraceDuration = new Time(Next.Duration[0], Next.Duration[1]);
             rawDuration -= nextGraceDuration;
         }
+
 
         if (GraceNote != null && GraceNote != "onBeat" && GraceNote != "beforeBeat")
             throw new Exception("wtf is this then");
