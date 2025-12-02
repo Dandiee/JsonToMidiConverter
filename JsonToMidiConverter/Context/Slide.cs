@@ -11,4 +11,5 @@ public enum Slide
     BelowLegato,
     Above,
     BelowDownwards,
+    BelowShift
 }

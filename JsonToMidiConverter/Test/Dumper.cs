@@ -596,78 +596,84 @@ public static class Dumper
             Time.Map = part.TempoMap;
 
             var allEvents = midi.GetEvents(part.Index).ToList();
-            var assertEvents = allEvents.ToList();
             var events = GatherNoteOnOffParis(allEvents).ToList();
-
-            var usedIndexes = new HashSet<int>();
 
             var notes = part.Measures
                 .SelectMany(e => e.Voices)
                 .SelectMany(e => e.Beats)
                 .SelectMany(n => n.Notes)
                 .Where(e => !e.Rest)
-                //.Where(e => !e.Tie)
-                .Where(e => !ShouldISkipThisBecauseTheyFuckedUpTheirMidi(e))
-                //.OrderBy(e => e.GetStartTime().Tick)
-                //.ThenBy(e => e.Index)
                 .ToList();
+
+
 
             for (var i = 0; i < notes.Count; i++)
             {
                 var note = notes[i];
+
+                if (note.Slide != Slide.None && note.Tremolo.Count > 0)
+                    throw new Exception("Just drop this track in the bin doesnt matter fuck that");
+
                 var nicePartName = note.Part.FullName;
+                var minMeasureIndex = note.Slide.IsBackwardSlide() || note.Beat.GraceNote == "beforeBeat"
+                    ? note.Measure.Index - 1
+                    : note.Measure.Index;
+                var maxMeasureIndex = note.Tremolo.Count == 2 && note.WillBeTied 
+                    ? note.TieDetails.Destination.Measure.Index
+                    : note.Measure.Index;
+
+                if ((note.Previous?.Slide ?? Slide.None).IsBackwardSlide())
+                {
+                    minMeasureIndex = note.Previous.Measure.Index;
+                }
+
+                if (note.Slide == Slide.Shift)
+                {
+                    maxMeasureIndex++;
+                }
 
                 var notesFromI = notes.Skip(i).ToList();
                 var nn = note.GetNoteNumber();
                 var ch = note.GetNoteChannel();
 
-                if (note.Is("N0 B1 V0 M112 P2"))
+                if (note.Is("N0 B6 V0 M99 P2"))
                 {
 
                 }
 
-                if (note.Slide == Slide.BelowDownwards)
+                if (note.Is("N1 B2 V0 M120 P2"))
                 {
 
                 }
 
-             
 
                 var emittedNotes = note.GetEmittedNotes().ToList();
 
-                var success = 0;
                 foreach (var emittedNote in emittedNotes)
                 {
                     var noteEvent = events
                         .SkipWhile(e => !IsMatchingNoteEvent(e.On.Event, note.Channel, emittedNote))
                         .First();
 
-                    if (part.Index == 6 && noteEvent.On.Index == 7171)
+                    var noteEvent2 = events.First(e => note.Part.InstrumentId == 1024
+                        ? e.NoteNumber == note.NoteNumber
+                        : e.Channel == note.Channel);
+
+                    if (noteEvent2 != noteEvent)
                     {
 
                     }
 
+                    events.Remove(noteEvent); note.MidiNoteEvents.Add(noteEvent);
 
-                events.Remove(noteEvent); // drums can emit the same note twice at the same time
-                    note.MidiNoteEvents.Add(noteEvent);
-                    success++;
+                    var eventMeasure = GetMeasureIndex(allEvents, noteEvent);
+
+                    //Debug.Assert(eventMeasure >= minMeasureIndex && eventMeasure <= maxMeasureIndex);
                 }
 
-                foreach (var assignedEvent in note.MidiNoteEvents)
-                {
-                    var assignedEventMeasure = GetMeasureIndex(allEvents, assignedEvent);
-                    var acceptedUpperMeasureLimit = IsEmittingExtraNotes(note)
-                            ? ((note.TieDetails?.Destination) ?? note).Measure.Index
-                            : note.Measure.Index;
+                var remaining = events.Count > 0 ? events[0].On.Index : -1;
 
-                    //Debug.Assert(assignedEventMeasure <= acceptedUpperMeasureLimit);
-                    //Debug.Assert(assignedEventMeasure >= note.Measure.Index);
-                }
-
-                if (note.LastInBeat && note.Beat.LastInMeasure)
-                {
-                    Debug.Assert(events.All(e => GetMeasureIndex(allEvents, e) >= note.Measure.Index));
-                }
+                if (note.LastInBeat && note.Beat.LastInMeasure) Debug.Assert(events.All(e => GetMeasureIndex(allEvents, e) >= note.Measure.Index));
             }
 
             Debug.Assert(events.Count == 0);

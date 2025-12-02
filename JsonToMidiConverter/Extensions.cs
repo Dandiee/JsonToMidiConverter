@@ -51,12 +51,26 @@ public static class Extensions
         "above" => Slide.Above,
         "belowlegato" => Slide.BelowLegato,
         "belowdownwards" => Slide.BelowDownwards,
+        "belowshift" => Slide.BelowShift,
         "" => Slide.None,
 
 
 
         _ => throw new Exception(),
     };
+
+    private static readonly HashSet<Slide> BackwardSlides = new[]
+    {
+        Slide.BelowShift, Slide.Below, Slide.BelowDownwards, Slide.BelowLegato, Slide.Above
+    }.ToHashSet();
+
+    private static readonly HashSet<Slide> ForwardSlides = new[]
+    {
+        Slide.Downwards, Slide.BelowDownwards, Slide.Upwards
+    }.ToHashSet();
+
+    public static bool IsBackwardSlide(this Slide slide) => BackwardSlides.Contains(slide);
+    public static bool IsForwardSlide(this Slide slide) => ForwardSlides.Contains(slide);
 
     public static bool Is<TMidiEvent>(this TimedEvent timedEvent)
         where TMidiEvent : MidiEvent

@@ -13,7 +13,7 @@ using Slide = JsonToMidiConverter.Context.Slide;
 
 var midis = Directory.GetFiles("FreshSong");
 var c = 0;
-foreach (var midiPath in midis.Skip(39))
+foreach (var midiPath in midis)
 {
     var pathParts = midiPath.Split('-');
     var artist = pathParts[0];

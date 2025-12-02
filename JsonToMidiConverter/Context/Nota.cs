@@ -66,8 +66,8 @@ public sealed partial class Nota
 
     public void Build()
     {
-        NoteNumber = GetNoteNumber().To7();
-        PureNoteNumber = GetNoteNumber(false);
+        NoteNumber = (GetNoteNumber() + Part.Capo).To7();
+        PureNoteNumber = GetNoteNumber(false) + Part.Capo;
         Channel = GetNoteChannel();
 
         if (Tremolo.Count > 0)
@@ -436,6 +436,7 @@ public sealed partial class Nota
     public static readonly IReadOnlyDictionary<double, int> FretHarmonicOffsets = new Dictionary<double, int>
     {
         [2.4] = 36,
+        [2.7] = 34,
         [3.2] = 31,
         [3] = 31,
         [4] = 28,
@@ -469,10 +470,8 @@ public sealed partial class Nota
     {
         if (!Tie &&
             !TremoloDuration.HasValue &&
-            Slide != Context.Slide.Below &&
-            Slide != Context.Slide.BelowLegato &&
-            Slide != Context.Slide.Above &&
-            Slide != Context.Slide.BelowDownwards)
+            !Slide.ToString().StartsWith("Below") &&
+            !Slide.ToString().StartsWith("Above"))
         {
             yield return NoteNumber;
         }
@@ -493,6 +492,14 @@ public sealed partial class Nota
                     yield return note;
 
                 foreach (var note in GetSlideEmittedNotes(this, Context.Slide.Downwards))
+                    yield return note;
+            }
+            else if (Slide == Context.Slide.BelowShift)
+            {
+                foreach (var note in GetSlideEmittedNotes(this, Context.Slide.Below))
+                    yield return note;
+
+                foreach (var note in GetSlideEmittedNotes(this, Context.Slide.Shift))
                     yield return note;
             }
             else
@@ -532,11 +539,17 @@ public sealed partial class Nota
         var sign = Math.Sign(delta);
         var steps = Math.Abs(target - note.Fret);
 
+        if (slide == Context.Slide.Shift && delta == 0) yield break;
 
-        if (slide == Context.Slide.Shift && delta == 0 && note.WillBeTied)
+        if (slide == Context.Slide.Shift && delta == 0 && note.WillBeTied && note.TieDetails.Destination.Slide == Context.Slide.None)
         {
             sign = -1;
             steps = 2;
+        }
+
+        if (slide == Context.Slide.Shift && delta == 1)
+        {
+            //steps++;
         }
 
         if (slide == Context.Slide.Below && delta == 0)
@@ -577,16 +590,39 @@ public sealed partial class Nota
         if (slide == Context.Slide.Shift || slide == Context.Slide.Legato)
         {
             targetNote = note.GetNextStringSibling();
+            if (targetNote.NoteNumber == note.NoteNumber && targetNote.Tie)
+            {
+                targetNote = targetNote.GetNextStringSibling();
+            }
             return targetNote.Fret;
         }
 
+        var maxFretSeparation = note.Beat.Notes.Max(e => e.Fret) - note.Beat.Notes.Min(e => e.Fret);
+        var moveTogether = maxFretSeparation < 10;
+
         targetNote = null;
+
+        if (note.Song.SongId == 19 && note.Slide == Context.Slide.Upwards)
+        {
+
+        }
 
         if (slide == Context.Slide.Upwards || slide == Context.Slide.Above)
         {
+            // the killin the name: https://www.songsterr.com/a/wsa/rage-against-the-machine-killing-in-the-name-tab-s360t5
+            // really wants to go above 24, on ryhtm guitar at measure 46, there are two double-upwards, both goes up 10 steps,
+            // including fret 15 on string 4, resulting in fret 25 - both strings go up equally 10 steps each-each
+            // but enter sandmen: https://www.songsterr.com/a/wsa/metallica-enter-sandman-tab-s19
+            // on the lead guitar at measure 99 after a long tie chain theres a double upwards from 17/16 
+            // both note goes up 6 semitones, stopping at 24. if we go till 25 we overflow with one extra note on each note 
             var maxChordFret = note.Beat.Notes.Where(e => e.Slide == note.Slide).Max(e => e.Fret);
-            var maxTargetFret = Math.Min(24, maxChordFret + 10);
+            var maxTargetFret = Math.Min(Math.Max(24, maxChordFret), maxChordFret + 10);
             var maxDistance = maxTargetFret - maxChordFret;
+
+            if (slide == Context.Slide.Upwards && maxDistance == 9)
+            {
+                return note.Fret + 10; // the killin in the name rule or idk
+            }
 
             return note.Fret + maxDistance;
         }
@@ -595,6 +631,11 @@ public sealed partial class Nota
             var minChordFret = note.Beat.Notes.Where(e => e.Slide == note.Slide).Min(e => e.Fret);
             var minTargetFret = minChordFret - Math.Min(10, minChordFret);
             var minDistance = minTargetFret - minChordFret;
+
+            if (!moveTogether)
+            {
+                return note.Fret - Math.Min(10, note.Fret);
+            }
 
             return note.Fret + minDistance;
         }
