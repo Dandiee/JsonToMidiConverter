@@ -1,4 +1,6 @@
-﻿using Melanchall.DryWetMidi.Common;
+﻿using JsonToMidiConverter.Models;
+using JsonToMidiConverter.Models.Song;
+using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using Slide = JsonToMidiConverter.Context.Slide;
@@ -103,5 +105,38 @@ public static class Extensions
                 _ => throw new NotSupportedException()
             };
         }
+    }
+
+    public static readonly IReadOnlyDictionary<double, int> FretHarmonicOffsets = new Dictionary<double, int>
+    {
+        [2.4] = 36,
+        [2.7] = 34,
+        [3.2] = 31,
+        [3] = 31,
+        [4] = 28,
+        [5] = 24,
+        [7] = 19,
+        [9] = 28,
+        [12] = 12,
+        [19] = 19,
+        [24] = 24,
+    };
+
+    public static int GetNoteNumber(this Nota note, bool withHarmonic = true)
+    {
+        if (note.Rest) return 0;
+
+        if (note.Part.InstrumentId == 1024 || (int)note.StringNumber == -1)
+        {
+            return DrumMapping.Mapping.TryGetValue(note.Fret, out var noteNumber) 
+                ? noteNumber.NoteNumber 
+                : note.Fret;
+        }
+
+        var open = note.Part.Tuning.Length == 0 ? (int)note.StringNumber : note.Part.Tuning[(int)note.StringNumber];
+        if (note.Harmonic == null || !withHarmonic) return open + note.Fret;
+        var harmonicOffset = FretHarmonicOffsets[note.HarmonicFret];
+        if (note.Harmonic.Equals("natural", StringComparison.OrdinalIgnoreCase)) return open + harmonicOffset;
+        return open + harmonicOffset + note.Fret;
     }
 }

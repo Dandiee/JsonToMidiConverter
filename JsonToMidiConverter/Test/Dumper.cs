@@ -139,7 +139,6 @@ public static class Dumper
                     Debug.Assert(measureEvents.All(e => e.MeasureIndex >= note.Measure.Index));
                 }
             }
-
             Debug.Assert(measureEvents.Count == 0);
         }
     }

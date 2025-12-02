@@ -80,60 +80,6 @@ public sealed partial class Nota
         }
     }
 
-    public Nota GetTie()
-    {
-        if (!Tie) throw new Exception("The note is not tied.");
-
-        var prevNote = Previous;
-        while (prevNote != null)
-        {
-            if (Part.InstrumentId == 1024)
-            {
-                if (prevNote.NoteNumber == NoteNumber)
-                {
-                    return prevNote;
-                }
-            }
-            else if (prevNote.Fret == Fret)
-            {
-                return prevNote;
-            }
-
-            prevNote = prevNote.Next;
-        }
-
-        throw new Exception("If its a tie, why isnt there a next note");
-    }
-
-    public IEnumerable<Nota> GetTies()
-    {
-        if (!Tie) throw new Exception("The note is not tied.");
-
-        var tieNote = this;
-        var q = this;
-        var w = 0;
-        if (this.ToString() == "N0 B0 V0 M80 P0")
-        {
-
-        }
-
-        while (true)
-        {
-            if (w++ > 100)
-            {
-                throw new Exception("very unliekly");
-            }
-            yield return tieNote;
-            if (tieNote.Tie)
-            {
-                tieNote = tieNote.GetTie();
-            }
-            else break;
-        }
-    }
-
-
-    public bool Is(string id) => id == ToString();
 
     public static readonly IReadOnlyDictionary<double, int> FretHarmonicOffsets = new Dictionary<double, int>
     {
@@ -159,12 +105,10 @@ public sealed partial class Nota
             return DrumMapping.Mapping.TryGetValue(Fret, out var noteNumber) ? noteNumber.NoteNumber : Fret; // default to Acoustic Bass Drum
         }
 
-        int open = Part.Tuning.Length == 0 ? (int)StringNumber : Part.Tuning[(int)StringNumber];
-
+        var open = Part.Tuning.Length == 0 ? (int)StringNumber : Part.Tuning[(int)StringNumber];
         if (Harmonic == null || !withHarmonic) return open + Fret;
         var harmonicOffset = FretHarmonicOffsets[HarmonicFret];
         if (Harmonic.Equals("natural", StringComparison.OrdinalIgnoreCase)) return open + harmonicOffset;
-        //if (Harmonic.Equals("pinch", StringComparison.OrdinalIgnoreCase)) return open + harmonicOffset - Fret;
         return open + harmonicOffset + Fret;
     }
 
@@ -305,11 +249,7 @@ public sealed partial class Nota
     }
 
 
-    public FourBitNumber GetNoteChannel()
-    {
-        if (Part.InstrumentId == 1024) return 9.To4();
-        return (FourBitNumber)StringNumber;
-    }
+    public FourBitNumber GetNoteChannel() => Part.InstrumentId == 1024 ? 9.To4() : (FourBitNumber)StringNumber;
 
     public override string ToString() => $"N{Index} {Beat}";
 }
@@ -335,7 +275,16 @@ public sealed class TieContext
     {
         if (!destinationNote.Tie || destinationNote.WillBeTied) throw new Exception("no");
 
-        FullChain = destinationNote.GetTies().Reverse().ToList();
+        var chain = new List<Nota> { destinationNote };
+
+        while (chain[^1].Previous != null && (chain[^1].Tie))
+        {
+            chain.Add(chain[^1].Previous!);
+        }
+
+        chain.Reverse();
+
+        FullChain = chain;
         Source = FullChain[0];
         Destination = FullChain[^1];
         InBetweenNotes = FullChain.Skip(1).Take(FullChain.Count - 2).ToList();
