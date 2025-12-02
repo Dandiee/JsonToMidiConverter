@@ -122,6 +122,11 @@ public static class Dumper
                 if (note.Slides.Count > 0 && note.Tremolo.Count > 0)
                     throw new Exception("Just drop this track in the bin doesnt matter fuck that");
 
+                if (note.Is("N2 B2 V0 M120 P2"))
+                {
+
+                }
+
                 var emittedNotes = note.GetEmittedNotes().ToList();
 
                 foreach (var emittedNote in emittedNotes)
@@ -228,7 +233,11 @@ public static class Dumper
                     }
                 }
 
-                foreach (var timedEvent in partEvents)
+                var measureEvents = partEvents
+                    .SkipWhile(e => e.MeasureIndex < measure.Index)
+                    .TakeWhile(e => e.MeasureIndex == measure.Index);
+
+                foreach (var timedEvent in measureEvents)
                 {
                     sb.AppendLine($"\t\t {GetMidiEventString(timedEvent)}");
                 }

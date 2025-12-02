@@ -1,4 +1,5 @@
-﻿using JsonToMidiConverter.Models;
+﻿using System.Diagnostics;
+using JsonToMidiConverter.Models;
 using JsonToMidiConverter.Models.Song;
 using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
@@ -7,6 +8,7 @@ using Slide = JsonToMidiConverter.Context.Slide;
 
 namespace JsonToMidiConverter;
 
+[DebuggerDisplay("{EventIndex}")]
 public sealed class TimedNoteEvent
 {
     public int MeasureIndex { get; }
@@ -71,7 +73,7 @@ public static class Extensions
 
                 noteOns.Remove(pair);
 
-                timedEvents.Add(new TimedNoteEvent(measureIndex, i, pair.On, new TimedEvent(noteOff, time)));
+                timedEvents.Add(new TimedNoteEvent(measureIndex, pair.Index, pair.On, new TimedEvent(noteOff, time)));
             }
         }
 

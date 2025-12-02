@@ -9,7 +9,7 @@ namespace JsonToMidiConverter;
 
 public static class Database
 {
-    public static readonly string RootPath = @"d:\MidiDatabase\";
+    public static readonly string RootPath = @"c:\src\data\";
     public static readonly string SearchPath = Path.Combine(RootPath, "Search");
     public static readonly string MetaPath = Path.Combine(RootPath, "Meta");
     public static readonly string DatabaseFile = Path.Combine(RootPath, "Database.json");

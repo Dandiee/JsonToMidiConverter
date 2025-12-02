@@ -187,16 +187,18 @@ public sealed partial class Nota
         }
         if (slide == Context.Slide.Downwards || slide == Context.Slide.Below)
         {
-            var minChordFret = note.Beat.Notes.Where(e => e.Slides.Contains(slide)).Min(e => e.Fret);
+            if (note.Fret == 0) return 0;
+
+            var minChordFret = note.Beat.Notes.Where(e => e.Slides.Contains(slide)).Where(e => e.Fret != 0).Min(e => e.Fret);
             var minTargetFret = minChordFret - Math.Min(10, minChordFret);
             var minDistance = minTargetFret - minChordFret;
 
             if (!moveTogether)
             {
-                return note.Fret - Math.Min(10, note.Fret);
+                return Math.Max(0, note.Fret - Math.Min(10, note.Fret));
             }
 
-            return note.Fret + minDistance;
+            return Math.Max(0, note.Fret + minDistance);
         }
 
         throw new Exception("what slide");
@@ -206,6 +208,8 @@ public sealed partial class Nota
     
 
     public override string ToString() => $"N{Index} {Beat}";
+
+    public bool Is(string name) => name == $"{this}";
 }
 
 public sealed class TieContext
@@ -215,7 +219,6 @@ public sealed class TieContext
     public IReadOnlyList<Nota> InBetweenNotes { get; }
     public IReadOnlyList<Nota> FullChain { get; }
     public Time FullDuration { get; }
-    public Time FullRawDuration { get; }
 
     public TieContext(Nota destinationNote)
     {
