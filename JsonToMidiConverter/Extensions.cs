@@ -128,9 +128,7 @@ public static class Extensions
 
         if (note.Part.InstrumentId == 1024 || (int)note.StringNumber == -1)
         {
-            return DrumMapping.Mapping.TryGetValue(note.Fret, out var noteNumber) 
-                ? noteNumber.NoteNumber 
-                : note.Fret;
+            return DrumMapping.Mapping.TryGetValue(note.Fret, out var noteNumber) ? noteNumber.NoteNumber : note.Fret; // default to Acoustic Bass Drum
         }
 
         var open = note.Part.Tuning.Length == 0 ? (int)note.StringNumber : note.Part.Tuning[(int)note.StringNumber];
@@ -139,4 +137,6 @@ public static class Extensions
         if (note.Harmonic.Equals("natural", StringComparison.OrdinalIgnoreCase)) return open + harmonicOffset;
         return open + harmonicOffset + note.Fret;
     }
+
+    public static FourBitNumber GetNoteChannel(this Nota note) => note.Part.InstrumentId == 1024 ? 9.To4() : (FourBitNumber)note.StringNumber;
 }
