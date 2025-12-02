@@ -201,8 +201,6 @@ internal static class Converter
                     }
                 }
             }
-
-            Validate(events, part, referenceMidi);
             //midiFile.Chunks.Add(events.ToTrackChunk());
         }
 
@@ -233,41 +231,10 @@ internal static class Converter
         var matchingEvent = sourceNote.MidiNoteEvents.Single(e => e.IsMatching(note.Channel, noteNumber));
 
         var acceptableDrift = (note.Index + 1) * 20;
-        var onDistance = Math.Abs(matchingEvent.On.Time - from.Tick);
-        var offDistance = Math.Abs(matchingEvent.Off.Time - to.Tick);
-
+        var onDistance = Math.Abs(matchingEvent.Start - from.Tick);
+        var offDistance = Math.Abs(matchingEvent.End - to.Tick);
         //Debug.Assert(onDistance < acceptableDrift);
         //Debug.Assert(offDistance < acceptableDrift);
-    }
-
-    public static void Validate(Events events, Part part, MidiFile reference)
-    {
-        var chunk = reference.GetEvents(part.Index);
-
-        foreach (var measure in part.Measures)
-        {
-            var referenceEvents = chunk.GetMeasureEvents(measure);
-            foreach (var referenceEvent in referenceEvents.Where(e => e.Event is NoteEvent))
-            {
-                var match = events
-                    .Where(e => e.Event.Event.EventType == referenceEvent.Event.EventType)
-                    .Where(e =>
-                        e.Event.Event is NoteEvent on &&
-                        referenceEvent.Event is NoteEvent ron &&
-                        on.NoteNumber == ron.NoteNumber &&
-                        on.Channel == ron.Channel)
-                    .OrderBy(e => Math.Abs(e.Event.Time - referenceEvent.Time))
-                    .First();
-
-                var acceptableDrift = (match.Note.Index + 1) * 15;
-                var distance = Math.Abs(match.Event.Time - referenceEvent.Time);
-                var referenceIndex = referenceEvent.Index;
-                var partDetails = part.ToString();
-
-                //Debug.Assert(acceptableDrift > distance);
-            }
-        }
-
     }
 
     public static void AddMeasureMarker(Events events, Measure measure)

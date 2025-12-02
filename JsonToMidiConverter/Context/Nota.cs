@@ -35,7 +35,7 @@ public sealed partial class Nota
     //[JsonIgnore] public int? MidiEndEventIndex { get; set; }
     //[JsonIgnore] public int? MidiOffEventIndex { get; set; }
     //[JsonIgnore] public int? MidiOnEventIndex { get; set; }
-    [JsonIgnore] public List<MidiNoteEvent> MidiNoteEvents { get; set; } = [];
+    [JsonIgnore] public List<TimedNoteEvent> MidiNoteEvents { get; set; } = [];
     [JsonIgnore] public TieContext? TieDetails { get; private set; }
     [JsonIgnore] public Tie TieType { get; private set; }
     [JsonIgnore] public Time PlayedDuration { get; private set; }
@@ -102,9 +102,9 @@ public sealed partial class Nota
 
         if (Slide != Context.Slide.None && Tie && WillBeTied)
         {
+            // this is the kind of shit which makes me sad
             Debug.Assert(false);
         }
-
     }
 
     public Time GetStrum() => new((long)(1.16 * Part.TempoMap.GetTempoAtTime(Beat.AbsoluteBeatStartTime.Span).BeatsPerMinute) + 1);
@@ -232,7 +232,7 @@ public sealed partial class Nota
 
         while (true)
         {
-            if (w > 100)
+            if (w++ > 100)
             {
                 throw new Exception("very unliekly");
             }
