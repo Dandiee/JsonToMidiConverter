@@ -63,7 +63,7 @@ public static class Extensions
             {
                 var pair = noteOns.First(e =>
                 {
-                    var on = e.On.Event as NoteOnEvent;
+                    var on = (NoteOnEvent)e.On.Event;
                     return on.Channel == noteOff.Channel && on.NoteNumber == noteOff.NoteNumber;
                 });
 
@@ -76,57 +76,32 @@ public static class Extensions
         return timedEvents;
     }
 
-    public static Slide ToSlide(this string str) => str switch
+    public static IEnumerable<Slide> ToSlides(this string slide)
     {
-        "upwards" => Slide.Upwards,
-        "downwards" => Slide.Downwards,
-        "shift" => Slide.Shift,
-        "legato" => Slide.Legato,
-        "below" => Slide.Below,
-        "above" => Slide.Above,
-        "belowlegato" => Slide.BelowLegato,
-        "belowdownwards" => Slide.BelowDownwards,
-        "belowshift" => Slide.BelowShift,
-        "" => Slide.None,
+        var rest = slide;
 
-
-
-        _ => throw new Exception(),
-    };
-
-    private static readonly HashSet<Slide> BackwardSlides = new[]
-    {
-        Slide.BelowShift, Slide.Below, Slide.BelowDownwards, Slide.BelowLegato, Slide.Above
-    }.ToHashSet();
-
-    private static readonly HashSet<Slide> ForwardSlides = new[]
-    {
-        Slide.Downwards, Slide.BelowDownwards, Slide.Upwards
-    }.ToHashSet();
-
-    public static bool IsBackwardSlide(this Slide slide) => BackwardSlides.Contains(slide);
-    public static bool IsForwardSlide(this Slide slide) => ForwardSlides.Contains(slide);
-
-    public static bool Is<TMidiEvent>(this TimedEvent timedEvent)
-        where TMidiEvent : MidiEvent
-        => timedEvent.Event is TMidiEvent;
-
-    public static TMidiEvent As<TMidiEvent>(this TimedEvent timedEvent)
-        where TMidiEvent : MidiEvent
-    {
-        if (timedEvent.Event is TMidiEvent typedEvt)
+        if (rest.StartsWith("below"))
         {
-            return typedEvt;
+            yield return Slide.Below;
+            rest = rest[5..];
+        }
+        else if (rest.StartsWith("above"))
+        {
+            yield return Slide.Above;
+            rest = rest[5..];
         }
 
-        throw new InvalidCastException($"Cannot cast event of type {timedEvent.GetType().Name} to {typeof(TMidiEvent).Name}");
+        if (rest.Length > 0)
+        {
+            yield return rest switch
+            {
+                "upwards" => Slide.Upwards,
+                "downwards" => Slide.Downwards,
+                "shift" => Slide.Shift,
+                "legato" => Slide.Legato,
+
+                _ => throw new NotSupportedException()
+            };
+        }
     }
-
-    public static TMidiEvent As<TMidiEvent>(this MidiEvent midiEvent)
-        where TMidiEvent : MidiEvent
-        => (TMidiEvent)midiEvent;
-
-    public static bool Is<TMidiEvent>(this MidiEvent timedEvent)
-        where TMidiEvent : MidiEvent
-        => timedEvent is TMidiEvent;
 }

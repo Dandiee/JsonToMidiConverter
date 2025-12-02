@@ -2,14 +2,10 @@
 
 public enum Slide
 {
-    None,
     Shift,
+    Legato,
     Upwards,
     Downwards,
-    Legato,
     Below,
-    BelowLegato,
-    Above,
-    BelowDownwards,
-    BelowShift
+    Above
 }
