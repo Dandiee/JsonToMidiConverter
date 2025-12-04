@@ -77,7 +77,12 @@ public static class Extensions
             }
         }
 
-        return timedEvents;
+        if (noteOns.Count > 0) throw new Exception();
+
+        return timedEvents
+            .OrderBy(e => e.MeasureIndex)
+            .ThenBy(e => e.EventIndex)
+            .ToList();
     }
 
     public static IEnumerable<Slide> ToSlides(this string slide)

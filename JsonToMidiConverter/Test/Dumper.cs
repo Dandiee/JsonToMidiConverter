@@ -1,6 +1,7 @@
 ﻿using JsonToMidiConverter.Models;
 using JsonToMidiConverter.Models.Song;
 using Melanchall.DryWetMidi.Core;
+using Melanchall.DryWetMidi.Interaction;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -55,13 +56,13 @@ public static class Dumper
                     sb.AppendLine($"\r\n\r\n{voice}, Input = {GetJson(voice)}");
                     foreach (var beat in voice.Beats.Where(e => !e.Rest))
                     {
-                        sb.AppendLine($"\r\n\t{beat}, Starts: {beat.AbsoluteBeatStartTime.Tick}, Attr = [{GetAttributes(beat)}], Input = {GetJson(beat)}");
+                        sb.AppendLine($"\r\n\t{beat}, Starts: {beat.Start.Tick}, Attr = [{GetAttributes(beat)}], Input = {GetJson(beat)}");
                         foreach (var note in beat.Notes)
                         {
                             var slideMarker = note.Slides.Count > 0  ? $" Slide = [{string.Join(", ", note.Slides)}]" : "";
                             var tieMarker = note.Tie ? " Tie " : "";
 
-                            sb.AppendLine($"\t\t{note} {slideMarker}{tieMarker} CH {note.Channel}, NN {note.NoteNumber} Dur: {note.ActualDuration.Tick}, Attr = [{GetAttributes(beat)}] Input = {GetJson(note)}");
+                            sb.AppendLine($"\t\t{note} {slideMarker}{tieMarker} CH {note.Channel}, NN {note.NoteNumber} Dur: {note.Dur.Tick}, Attr = [{GetAttributes(beat)}] Input = {GetJson(note)}");
 
                             foreach (var midiNoteEvent in note.MidiNoteEvents)
                             {
@@ -122,10 +123,12 @@ public static class Dumper
                 if (note.Slides.Count > 0 && note.Tremolo.Count > 0)
                     throw new Exception("Just drop this track in the bin doesnt matter fuck that");
 
-                if (note.Is("N2 B2 V0 M120 P2"))
+                if (note.Is("P1", "hendrix"))
                 {
 
                 }
+
+                var q = note.GetNoteNumber();
 
                 var emittedNotes = note.GetEmittedNotes().ToList();
 
@@ -134,6 +137,25 @@ public static class Dumper
                     var noteEvent = measureEvents
                         .SkipWhile(e => e.On.Channel != note.Channel || e.On.NoteNumber != emittedNote)
                         .First();
+
+                    var startError = Math.Abs(noteEvent.Start - note.Starts.Tick);
+                    var endError = Math.Abs(noteEvent.End - note.Ends.Tick);
+                    var epsilon = 5;
+
+                    if (startError > 5 || endError > 5)
+                    {
+                        
+                        note.SetTimings();
+                    }
+
+                    var nextChannelEvent = measureEvents
+                        .SkipWhile(e => e.On.Channel != note.Channel)
+                        .First();
+
+                    if (note.Is("P1", "hendrix") && nextChannelEvent != noteEvent)
+                    {
+
+                    }
 
                     measureEvents.Remove(noteEvent); 
                     note.MidiNoteEvents.Add(noteEvent);
@@ -182,11 +204,11 @@ public static class Dumper
                     foreach (var beat in voice.Beats)
                     {
                         var n = 0;
-                        sb.AppendLine($"\t\t\tB{b} V{v} M{m} P{p} Starts: {beat.AbsoluteBeatStartTime.Tick} {GetJson(beat)}");
+                        sb.AppendLine($"\t\t\tB{b} V{v} M{m} P{p} Starts: {beat.Start.Tick} {GetJson(beat)}");
                         foreach (var note in beat.Notes)
                         {
 
-                            sb.AppendLine($"\t\t\t\tN{n} B{b} V{v} M{m} P{p} Dur: {note.ActualDuration.Tick} {GetJson(note)}");
+                            sb.AppendLine($"\t\t\t\tN{n} B{b} V{v} M{m} P{p} Dur: {note.Dur.Tick} {GetJson(note)}");
                             n++;
                         }
 
@@ -241,6 +263,17 @@ public static class Dumper
                 {
                     sb.AppendLine($"\t\t {GetMidiEventString(timedEvent)}");
                 }
+
+                
+                foreach (var group in measureEvents.GroupBy(e => e.On.Channel))
+                {
+                    sb.AppendLine($"\t\t Channel {group.Key}:");
+                    foreach (var note in group)
+                    {
+                        sb.AppendLine($"\t\t\t {GetMidiEventString(note)}");
+                    }
+                }
+
             }
         }
 
@@ -267,8 +300,8 @@ public static class Dumper
 
     private static string GetMidiEventString(TimedNoteEvent note)
     {
-        var timing = $"Start: {note.Start.ToString(),6}; End: {note.End.ToString(),6}, Duration: {note.Duration.ToString(),5}";
-        return $"{note.EventIndex.ToString(),5} On {note.On.NoteNumber,2}; {timing}; Ch: {note.On.Channel};";
+        var timing = $"Start: {note.Start.ToString(),6}; End: {note.End.ToString(),6}, Dur: {note.Duration.ToString(),5}";
+        return $"{note.EventIndex.ToString(),5} On {note.On.NoteNumber,2}; {timing}; Ch: {note.On.Channel}; Velocity: {note.On.Velocity}";
     }
 
     public static string GetAttributes(object model)

@@ -16,6 +16,7 @@ public sealed partial class Measure
     [JsonIgnore] public Measure? Next { get; private set; }
     [JsonIgnore] public Measure? Previous { get; private set; }
     [JsonIgnore] public int OriginalIndex { get; set; }
+    [JsonIgnore] public TimeSignature Sgntr { get; set; }
 
     public void SetNavigation(Part part, int index)
     {
@@ -43,7 +44,7 @@ public sealed partial class Measure
         {
             if (Index == 1)
             {
-                var firstMeasureActualLength = Part.Measures[0].Voices[0].Beats.Sum(e => e.MusicalDuration.Tick);
+                var firstMeasureActualLength = Part.Measures[0].Voices[0].Beats.Sum(e => e.Dur.Tick);
                 var firstMeasureExpectedLength = Part.Measures[1].StartTime - Part.Measures[0].StartTime;
                 Part.AnacrusisOffset = firstMeasureExpectedLength - firstMeasureActualLength;
             }
@@ -61,7 +62,12 @@ public sealed partial class Measure
         }
 
         Voices.ForEach(v => v.Build());
+
+        
     }
+
+
+    
 
     public override string ToString() => $"M{Index} {Part}";
 

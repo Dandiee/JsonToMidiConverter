@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using Melanchall.DryWetMidi.Interaction;
 
 namespace JsonToMidiConverter.Models.Song;
 
@@ -24,6 +25,8 @@ public sealed partial class Measure
         RepeatStart = RepeatStart,
         Repeat = Repeat,
         DoubleBarline = DoubleBarline,
-        TripletFeel = TripletFeel
+        TripletFeel = TripletFeel,
+
+        Sgntr = new TimeSignature(Sgntr.Numerator, Sgntr.Denominator)
     };
 }

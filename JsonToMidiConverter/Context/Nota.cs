@@ -1,5 +1,7 @@
-﻿using System.Diagnostics;
+﻿using System.Collections;
+using System.Diagnostics;
 using System.Text.Json.Serialization;
+using JsonToMidiConverter.Context;
 using Melanchall.DryWetMidi.Common;
 
 namespace JsonToMidiConverter.Models.Song;
@@ -15,8 +17,6 @@ public sealed partial class Nota
     [JsonIgnore] public Song Song => Part.Song;
     [JsonIgnore] public int Channel { get; private set; }
     [JsonIgnore] public SevenBitNumber NoteNumber { get; set; }
-    [JsonIgnore] public Time ActualDuration { get; private set; }
-    [JsonIgnore] public Time RawDuration { get; private set; }
     [JsonIgnore] public bool WillBeTied { get; private set; }
     [JsonIgnore] public List<Context.Slide> Slides { get; private set; } = [];
     [JsonIgnore] public List<TimedNoteEvent> MidiNoteEvents { get; set; } = [];
@@ -26,6 +26,9 @@ public sealed partial class Nota
     [JsonIgnore] public bool LastInBeat { get; private set; }
     [JsonIgnore] public Time? TremoloDuration { get; private set; }
     [JsonIgnore] public int PureNoteNumber { get; private set; }
+    [JsonIgnore] public Time Starts { get; private set; }
+    [JsonIgnore] public Time Dur { get; private set; }
+    [JsonIgnore] public Time Ends { get; private set; }
 
     public void SetNavigation(Beat beat, int index)
     {
@@ -58,11 +61,6 @@ public sealed partial class Nota
             TremoloDuration = new Time(Tremolo[0], Tremolo[1]);
         }
 
-        RawDuration = Staccato
-            ? Beat.MusicalDuration.Clone() / 2
-            : Beat.MusicalDuration.Clone();
-
-        ActualDuration = RawDuration.ApplyDots(Beat.Dots);
         WillBeTied = Next?.Tie ?? false;
 
         if (Tie && !WillBeTied)
@@ -75,6 +73,62 @@ public sealed partial class Nota
             }
         }
     }
+
+    public void SetTimings()
+    {
+        Beat.SetTimes();
+        Beat.Next?.SetTimes();
+
+        Starts = Beat.Start;
+
+
+
+
+        Ends = TieDetails?.Destination.Beat.End ?? Beat.End;
+
+        var strum = Part.IsPianoLike ? new Time() : new Time(100 * Index);
+
+        if (Beat.LetRing)
+        {
+            var firstNonRinging = Beat.Forward().SkipWhile(beat => beat.LetRing).First();
+            if (Ends < firstNonRinging.End)
+            {
+                Ends = firstNonRinging.End;
+            }
+        }
+
+        if (TieDetails != null)
+        {
+            foreach (var note in TieDetails.FullChain)
+            {
+                if (note.Beat.LetRing)
+                {
+                    var firstNonRinging = note.Beat.Forward().SkipWhile(beat => beat.LetRing).First();
+                    if (Ends < firstNonRinging.End)
+                    {
+                        Ends = firstNonRinging.End;
+                    }
+                }
+            }
+        }
+
+        Ends += strum;
+        if (Slides.Contains(Slide.Below))
+        {
+            Starts -= 1920; 
+        }
+
+        if (Slides.Contains(Slide.Above))
+        {
+            Starts -= 1920;
+        }
+
+        Dur = Ends - Starts;
+
+        
+    }
+
+
 
     public IEnumerable<int> GetEmittedNotes()
     {
@@ -96,7 +150,7 @@ public sealed partial class Nota
 
         if (TremoloDuration.HasValue)
         {
-            var noteDuration = WillBeTied ? TieDetails.FullDuration.Tick : RawDuration.Tick;
+            var noteDuration = WillBeTied ? TieDetails.Destination.Ends.Tick - TieDetails.Source.Starts.Tick : Dur.Tick;
             var repeats = noteDuration / TremoloDuration.Value.Tick;
             for (var i = 0; i < repeats; i++)
             {
@@ -189,7 +243,12 @@ public sealed partial class Nota
         {
             if (note.Fret == 0) return 0;
 
-            var minChordFret = note.Beat.Notes.Where(e => e.Slides.Contains(slide)).Where(e => e.Fret != 0).Min(e => e.Fret);
+            var minChordFret = note.Beat.Notes
+                .Where(e => e.Slides.Contains(slide))
+                .Where(e => e.Fret != 0)
+                .Min(e => e.Fret);
+
+            var minTargetFretFr = minChordFret - minChordFret;
             var minTargetFret = minChordFret - Math.Min(10, minChordFret);
             var minDistance = minTargetFret - minChordFret;
 
@@ -205,20 +264,46 @@ public sealed partial class Nota
     }
 
 
-    
+    public IEnumerable<Nota> Forward()
+    {
+        var current = this;
+        while (current != null)
+        {
+            yield return current;
+            current = current.Next;
+        }
+    }
 
     public override string ToString() => $"N{Index} {Beat}";
+    
 
-    public bool Is(string name) => name == $"{this}";
+
+    public bool Is(string name, string? filter = null)
+    {
+        if (string.IsNullOrEmpty(name)) return false;
+
+        var trimmed = name.Trim().ToUpperInvariant();
+        var isMatching = trimmed[0] switch
+        {
+            'N' => $"{this}".Equals(trimmed),
+            'B' => $"{Beat}".Equals(trimmed),
+            'V' => $"{Voice}".Equals(trimmed),
+            'M' => $"{Measure}".Equals(trimmed),
+            'P' => $"{Part}".Equals(trimmed),
+            _ => false
+        };
+
+        return isMatching && (string.IsNullOrEmpty(filter) || Part.FullName.Contains(filter, StringComparison.OrdinalIgnoreCase));
+    }
+
 }
 
 public sealed class TieContext
 {
     public Nota Source { get; }
     public Nota Destination { get; }
-    public IReadOnlyList<Nota> InBetweenNotes { get; }
     public IReadOnlyList<Nota> FullChain { get; }
-    public Time FullDuration { get; }
+    //public Time FullDuration { get; }
 
     public TieContext(Nota destinationNote)
     {
@@ -236,8 +321,10 @@ public sealed class TieContext
         FullChain = chain;
         Source = FullChain[0];
         Destination = FullChain[^1];
-        InBetweenNotes = FullChain.Skip(1).Take(FullChain.Count - 2).ToList();
-        FullDuration = new Time(FullChain.Sum(e => e.ActualDuration.Tick));
-        FullDuration = new Time(FullChain.Sum(e => e.RawDuration.Tick));
+        //InBetweenNotes = FullChain.Skip(1).Take(FullChain.Count - 2).ToList();
+        //FullDuration = new Time(FullChain.Sum(e => e.ActualDuration.Tick));
+        //FullDuration = new Time(FullChain.Sum(e => e.Dur.Tick));
     }
+
+    public Time GetFullDuration() => new Time(FullChain.Sum(e => e.Dur.Tick));
 }

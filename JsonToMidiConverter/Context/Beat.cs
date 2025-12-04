@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Text.Json.Serialization;
+using JsonToMidiConverter.Context;
 using Melanchall.DryWetMidi.Interaction;
 
 namespace JsonToMidiConverter.Models.Song;
@@ -12,23 +13,26 @@ public sealed partial class Beat
     [JsonIgnore] public Measure Measure => Voice.Measure;
     [JsonIgnore] public Part Part => Measure.Part;
     [JsonIgnore] public Song Song => Part.Song;
-    [JsonIgnore] public Time MusicalDuration { get; private set; }
-    [JsonIgnore] public Time RelativeBeatStartTime { get; private set; }
-    [JsonIgnore] public Time AbsoluteBeatStartTime { get; private set; }
-    [JsonIgnore] public byte Numerator => (byte)Duration[0];
-    [JsonIgnore] public byte Denominator => (byte)Duration[1];
+
+    [JsonIgnore] public Time Start { get; private set; }
+    [JsonIgnore] public Time End { get; private set; }
+    [JsonIgnore] public Time Dur { get; private set; }
+
     [JsonIgnore] public bool IsAccord { get; private set; }
-    [JsonIgnore] public string Nameplate => $"{Index}{Measure.Index}{Part.Index}";
     [JsonIgnore] public Beat? Next { get; private set; }
     [JsonIgnore] public Beat? Previous { get; private set; }
     [JsonIgnore] public bool LastInMeasure { get; private set; }
-    [JsonIgnore] public Time RawDuration { get; private set; }
+    [JsonIgnore] public bool TripletOverriden { get; set; }
 
     public void SetNavigation(Voice voice, int index)
     {
         Index = index;
         Voice = voice;
         LastInMeasure = Index == Measure.Voices[Voice.Index].Beats.Count - 1;
+
+
+
+        
 
         if (Index > 0)
         {
@@ -62,38 +66,91 @@ public sealed partial class Beat
 
     public void Build()
     {
-        var rawDuration = new Time(Duration[0], Duration[1]);
-
-        if (Previous?.GraceNote == "onBeat")
-        {
-            rawDuration -= Previous.MusicalDuration;
-        }
-
-        if (Next?.GraceNote == "beforeBeat")
-        {
-            
-            var nextGraceDuration = new Time(Next.Duration[0], Next.Duration[1]);
-            rawDuration -= nextGraceDuration;
-        }
-
-
-        if (GraceNote != null && GraceNote != "onBeat" && GraceNote != "beforeBeat")
-            throw new Exception("wtf is this then");
-
-        MusicalDuration = rawDuration;
-
         IsAccord = Notes.Count > 1;
-
-        RelativeBeatStartTime = Index == 0
-            ? new Time()
-            : Previous!.RelativeBeatStartTime + Previous.MusicalDuration;
-
-        AbsoluteBeatStartTime = Measure.StartTime + RelativeBeatStartTime;
-
         Notes.ForEach(e => e.Build());
     }
 
-    public bool Is(string nameplate) => nameplate == $"{this}";
+    public void SetTimes()
+    {
+        Start = Previous?.End ?? new Time();
+
+        if (Voice.Index > 0 && Previous == null)
+        {
+            Start = Measure.StartTime;
+        }
+
+        Dur = GetDuration();
+        if (Previous != null && Previous.GraceNote == "onBeat")
+        {
+            Dur -= Previous.GetDuration();
+        }
+
+        if (Next != null && Next.GraceNote == "beforeBeat")
+        {
+            var q = Next.GetDuration();
+            Dur -= q;
+        }
+        End = Start + Dur;
+    }
+
+    public IEnumerable<Beat> Forward()
+    {
+        var current = this;
+        while (current != null)
+        {
+            yield return current;
+            current = current.Next;
+        }
+    }
+
+    public IEnumerable<Beat> Backward()
+    {
+        var current = this;
+        while (current != null)
+        {
+            yield return current;
+            current = current.Previous;
+        }
+    }
+
+    public Time GetDuration()
+    {
+        if (Is("B4 V0 M97 P2", "king"))
+        {
+
+        }
+
+        var dur = new Time(Duration[0], Duration[1]);
+
+        if (GraceNote == "beforeBeat" && Notes.Any(e => e.Slides.Contains(Slide.Legato)) && dur <= new Time(1, 16L))
+        {
+            //return dur * (2/3.0);
+        }
+
+        //if (GraceNote == "beforeBeat" && Notes.Any(e => e.Slides.Contains(Slide.Legato)) && dur <= new Time(1, 16L))
+        //{
+        //    return dur * (2 / 3.0);
+        //}
+
+        return dur;
+    } 
+
+    public bool Is(string name, string? filter = null)
+    {
+        if (string.IsNullOrEmpty(name)) return false;
+
+        var trimmed = name.Trim().ToUpperInvariant();
+        var isMatching = trimmed[0] switch
+        {
+            'B' => $"{this}".Equals(trimmed),
+            'V' => $"{Voice}".Equals(trimmed),
+            'M' => $"{Measure}".Equals(trimmed),
+            'P' => $"{Part}".Equals(trimmed),
+            _ => false
+        };
+
+        return isMatching && (string.IsNullOrEmpty(filter) || Part.FullName.Contains(filter, StringComparison.OrdinalIgnoreCase));
+    }
 
     public override string ToString() => $"B{Index} {Voice}";
 }

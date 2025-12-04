@@ -9,11 +9,13 @@ namespace JsonToMidiConverter.Models.Song;
 public sealed partial class Part
 {
     [JsonIgnore] public int Index { get; private set; }
-    [JsonIgnore]public Song Song { get; private set; }
-    [JsonIgnore]public bool IsPianoLike { get; private set; }
-    [JsonIgnore]public TempoMap TempoMap { get; private set; }
+    [JsonIgnore] public Song Song { get; private set; }
+    [JsonIgnore] public bool IsPianoLike { get; private set; }
+    [JsonIgnore] public TempoMap TempoMap { get; private set; }
     [JsonIgnore] public string FullName { get; private set; }
     [JsonIgnore] public Time AnacrusisOffset { get; set; }
+    [JsonIgnore] public List<Nota> Notes { get; set; } = [];
+
 
     public void Build(Song song, int index)
     {
@@ -22,6 +24,15 @@ public sealed partial class Part
         Song = song;
         IsPianoLike = PianoLikeInstruments.Contains(InstrumentId);
         FullName = $"{song.Name} {Instrument} {Name}";
+
+        for (var i = 0; i < Measures.Count; i++)
+        {
+            Measures[i].Sgntr = TempoMap.GetTimeSignatureAtTime(new BarBeatTicksTimeSpan(i));
+        }
+
+        FixBeats();
+
+        ApplyTripletFeel();
 
         Measures = UnfoldRepeats();
 
@@ -32,8 +43,133 @@ public sealed partial class Part
 
         Measures.ForEach(m => m.Build());
 
+        Notes = Measures
+            .SelectMany(e => e.Voices)
+            .SelectMany(e => e.Beats)
+            .SelectMany(e => e.Notes)
+            .ToList();
+
+        foreach (var beat in Measures
+                     .SelectMany(e => e.Voices)
+                     .SelectMany(e => e.Beats))
+        {
+            beat.SetTimes();
+        }
+
+        Notes.ForEach(e => e.SetTimings());
+
         var maximumVoiceChannelCount = Measures.Max(e => e.Voices.Count);
         Debug.Assert(Measures.All(e => e.Voices.Count <= 1 || e.Voices.Count == maximumVoiceChannelCount));
+    }
+
+    public void ApplyTripletFeel()
+    {
+        var measureCounter = 0;
+        string tripletFeel = null;
+
+
+
+        foreach (var measure in Measures)
+        {
+            switch (measure.TripletFeel)
+            {
+                case "8th":
+                    tripletFeel = "8th";
+                    break;
+                case "off":
+                    tripletFeel = null;
+                    break;
+                case null:
+                    break;
+                default: throw new Exception();
+            }
+
+            if (tripletFeel == "8th")
+            {
+                if (measureCounter == 20)
+                {
+
+
+
+                }
+
+                var eightsCounter = 0;
+
+
+
+                foreach (var voice in measure.Voices)
+                {
+                    var eightNotes = voice.Beats.Where(e => e.Duration[0] == 1 && e.Duration[1] == 8).ToList();
+                    foreach (var eights in eightNotes)
+                    {
+                        if (eightsCounter % 2 == 0)
+                        {
+                            eights.Duration[1] = 6;
+                        }
+                        else
+                        {
+                            eights.Duration[1] = 12; // 1/12 -> 2/24 || 1/8 -> 3/24 -> 1/24 error
+                        }
+
+                        eightsCounter++;
+                    }
+
+                    if (eightNotes.Count % 2 == 1)
+                    {
+                        var last = voice.Beats[^1];
+                        var duration = new MusicalTimeSpan(last.Duration[0], last.Duration[1]);
+                        var error = new MusicalTimeSpan(1, 24);
+                        var compensated = duration - error;
+                        last.Duration[0] = (int)compensated.Numerator;
+                        last.Duration[1] = (int)compensated.Denominator;
+                    }
+                }
+            }
+
+            measureCounter++;
+        }
+    }
+
+    public void FixBeats()
+    {
+        foreach (var measure in Measures)
+        {
+            if (Anacrusis && measure.Index == 0) return;
+
+            var signature = measure.Sgntr;
+            var duration = new Time(signature.Numerator, signature.Denominator);
+
+            foreach (var voice in measure.Voices)
+            {
+                var sum = voice.Beats.Where(e => string.IsNullOrEmpty(e.GraceNote)).Sum(b => b.GetDuration().Tick);
+                var error = sum - duration.Tick;
+
+                if (error > 10)
+                {
+                    foreach (var beat in voice.Beats[^1].Backward())
+                    {
+                        if (beat.Rest || beat.Notes.All(e => e.Tie))
+                        {
+                            var beatDuration = beat.GetDuration().Tick;
+                            if (beatDuration < error)
+                            {
+                                beat.Duration = [0, 0];
+                                error -= beatDuration;
+                            }
+                            else if (beatDuration >= error)
+                            {
+                                var leftover = TimeConverter.ConvertTo<BarBeatFractionTimeSpan>(beatDuration - error, TempoMap);
+                                beat.Duration = [(int)leftover.Beats, (int)leftover.Bars];
+                                break;
+                            }
+                        }
+                        else throw new Exception();
+                    }
+                }
+            }
+        }
+
+
     }
 
     public List<Measure> UnfoldRepeats()
@@ -88,7 +224,7 @@ public sealed partial class Part
                 repeats.Clear();
             }
 
-           
+
         }
 
         return measures;

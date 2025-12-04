@@ -1,5 +1,6 @@
 ﻿using JsonToMidiConverter.Models.Song;
 using Melanchall.DryWetMidi.Interaction;
+using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
@@ -25,7 +26,20 @@ public readonly struct Time : IEquatable<Time>
     public override string ToString() => $"{Tick} - {Span}";
 
     public Time(long bars, double beats) : this(new BarBeatFractionTimeSpan(bars, beats)) { }
-    public Time(long numerator, long denominator) : this(new MusicalTimeSpan(numerator, denominator)) { }
+
+    public Time(long numerator, long denominator)
+    {
+        if (numerator == 0 && denominator == 0)
+        {
+            Tick = 0;
+        }
+        else
+        {
+            Tick = TimeConverter.ConvertFrom(new MusicalTimeSpan(numerator, denominator), Map);
+        }
+
+        
+    } 
     public Time() : this(0) { }
 
     public Time ApplyDots(int dots) => new((long)(Tick * (2 - 1 / Math.Pow(2, dots))));

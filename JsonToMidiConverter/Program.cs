@@ -4,7 +4,7 @@ using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 
 
-var midis = Directory.GetFiles("FreshSong");
+var midis = Directory.GetFiles("FreshSongs");
 var c = 0;
 foreach (var midiPath in midis)
 {
@@ -13,6 +13,8 @@ foreach (var midiPath in midis)
     var title = string.Join("-", pathParts.Skip(1).Take(pathParts.Length - 4));
 
     var record = Database.Search(artist, title).First();
+    //await Database.RefreshSong(record.SongId); continue;
+
     var song = Database.GetMidiData(record.SongId);
 
     var mid = new MidiFile { TimeDivision = Converter.Tpqn };
