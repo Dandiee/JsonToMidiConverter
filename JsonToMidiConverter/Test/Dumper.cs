@@ -142,7 +142,8 @@ public static class Dumper
                     var endError = Math.Abs(noteEvent.End - note.Ends.Tick);
                     var epsilon = 5;
 
-                    if (startError > 5 || endError > 5)
+                    if ((noteEvent.Start < note.Starts.Tick && startError > 5)  || 
+                        (noteEvent.End > note.Ends.Tick && endError > 5))
                     {
                         
                         note.SetTimings();
