@@ -116,6 +116,7 @@ public static class Dumper
                 .SelectMany(e => e.Beats)
                 .SelectMany(n => n.Notes)
                 .Where(e => !e.Rest)
+                .OrderBy(e => e.Starts.Tick)
                 .ToList();
 
             foreach(var note in notes)
@@ -141,9 +142,9 @@ public static class Dumper
                     var startError = Math.Abs(noteEvent.Start - note.Starts.Tick);
                     var endError = Math.Abs(noteEvent.End - note.Ends.Tick);
                     var epsilon = 5;
-
+                    
                     if ((noteEvent.Start < note.Starts.Tick && startError > 5)  || 
-                        (noteEvent.End > note.Ends.Tick && endError > 5))
+                        (!noteEvent.IsFuckedUp && noteEvent.End > note.Ends.Tick && endError > 5))
                     {
                         
                         note.SetTimings();
@@ -287,12 +288,23 @@ public static class Dumper
 
         var sb = new StringBuilder();
 
+        var parts = midi.Chunks.OfType<TrackChunk>().ToList();
+
         foreach (var part in song.Parts)
         {
-            var partEvents = midi.GetEvents(part.Index);
-            foreach (var ev in partEvents)
+            var partEvents = parts[part.Index].GetTimedEvents().ToList();
+            sb.AppendLine($"\r\n\t P{part.Index} {part.FullName}");
+            for (var i = 0; i < partEvents.Count; i++)
             {
-                sb.AppendLine($"\t\t {GetMidiEventString(ev)}");
+                var partEvent = partEvents[i];
+                if (partEvent.Event is NoteEvent noteEvent)
+                {
+                    sb.AppendLine($"\t\t\t {i} {noteEvent.EventType.ToString()[4..], 3} CH {noteEvent.Channel} NN {noteEvent.NoteNumber} V {noteEvent.Velocity} Time: {partEvent.Time}");
+                }
+                else if (partEvent.Event is MarkerEvent marker)
+                {
+                    sb.AppendLine($"\r\n\t\t P{part.Index} {marker.Text} Time: {partEvent.Time}");
+                }
             }
         }
 

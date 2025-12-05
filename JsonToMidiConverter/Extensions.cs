@@ -21,7 +21,9 @@ public sealed class TimedNoteEvent
     public NoteOnEvent On { get; }
     public NoteOffEvent Off { get; }
 
-    public TimedNoteEvent(int measureIndex, int eventIndex, TimedEvent on, TimedEvent off)
+    public bool IsFuckedUp { get; }
+
+    public TimedNoteEvent(int measureIndex, int eventIndex, TimedEvent on, TimedEvent off, bool isSongsterSpecialPieceOfShit)
     {
         MeasureIndex = measureIndex;
         EventIndex = eventIndex;
@@ -30,7 +32,9 @@ public sealed class TimedNoteEvent
         Duration = End - Start;
         On = (NoteOnEvent)on.Event;
         Off = (NoteOffEvent)off.Event;
+        IsFuckedUp = isSongsterSpecialPieceOfShit;
     }
+    
 
     public bool IsMatching(int channel, int noteNumber) => On.Channel == channel && On.NoteNumber == noteNumber;
 }
@@ -48,7 +52,7 @@ public static class Extensions
         var time = 0L;
         var measureIndex = 0;
 
-        var noteOns = new List<(int Index, TimedEvent On)>();
+        var noteOns = new List<(int Index, TimedEvent On, bool IsFuckedUp)>();
 
         for (var i = 0; i < chunk.Events.Count; i++)
         {
@@ -61,7 +65,16 @@ public static class Extensions
             }
             else if (midiEvent is NoteOnEvent noteOn)
             {
-                noteOns.Add(new (i, new TimedEvent(noteOn, time)));
+                var fuckedUpNotes = noteOns
+                    .Where(e =>
+                    {
+                        var on = (NoteOnEvent)e.On.Event;
+                        return on.Channel == noteOn.Channel && on.NoteNumber == noteOn.NoteNumber;
+                    })
+                    .ToList();
+
+                fuckedUpNotes.ForEach(e => e.IsFuckedUp = true);
+                noteOns.Add(new (i, new TimedEvent(noteOn, time), fuckedUpNotes.Count > 0));
             }
             else if (midiEvent is NoteOffEvent noteOff)
             {
@@ -73,7 +86,7 @@ public static class Extensions
 
                 noteOns.Remove(pair);
 
-                timedEvents.Add(new TimedNoteEvent(measureIndex, pair.Index, pair.On, new TimedEvent(noteOff, time)));
+                timedEvents.Add(new TimedNoteEvent(measureIndex, pair.Index, pair.On, new TimedEvent(noteOff, time), pair.IsFuckedUp));
             }
         }
 

@@ -67,8 +67,6 @@ public sealed partial class Part
         var measureCounter = 0;
         string tripletFeel = null;
 
-
-
         foreach (var measure in Measures)
         {
             switch (measure.TripletFeel)
@@ -86,7 +84,7 @@ public sealed partial class Part
 
             if (tripletFeel == "8th")
             {
-                if (measureCounter == 20)
+                if (measureCounter == 134 && Index == 1)
                 {
 
 
@@ -99,9 +97,14 @@ public sealed partial class Part
 
                 foreach (var voice in measure.Voices)
                 {
-                    var eightNotes = voice.Beats.Where(e => e.Duration[0] == 1 && e.Duration[1] == 8).ToList();
+                    var eightNotes = voice.Beats
+                        .Where(e => e.Duration[0] == 1 && e.Duration[1] == 8)
+                        .Where(e => !e.Notes.All(w => w.Staccato))
+                        .ToList();
                     foreach (var eights in eightNotes)
                     {
+                        eights.OriginalDuration = eights.Duration.Select(e => e).ToList();
+
                         if (eightsCounter % 2 == 0)
                         {
                             eights.Duration[1] = 6;
@@ -120,6 +123,7 @@ public sealed partial class Part
                         var duration = new MusicalTimeSpan(last.Duration[0], last.Duration[1]);
                         var error = new MusicalTimeSpan(1, 24);
                         var compensated = duration - error;
+
                         last.Duration[0] = (int)compensated.Numerator;
                         last.Duration[1] = (int)compensated.Denominator;
                     }

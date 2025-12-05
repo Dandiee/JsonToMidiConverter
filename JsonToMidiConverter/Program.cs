@@ -4,6 +4,8 @@ using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 
 
+//await Database.RefreshSong(27);
+
 var midis = Directory.GetFiles("FreshSongs");
 var c = 0;
 foreach (var midiPath in midis)
@@ -13,7 +15,7 @@ foreach (var midiPath in midis)
     var title = string.Join("-", pathParts.Skip(1).Take(pathParts.Length - 4));
 
     var record = Database.Search(artist, title).First();
-    //await Database.RefreshSong(record.SongId); continue;
+    
 
     var song = Database.GetMidiData(record.SongId);
 
@@ -23,7 +25,7 @@ foreach (var midiPath in midis)
     song.Build(mid, record);
 
     var reference = GetNormalizedMidi(midiPath);
-    Dumper.Dump(song, reference, record, false);
+    Dumper.Dump(song, reference, record, true);
     //Dumper.TestSlides(song, reference, record);
     c++;
 

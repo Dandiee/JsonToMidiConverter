@@ -86,6 +86,8 @@ public sealed partial class Nota
 
         Ends = TieDetails?.Destination.Beat.End ?? Beat.End;
 
+        TieDetails?.Destination.Beat.SetTimes();
+
         var strum = Part.IsPianoLike ? new Time() : new Time(100 * Index);
 
         if (Beat.LetRing)
@@ -217,7 +219,13 @@ public sealed partial class Nota
             return targetNote.Fret;
         }
 
-        var maxFretSeparation = note.Beat.Notes.Max(e => e.Fret) - note.Beat.Notes.Min(e => e.Fret);
+        var affectedStrings = note.Beat.Notes
+            .Where(e => (slide != Slide.Below && slide != Slide.Downwards) || e.Fret > 0)
+            .ToList();
+
+        if (affectedStrings.Count == 0) return note.Fret;
+
+        var maxFretSeparation = affectedStrings.Max(e => e.Fret) - affectedStrings.Min(e => e.Fret);
         var moveTogether = maxFretSeparation < 10;
 
         if (slide == Context.Slide.Upwards || slide == Context.Slide.Above)

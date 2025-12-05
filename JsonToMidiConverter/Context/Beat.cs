@@ -23,6 +23,7 @@ public sealed partial class Beat
     [JsonIgnore] public Beat? Previous { get; private set; }
     [JsonIgnore] public bool LastInMeasure { get; private set; }
     [JsonIgnore] public bool TripletOverriden { get; set; }
+    public List<int> OriginalDuration { get; set; } = [];
 
     public void SetNavigation(Voice voice, int index)
     {
@@ -66,6 +67,7 @@ public sealed partial class Beat
 
     public void Build()
     {
+        //OriginalDuration = Duration.Select(e => e).ToList();
         IsAccord = Notes.Count > 1;
         Notes.ForEach(e => e.Build());
     }
@@ -73,6 +75,21 @@ public sealed partial class Beat
     public void SetTimes()
     {
         Start = Previous?.End ?? new Time();
+
+        if ((Previous != null && Previous.Voice.Index != Voice.Index) ||
+            (Next != null && Next.Voice.Index != Voice.Index))
+        {
+
+        }
+
+        if (Index == 0)
+        {
+            var referenceStart =  Measure.StartTime;
+            if (Start != referenceStart)
+            {
+
+            }
+        }
 
         if (Voice.Index > 0 && Previous == null)
         {
