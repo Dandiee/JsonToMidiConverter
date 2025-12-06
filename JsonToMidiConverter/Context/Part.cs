@@ -262,6 +262,11 @@ public sealed partial class Part
 
                 foreach (var cluster in clusters)
                 {
+                    if (cluster[0].Is("B7 V0 M77 P1"))
+                    {
+
+                    }
+
                     if (cluster.Count > 1)
                     {
                         var averageDuration = cluster.Average(e => e.GetDuration().Tick);
@@ -284,7 +289,7 @@ public sealed partial class Part
                     {
                         var prev = head.Previous;
                         var prevDur = prev.GetDuration();
-                        if (prevDur.Tick <= clusterLength)
+                        if (prevDur.Tick / 2 <= clusterLength)
                         {
                             prev.Duration[1] *= 2;
                             var stepSize = (prevDur / 2) / cluster.Count;
@@ -308,7 +313,7 @@ public sealed partial class Part
                     {
                         var next = tail.Next;
                         var nextDur = next.GetDuration();
-                        if (nextDur.Tick <= clusterLength)
+                        if (nextDur.Tick / 2 <= clusterLength)
                         {
                             next.Duration[1] *= 2;
                             var stepSize = (nextDur / 2) / cluster.Count;

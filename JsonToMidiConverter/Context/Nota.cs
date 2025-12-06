@@ -176,6 +176,11 @@ public sealed partial class Nota
         var sign = Math.Sign(delta);
         var steps = Math.Abs(target - note.Fret);
 
+        if (steps > 10)
+        {
+
+        }
+
         if (slide == Context.Slide.Shift && delta == 0) yield break;
 
         if (slide == Context.Slide.Shift && delta == 0 && note.WillBeTied && note.TieDetails.Destination.Slides.Count == 0)
@@ -192,10 +197,12 @@ public sealed partial class Nota
 
         if (slide == Context.Slide.Below || slide == Context.Slide.Above)
         {
-            for (var i = 1; i < steps + 1; i++)
+            for (var i = 1; i < steps; i++)
             {
                 yield return note.PureNoteNumber + sign * (steps - i);
             }
+
+            yield return note.NoteNumber;
         }
         else
         {
