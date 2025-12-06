@@ -33,14 +33,19 @@ public sealed partial class Part
         FixBeats();
 
         ApplyTripletFeel();
-        ProcessGraceClusters();
+        
 
         Measures = UnfoldRepeats();
 
         for (var i = 0; i < Measures.Count; i++)
         {
             Measures[i].SetNavigation(this, i);
+
         }
+
+        ProcessGraceClusters();
+
+        //        FixGracePeriods();
 
         Measures.ForEach(m => m.Build());
 
@@ -61,6 +66,84 @@ public sealed partial class Part
 
         var maximumVoiceChannelCount = Measures.Max(e => e.Voices.Count);
         Debug.Assert(Measures.All(e => e.Voices.Count <= 1 || e.Voices.Count == maximumVoiceChannelCount));
+    }
+
+    private void FixGracePeriods()
+    {
+        foreach (var measure in Measures)
+        {
+            foreach (var voice in measure.Voices)
+            {
+                var clusters = new List<List<Beat>>();
+                var currentCluster = new List<Beat>();
+
+                foreach (var beat in voice.Beats)
+                {
+                    if (beat.GraceNote != null)
+                    {
+                        if (currentCluster.Count == 0)
+                        {
+                            currentCluster.Add(beat);
+                        }
+                        else if (currentCluster[0].GraceNote == beat.GraceNote)
+                        {
+                            currentCluster.Add(beat);
+                        }
+                        else
+                        {
+                            clusters.Add(currentCluster);
+                            currentCluster = [beat];
+                        }
+                    }
+                    else
+                    {
+                        if (currentCluster.Count > 0)
+                        {
+                            clusters.Add(currentCluster);
+                            currentCluster = [];
+                        }
+                    }
+                }
+
+                if (currentCluster.Count > 0)
+                {
+                    clusters.Add(currentCluster);
+                }
+
+                foreach (var cluster in clusters)
+                {
+                    var head = cluster[0];
+                    var tail = cluster[^1];
+                    var clusterLength = cluster.Sum(e => e.GetDuration().Tick);
+                    
+                    if (head.GraceNote == "beforeBeat")
+                    {
+                        var prevDur = head.Previous.GetDuration();
+                        if (prevDur.Tick <= clusterLength)
+                        {
+                            head.Previous.Duration[1] *= 2;
+                            foreach (var note in cluster)
+                            {
+                                note.Duration[1] *= 2;
+                            }
+                        }
+                    }
+                    else if (head.GraceNote == "onBeat")
+                    {
+                        var nextDur = tail.Next.GetDuration();
+                        if (nextDur.Tick <= clusterLength)
+                        {
+                            tail.Next.Duration[1] *= 2;
+                            foreach (var note in cluster)
+                            {
+                                note.Duration[1] *= 2;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
     }
 
     public void ApplyTripletFeel()
@@ -177,17 +260,73 @@ public sealed partial class Part
                     clusters.Add(currentCluster);
                 }
 
-
-                foreach (var cluster in clusters.Where(e => e.Count > 1))
+                foreach (var cluster in clusters)
                 {
-                    var averageDuration = cluster.Average(e => e.GetDuration().Tick);
-                    var avgMusicalDuration = TimeConverter.ConvertTo<MusicalTimeSpan>((long)averageDuration, TempoMap);
-                    var oneDuration = avgMusicalDuration / cluster.Count;
-                    foreach (var beat in cluster)
+                    if (cluster.Count > 1)
                     {
-                        beat.OriginalDuration = beat.Duration.Select(e => e).ToList();
-                        beat.Duration[0] = (int)oneDuration.Numerator;
-                        beat.Duration[1] = (int)oneDuration.Denominator;
+                        var averageDuration = cluster.Average(e => e.GetDuration().Tick);
+                        var avgMusicalDuration = TimeConverter.ConvertTo<MusicalTimeSpan>((long)averageDuration, TempoMap);
+                        var oneDuration = avgMusicalDuration / cluster.Count;
+                        foreach (var beat in cluster)
+                        {
+                            beat.OriginalDuration = beat.Duration.Select(e => e).ToList();
+                            beat.Duration[0] = (int)oneDuration.Numerator;
+                            beat.Duration[1] = (int)oneDuration.Denominator;
+                        }
+                    }
+
+
+                    var head = cluster[0];
+                    var tail = cluster[^1];
+                    var clusterLength = cluster.Sum(e => e.GetDuration().Tick);
+
+                    if (head.GraceNote == "beforeBeat")
+                    {
+                        var prev = head.Previous;
+                        var prevDur = prev.GetDuration();
+                        if (prevDur.Tick <= clusterLength)
+                        {
+                            prev.Duration[1] *= 2;
+                            var stepSize = (prevDur / 2) / cluster.Count;
+                            var clusterUnitDuration = TimeConverter.ConvertTo<MusicalTimeSpan>(stepSize.Tick, TempoMap);
+                            foreach (var beat in cluster)
+                            {
+                                beat.OriginalDuration = beat.Duration.Select(e => e).ToList();
+                                beat.Duration[0] = (int)clusterUnitDuration.Numerator;
+                                beat.Duration[1] = (int)clusterUnitDuration.Denominator;
+                            }
+                        }
+                        else
+                        {
+                            var newPrevDur = TimeConverter.ConvertTo<MusicalTimeSpan>(prevDur.Tick - clusterLength, TempoMap);
+                            prev.OriginalDuration = prev.Duration.Select(e => e).ToList();
+                            prev.Duration[0] = (int)newPrevDur.Numerator;
+                            prev.Duration[1] = (int)newPrevDur.Denominator;
+                        }
+                    }
+                    else if (head.GraceNote == "onBeat")
+                    {
+                        var next = tail.Next;
+                        var nextDur = next.GetDuration();
+                        if (nextDur.Tick <= clusterLength)
+                        {
+                            next.Duration[1] *= 2;
+                            var stepSize = (nextDur / 2) / cluster.Count;
+                            var clusterUnitDuration = TimeConverter.ConvertTo<MusicalTimeSpan>(stepSize.Tick, TempoMap);
+                            foreach (var beat in cluster)
+                            {
+                                beat.OriginalDuration = beat.Duration.Select(e => e).ToList();
+                                beat.Duration[0] = (int)clusterUnitDuration.Numerator;
+                                beat.Duration[1] = (int)clusterUnitDuration.Denominator;
+                            }
+                        }
+                        else
+                        {
+                            var newNextDur = TimeConverter.ConvertTo<MusicalTimeSpan>(nextDur.Tick - clusterLength, TempoMap);
+                            next.OriginalDuration = next.Duration.Select(e => e).ToList();
+                            next.Duration[0] = (int)newNextDur.Numerator;
+                            next.Duration[1] = (int)newNextDur.Denominator;
+                        }
                     }
                 }
             }
@@ -196,9 +335,10 @@ public sealed partial class Part
 
     public void FixBeats()
     {
+        var measureIndex = 0;
         foreach (var measure in Measures)
         {
-            if (Anacrusis && measure.Index == 0) return;
+            if (Anacrusis && measureIndex == 0) continue;
 
             var signature = measure.Sgntr;
             var duration = new Time(signature.Numerator, signature.Denominator);
@@ -208,7 +348,7 @@ public sealed partial class Part
                 var sum = voice.Beats.Where(e => string.IsNullOrEmpty(e.GraceNote)).Sum(b => b.GetDuration().Tick);
                 var error = sum - duration.Tick;
 
-                if (error > 10)
+                if (error > 20)
                 {
                     foreach (var beat in voice.Beats[^1].Backward())
                     {
@@ -231,6 +371,9 @@ public sealed partial class Part
                     }
                 }
             }
+
+
+            measureIndex ++;
         }
 
 

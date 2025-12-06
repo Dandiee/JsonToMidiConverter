@@ -3,6 +3,7 @@ using JsonToMidiConverter.Models.Song;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using System.Diagnostics;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -102,6 +103,11 @@ public static class Dumper
         Save(sb.ToString(), "Bible", record, overwrite);
     }
 
+    private static readonly (string Addres, string Track)[] StoppedCaringList =
+    [
+        //new ("V1 M249 P2", "ride")
+    ];
+
     public static void AssignNotesToMidiEvents(Song song, MidiFile midi)
     {
         foreach (var part in song.Parts)
@@ -124,7 +130,7 @@ public static class Dumper
                 if (note.Slides.Count > 0 && note.Tremolo.Count > 0)
                     throw new Exception("Just drop this track in the bin doesnt matter fuck that");
 
-                if (note.Is("P1", "hendrix"))
+                if (note.Is("N0 B0 V1 M249 P2", "ride"))
                 {
 
                 }
@@ -135,19 +141,27 @@ public static class Dumper
 
                 foreach (var emittedNote in emittedNotes)
                 {
+                    if (note.Channel == 4 && emittedNote == 46)
+                    {
+
+                    }
+
                     var noteEvent = measureEvents
                         .SkipWhile(e => e.On.Channel != note.Channel || e.On.NoteNumber != emittedNote)
                         .First();
 
                     var startError = Math.Abs(noteEvent.Start - note.Starts.Tick);
                     var endError = Math.Abs(noteEvent.End - note.Ends.Tick);
-                    var epsilon = 5;
-                    
-                    if ((noteEvent.Start < note.Starts.Tick && startError > 5)  || 
-                        (!noteEvent.IsFuckedUp && noteEvent.End > note.Ends.Tick && endError > 5))
+                    var epsilon = 10;
+
+
+                    if ((noteEvent.Start < note.Starts.Tick && startError > epsilon)  || 
+                        (!noteEvent.IsFuckedUp && noteEvent.End > note.Ends.Tick && endError > epsilon))
                     {
-                        
-                        note.SetTimings();
+                        if (StoppedCaringList.All(e => !note.Is(e.Addres, e.Track)))
+                        {
+                            note.SetTimings();
+                        }
                     }
 
                     var nextChannelEvent = measureEvents

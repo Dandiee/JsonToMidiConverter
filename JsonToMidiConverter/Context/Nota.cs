@@ -92,7 +92,7 @@ public sealed partial class Nota
 
         if (Beat.LetRing)
         {
-            var firstNonRinging = Beat.Forward().SkipWhile(beat => beat.LetRing).First();
+            var firstNonRinging = Beat.Forward().SkipWhile(beat => beat.LetRing).FirstOrDefault();
             if (Ends < firstNonRinging.End)
             {
                 Ends = firstNonRinging.End;
@@ -256,7 +256,6 @@ public sealed partial class Nota
                 .Where(e => e.Fret != 0)
                 .Min(e => e.Fret);
 
-            var minTargetFretFr = minChordFret - minChordFret;
             var minTargetFret = minChordFret - Math.Min(10, minChordFret);
             var minDistance = minTargetFret - minChordFret;
 

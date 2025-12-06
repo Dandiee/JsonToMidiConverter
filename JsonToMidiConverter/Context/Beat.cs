@@ -2,6 +2,7 @@
 using System.Text.Json.Serialization;
 using JsonToMidiConverter.Context;
 using Melanchall.DryWetMidi.Interaction;
+using Melanchall.DryWetMidi.Multimedia;
 
 namespace JsonToMidiConverter.Models.Song;
 
@@ -33,7 +34,7 @@ public sealed partial class Beat
 
 
 
-        
+
 
         if (Index > 0)
         {
@@ -74,6 +75,11 @@ public sealed partial class Beat
 
     public void SetTimes()
     {
+        if (Is("B0 V0 M149 P2", "seek"))
+        {
+
+        }
+
         Start = Previous?.End ?? new Time();
 
         if (Voice.Index > 0 && Previous == null)
@@ -82,32 +88,46 @@ public sealed partial class Beat
         }
 
         Dur = GetDuration();
-        if (GraceNote == null)
-        {
-            if (Previous != null && Previous.GraceNote == "onBeat")
-            {
-                var graceCluster = Backward().Skip(1).TakeWhile(e => e.GraceNote == "onBeat").ToList();
-                var graceClusterDuration = graceCluster.Sum(e => e.GetDuration().Tick);
-
-                if (false && graceClusterDuration > 10880)
-                {
-                    Dur -= 10880;
-                }
-                else Dur -= graceClusterDuration;
-            }
-
-            if (Next != null && Next.GraceNote == "beforeBeat")
-            {
-                var graceCluster = Forward().Skip(1).TakeWhile(e => e.GraceNote == "beforeBeat").ToList();
-                var graceClusterDuration = graceCluster.Sum(e => e.GetDuration().Tick);
-
-                if (false && graceClusterDuration > 10880)
-                {
-                    Dur -= 10880;
-                }
-                else Dur -= graceClusterDuration;
-            }
-        }
+        //if (GraceNote == null)
+        //{
+        //    if (Previous != null && Previous.GraceNote == "onBeat")
+        //    {
+        //        var graceCluster = Backward().Skip(1).TakeWhile(e => e.GraceNote == "onBeat").ToList();
+        //        var graceClusterDuration = graceCluster.Sum(e => e.GetDuration().Tick);
+        //
+        //        if (false && Dur.Tick <= graceClusterDuration)
+        //        {
+        //            Dur -= graceClusterDuration / 2;
+        //        }
+        //        else Dur -= graceClusterDuration;
+        //    }
+        //
+        //    if (Next != null && Next.GraceNote == "beforeBeat")
+        //    {
+        //        var graceCluster = Forward().Skip(1).TakeWhile(e => e.GraceNote == "beforeBeat").ToList();
+        //        var graceClusterDuration = graceCluster.Sum(e => e.GetDuration().Tick);
+        //
+        //        if (false && Dur.Tick <= graceClusterDuration)
+        //        {
+        //            Dur -= graceClusterDuration / 2;
+        //        }
+        //        else Dur -= graceClusterDuration;
+        //
+        //    }
+        //}
+       //else if (GraceNote == "onBeat")
+       //{
+       //    // TODO does not support clusters
+       //    if (Dur >= Next.GetDuration())
+       //    {
+       //
+       //    }
+       //}
+       //else if (GraceNote == "beforeBeat")
+       //{
+       //    // TODO does not support clusters
+       //}
+       //else throw new Exception();
 
         End = Start + Dur;
     }
@@ -134,25 +154,9 @@ public sealed partial class Beat
 
     public Time GetDuration()
     {
-        if (Is("B4 V0 M97 P2", "king"))
-        {
-
-        }
-
         var dur = new Time(Duration[0], Duration[1]);
-
-        if (GraceNote == "beforeBeat" && Notes.Any(e => e.Slides.Contains(Slide.Legato)) && dur <= new Time(1, 16L))
-        {
-            //return dur * (2/3.0);
-        }
-
-        //if (GraceNote == "beforeBeat" && Notes.Any(e => e.Slides.Contains(Slide.Legato)) && dur <= new Time(1, 16L))
-        //{
-        //    return dur * (2 / 3.0);
-        //}
-
         return dur;
-    } 
+    }
 
     public bool Is(string name, string? filter = null)
     {

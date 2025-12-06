@@ -37,6 +37,11 @@ public sealed partial class Measure
 
     public void Build()
     {
+        if (Is("P2", "ride"))
+        {
+
+        }
+
         var startTime = TimeConverter.ConvertTo<MetricTimeSpan>(new BarBeatFractionTimeSpan(Index), Part.TempoMap);
         StartTime = new Time(TimeConverter.ConvertFrom(startTime, Part.TempoMap));
 
@@ -44,11 +49,10 @@ public sealed partial class Measure
         {
             if (Index == 1)
             {
-                var firstMeasureActualLength = Part.Measures[0].Voices[0].Beats.Sum(e => e.Dur.Tick);
+                var firstMeasureActualLength = Part.Measures[0].Voices[0].Beats.Sum(e => e.GetDuration().Tick);
                 var firstMeasureExpectedLength = Part.Measures[1].StartTime - Part.Measures[0].StartTime;
                 Part.AnacrusisOffset = firstMeasureExpectedLength - firstMeasureActualLength;
             }
-            
             if (Index > 0)
             {
                 StartTime -= Part.AnacrusisOffset;
@@ -71,5 +75,18 @@ public sealed partial class Measure
 
     public override string ToString() => $"M{Index} {Part}";
 
-    public bool Is(string name) => name == $"{this}";
+    public bool Is(string name, string? filter = null)
+    {
+        if (string.IsNullOrEmpty(name)) return false;
+
+        var trimmed = name.Trim().ToUpperInvariant();
+        var isMatching = trimmed[0] switch
+        {
+            'M' => $"{this}".Equals(trimmed),
+            'P' => $"{Part}".Equals(trimmed),
+            _ => false
+        };
+
+        return isMatching && (string.IsNullOrEmpty(filter) || Part.FullName.Contains(filter, StringComparison.OrdinalIgnoreCase));
+    }
 }
