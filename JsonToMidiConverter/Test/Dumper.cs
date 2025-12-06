@@ -294,6 +294,8 @@ public static class Dumper
         {
             var partEvents = parts[part.Index].GetTimedEvents().ToList();
             sb.AppendLine($"\r\n\t P{part.Index} {part.FullName}");
+            
+
             for (var i = 0; i < partEvents.Count; i++)
             {
                 var partEvent = partEvents[i];

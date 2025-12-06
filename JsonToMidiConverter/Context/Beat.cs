@@ -76,37 +76,39 @@ public sealed partial class Beat
     {
         Start = Previous?.End ?? new Time();
 
-        if ((Previous != null && Previous.Voice.Index != Voice.Index) ||
-            (Next != null && Next.Voice.Index != Voice.Index))
-        {
-
-        }
-
-        if (Index == 0)
-        {
-            var referenceStart =  Measure.StartTime;
-            if (Start != referenceStart)
-            {
-
-            }
-        }
-
         if (Voice.Index > 0 && Previous == null)
         {
             Start = Measure.StartTime;
         }
 
         Dur = GetDuration();
-        if (Previous != null && Previous.GraceNote == "onBeat")
+        if (GraceNote == null)
         {
-            Dur -= Previous.GetDuration();
+            if (Previous != null && Previous.GraceNote == "onBeat")
+            {
+                var graceCluster = Backward().Skip(1).TakeWhile(e => e.GraceNote == "onBeat").ToList();
+                var graceClusterDuration = graceCluster.Sum(e => e.GetDuration().Tick);
+
+                if (false && graceClusterDuration > 10880)
+                {
+                    Dur -= 10880;
+                }
+                else Dur -= graceClusterDuration;
+            }
+
+            if (Next != null && Next.GraceNote == "beforeBeat")
+            {
+                var graceCluster = Forward().Skip(1).TakeWhile(e => e.GraceNote == "beforeBeat").ToList();
+                var graceClusterDuration = graceCluster.Sum(e => e.GetDuration().Tick);
+
+                if (false && graceClusterDuration > 10880)
+                {
+                    Dur -= 10880;
+                }
+                else Dur -= graceClusterDuration;
+            }
         }
 
-        if (Next != null && Next.GraceNote == "beforeBeat")
-        {
-            var q = Next.GetDuration();
-            Dur -= q;
-        }
         End = Start + Dur;
     }
 

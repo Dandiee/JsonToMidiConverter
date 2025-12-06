@@ -33,6 +33,7 @@ public sealed partial class Part
         FixBeats();
 
         ApplyTripletFeel();
+        ProcessGraceClusters();
 
         Measures = UnfoldRepeats();
 
@@ -131,6 +132,65 @@ public sealed partial class Part
             }
 
             measureCounter++;
+        }
+    }
+
+    public void ProcessGraceClusters()
+    {
+        foreach (var measure in Measures)
+        {
+            foreach (var voice in measure.Voices)
+            {
+                var clusters = new List<List<Beat>>();
+                var currentCluster = new List<Beat>();
+
+                foreach (var beat in voice.Beats)
+                {
+                    if (beat.GraceNote != null)
+                    {
+                        if (currentCluster.Count == 0)
+                        {
+                            currentCluster.Add(beat);
+                        }
+                        else if (currentCluster[0].GraceNote == beat.GraceNote)
+                        {
+                            currentCluster.Add(beat);
+                        }
+                        else
+                        {
+                            clusters.Add(currentCluster);
+                            currentCluster = [beat];
+                        }
+                    }
+                    else
+                    {
+                        if (currentCluster.Count > 0)
+                        {
+                            clusters.Add(currentCluster);
+                            currentCluster = [];
+                        }
+                    }
+                }
+
+                if (currentCluster.Count > 0)
+                {
+                    clusters.Add(currentCluster);
+                }
+
+
+                foreach (var cluster in clusters.Where(e => e.Count > 1))
+                {
+                    var averageDuration = cluster.Average(e => e.GetDuration().Tick);
+                    var avgMusicalDuration = TimeConverter.ConvertTo<MusicalTimeSpan>((long)averageDuration, TempoMap);
+                    var oneDuration = avgMusicalDuration / cluster.Count;
+                    foreach (var beat in cluster)
+                    {
+                        beat.OriginalDuration = beat.Duration.Select(e => e).ToList();
+                        beat.Duration[0] = (int)oneDuration.Numerator;
+                        beat.Duration[1] = (int)oneDuration.Denominator;
+                    }
+                }
+            }
         }
     }
 

@@ -25,7 +25,7 @@ foreach (var midiPath in midis)
     song.Build(mid, record);
 
     var reference = GetNormalizedMidi(midiPath);
-    Dumper.Dump(song, reference, record, true);
+    Dumper.Dump(song, reference, record, false);
     //Dumper.TestSlides(song, reference, record);
     c++;
 
