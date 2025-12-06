@@ -92,7 +92,7 @@ public sealed partial class Nota
 
         if (Beat.LetRing)
         {
-            var firstNonRinging = Beat.Forward().SkipWhile(beat => beat.LetRing).FirstOrDefault();
+            var firstNonRinging = Beat.Forward().SkipWhile(beat => beat.LetRing && beat.Next != null).First();
             if (Ends < firstNonRinging.End)
             {
                 Ends = firstNonRinging.End;
@@ -105,7 +105,7 @@ public sealed partial class Nota
             {
                 if (note.Beat.LetRing)
                 {
-                    var firstNonRinging = note.Beat.Forward().SkipWhile(beat => beat.LetRing).First();
+                    var firstNonRinging = note.Beat.Forward().SkipWhile(beat => beat.LetRing && beat.Next != null).First();
                     if (Ends < firstNonRinging.End)
                     {
                         Ends = firstNonRinging.End;
