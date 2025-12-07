@@ -69,77 +69,20 @@ public sealed partial class Beat
 
     public void Build()
     {
-        //OriginalDuration = Duration.Select(e => e).ToList();
         IsAccord = Notes.Count > 1;
         Notes.ForEach(e => e.Build());
     }
 
     public void SetTimes()
     {
-        
-
         Start = Previous?.End ?? new Time();
-
-        if (Is("P0", "money"))
-        {
-            if (Index == 0 && Start != Measure.StartTime)
-            {
-
-            }
-        }
 
         if (Voice.Index > 0 && Previous == null)
         {
-            Start = Measure.StartTime;
-        }
-
-        if (!Part.Anacrusis && Index == 0 && Math.Abs(Start.Tick - Measure.StartTime.Tick) > 10 && GraceNote == null && !Rest)
-        {
-
+            Start = Measure.Start;
         }
 
         Dur = GetDuration();
-        //if (GraceNote == null)
-        //{
-        //    if (Previous != null && Previous.GraceNote == "onBeat")
-        //    {
-        //        var graceCluster = Backward().Skip(1).TakeWhile(e => e.GraceNote == "onBeat").ToList();
-        //        var graceClusterDuration = graceCluster.Sum(e => e.GetDuration().Tick);
-        //
-        //        if (false && Dur.Tick <= graceClusterDuration)
-        //        {
-        //            Dur -= graceClusterDuration / 2;
-        //        }
-        //        else Dur -= graceClusterDuration;
-        //    }
-        //
-        //    if (Next != null && Next.GraceNote == "beforeBeat")
-        //    {
-        //        var graceCluster = Forward().Skip(1).TakeWhile(e => e.GraceNote == "beforeBeat").ToList();
-        //        var graceClusterDuration = graceCluster.Sum(e => e.GetDuration().Tick);
-        //
-        //        if (false && Dur.Tick <= graceClusterDuration)
-        //        {
-        //            Dur -= graceClusterDuration / 2;
-        //        }
-        //        else Dur -= graceClusterDuration;
-        //
-        //    }
-        //}
-       //else if (GraceNote == "onBeat")
-       //{
-       //    // TODO does not support clusters
-       //    if (Dur >= Next.GetDuration())
-       //    {
-       //
-       //    }
-       //}
-       //else if (GraceNote == "beforeBeat")
-       //{
-       //    // TODO does not support clusters
-       //}
-       //else throw new Exception();
-
         End = Start + Dur;
     }
 

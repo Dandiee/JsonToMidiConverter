@@ -10,13 +10,15 @@ public sealed partial class Measure
     [JsonIgnore]public int Index { get; private set; }
     [JsonIgnore]public Part Part { get; private set; }
     [JsonIgnore]public Song Song => Part.Song;
-    [JsonIgnore] public Time StartTime { get; private set; }
-    [JsonIgnore] public byte? SignatureNominator { get; private set; }
-    [JsonIgnore] public byte? SignatureDenominator { get; private set; }
+    [JsonIgnore] public byte SignatureNominator { get; private set; }
+    [JsonIgnore] public byte SignatureDenominator { get; private set; }
     [JsonIgnore] public Measure? Next { get; private set; }
     [JsonIgnore] public Measure? Previous { get; private set; }
     [JsonIgnore] public int OriginalIndex { get; set; }
     [JsonIgnore] public TimeSignature Sgntr { get; set; }
+    [JsonIgnore] public Time Duration { get; set; }
+    [JsonIgnore] public Time End { get; set; }
+    [JsonIgnore] public Time Start { get; set; }
 
     public void SetNavigation(Part part, int index)
     {
@@ -37,37 +39,24 @@ public sealed partial class Measure
 
     public void Build()
     {
-        if (Is("P2", "ride"))
-        {
-
-        }
-
-        var startTime = TimeConverter.ConvertTo<MetricTimeSpan>(new BarBeatFractionTimeSpan(Index), Part.TempoMap);
-        StartTime = new Time(TimeConverter.ConvertFrom(startTime, Part.TempoMap));
-
-        if (Part.Anacrusis)
-        {
-            if (Index == 1)
-            {
-                var firstMeasureActualLength = Part.Measures[0].Voices[0].Beats.Sum(e => e.GetDuration().Tick);
-                var firstMeasureExpectedLength = Part.Measures[1].StartTime - Part.Measures[0].StartTime;
-                Part.AnacrusisOffset = firstMeasureExpectedLength - firstMeasureActualLength;
-            }
-            if (Index > 0)
-            {
-                StartTime -= Part.AnacrusisOffset;
-            }
-        }
-
         if (Signature.Count == 2)
         {
             SignatureNominator = (byte)Signature[0];
             SignatureDenominator = (byte)Signature[1];
         }
+        else
+        {
+            SignatureNominator = Previous!.SignatureNominator;
+            SignatureDenominator = Previous.SignatureDenominator;
+        }
+
+        Start = Previous?.End ?? new Time();
+        Duration = Part.Anacrusis && Index == 0 
+            ? new Time(Voices[0].Beats.Where(e => string.IsNullOrEmpty(e.GraceNote)).Sum(e => e.GetDuration().Tick))
+            : new Time(SignatureNominator, SignatureDenominator);
+        End = Start + Duration;
 
         Voices.ForEach(v => v.Build());
-
-        
     }
 
 

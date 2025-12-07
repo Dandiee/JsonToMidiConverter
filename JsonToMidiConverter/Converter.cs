@@ -86,18 +86,18 @@ internal static class Converter
 
     public static void AddMeasureMarker(Events events, Measure measure)
     {
-        events.Add(new MarkerEvent($"MEASURE_{measure.Index}"), measure.StartTime, null, null, measure.Part.PartId);
+        events.Add(new MarkerEvent($"MEASURE_{measure.Index}"), measure.Start, null, null, measure.Part.PartId);
 
         var measureChange = measure.Part.Automations.Tempo.SingleOrDefault(e => e.Measure == measure.Index);
         if (measureChange != null && measure.Index != 0)
         {
             var newTempo = Tempo.FromBeatsPerMinute(measureChange.Bpm).MicrosecondsPerQuarterNote;
-            events.Add(new SetTempoEvent(newTempo), measure.StartTime, null, null, measure.Part.PartId);
+            events.Add(new SetTempoEvent(newTempo), measure.Start, null, null, measure.Part.PartId);
         }
 
         if (measure.Index > 0 && measure.Signature.Count > 0)
         {
-            events.Add(new TimeSignatureEvent(measure.SignatureNominator.Value, measure.SignatureDenominator.Value), measure.StartTime, null, null, measure.Part.PartId);
+            events.Add(new TimeSignatureEvent(measure.SignatureNominator, measure.SignatureDenominator), measure.Start, null, null, measure.Part.PartId);
         }
     }
 
