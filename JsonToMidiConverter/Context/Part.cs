@@ -1,6 +1,7 @@
 ﻿using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using System;
+using System.ComponentModel.Design;
 using System.Diagnostics;
 using System.Text.Json.Serialization;
 using static System.Runtime.InteropServices.JavaScript.JSType;
@@ -76,67 +77,59 @@ public sealed partial class Part
     public void ApplyTripletFeel()
     {
         var measureCounter = 0;
-        string tripletFeel = null;
+        Time? division = null;
 
         foreach (var measure in Measures)
         {
-            switch (measure.TripletFeel)
+            if (!string.IsNullOrEmpty(measure.TripletFeel))  
             {
-                case "8th":
-                    tripletFeel = "8th";
-                    break;
-                case "off":
-                    tripletFeel = null;
-                    break;
-                case null:
-                    break;
-                default: throw new Exception();
+                if (measure.TripletFeel.Equals("off", StringComparison.InvariantCulture))
+                {
+                    division = null;
+                }
+                else
+                {
+                    division = SupportedSwings[measure.TripletFeel];
+                }
             }
 
-            if (tripletFeel == "8th")
+            if (division == null) continue;
+            var divisionTick = division.Value.Tick;
+
+            foreach (var voice in measure.Voices)
             {
-                var eights = new Time(1, 8);
-
-                foreach (var voice in measure.Voices)
+                var cursor = new Time();
+                foreach (var beat in voice.Beats)
                 {
-                    var cursor = new Time();
-                    foreach (var beat in voice.Beats)
+                    if (!string.IsNullOrEmpty(beat.GraceNote)) continue;
+
+                    var start = cursor;
+                    var duration = beat.GetDuration();
+                    var end = start + duration;
+
+                    cursor += duration;
+
+                    if (start.Tick % divisionTick == 0 && end.Tick % divisionTick == 0)
                     {
-                        if (!string.IsNullOrEmpty(beat.GraceNote)) continue;
-
-                        if (beat.Is("M7 P8", "money"))
+                        var gridCellsCovered = duration / divisionTick;
+                        if (gridCellsCovered % 2 > 0)
                         {
-
-                        }
-
-                        var start = cursor;
-                        var duration = beat.GetDuration();
-                        var end = start + duration;
-
-                        cursor += duration;
-
-                        if (start.Tick % eights.Tick == 0 && end.Tick % eights.Tick == 0)
-                        {
-                            var gridCellsCovered = duration / eights.Tick;
-                            if (gridCellsCovered % 2 > 0)
+                            var startingGridIndex = start.Tick / divisionTick;
+                            if (startingGridIndex % 2 == 0)
                             {
-                                var startingGridIndex = start.Tick / eights.Tick;
-                                if (startingGridIndex % 2 == 0)
-                                {
-                                    duration += new Time(1, 24);
-                                }
-                                else
-                                {
-                                    duration -= new Time(1, 24);
-                                }
-
-                                beat.Duration = [duration.Span.Numerator, duration.Span.Denominator];
+                                duration += new Time(1, 24);
                             }
+                            else
+                            {
+                                duration -= new Time(1, 24);
+                            }
+
+                            beat.Duration = [duration.Span.Numerator, duration.Span.Denominator];
                         }
                     }
-
-                    ShortenEnd(0, voice);
                 }
+
+                ShortenEnd(0, voice);
             }
 
             measureCounter++;
