@@ -24,7 +24,21 @@ public sealed partial class Beat
     [JsonIgnore] public Beat? Next { get; private set; }
     [JsonIgnore] public Beat? Previous { get; private set; }
     [JsonIgnore] public bool LastInMeasure { get; private set; }
-    [JsonIgnore] public bool TripletOverriden { get; set; }
+    private Time? _duration;
+    [JsonIgnore]
+    public Time Duration
+    {
+        get
+        {
+            if (!_duration.HasValue)
+            {
+                _duration = new Time(DurationArray[0], DurationArray[1]);
+            }
+
+            return _duration.Value;
+        }
+        set => _duration = value;
+    }
 
     public void SetNavigation(Voice voice, int index)
     {
@@ -108,7 +122,7 @@ public sealed partial class Beat
     public Time GetDuration()
     {
 
-        var dur = new Time(Duration[0], Duration[1]);
+        var dur = new Time(DurationArray[0], DurationArray[1]);
         return dur;
     }
 

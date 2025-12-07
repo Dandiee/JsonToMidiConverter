@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Text.Json.Serialization;
 
 namespace JsonToMidiConverter.Models.Song;
 
@@ -9,7 +10,8 @@ public partial class Beat
     public string Velocity { get; set; } = string.Empty;
     public int Type { get; set; }
     public bool PalmMute { get; set; }
-    public List<long> Duration { get; set; } = [];
+    [JsonPropertyName("duration")]
+    public List<long> DurationArray { get; set; } = [];
     public bool BeamStart { get; set; }
     public bool BeamStop { get; set; }
     public bool Vibrato { get; set; }
@@ -43,7 +45,7 @@ public partial class Beat
         Velocity = Velocity,
         Type = Type,
         PalmMute = PalmMute,
-        Duration = Duration.Select(e => e).ToList(),
+        DurationArray = DurationArray.Select(e => e).ToList(),
         BeamStart = BeamStart,
         BeamStop = BeamStop,
         Vibrato = Vibrato,
