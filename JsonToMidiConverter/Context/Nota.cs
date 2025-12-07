@@ -6,13 +6,11 @@ using Melanchall.DryWetMidi.Common;
 namespace JsonToMidiConverter.Models.Song;
 
 [DebuggerDisplay("N{Index} B{Beat.Index} V{Voice.Index} M{Measure.Index} P{Part.Index}")]
-public sealed partial class Nota
+public sealed partial class Nota : MusicalElement<Nota>
 {
-    [JsonIgnore] public int Index { get; private set; }
     [JsonIgnore] public Beat Beat { get; private set; }
     [JsonIgnore] public Voice Voice => Beat.Voice;
     [JsonIgnore] public Measure Measure => Voice.Measure;
-    [JsonIgnore] public Part Part => Measure.Part;
     [JsonIgnore] public Song Song => Part.Song;
     [JsonIgnore] public int Channel { get; private set; }
     [JsonIgnore] public SevenBitNumber NoteNumber { get; set; }
@@ -20,19 +18,15 @@ public sealed partial class Nota
     [JsonIgnore] public List<Context.Slide> Slides { get; private set; } = [];
     [JsonIgnore] public List<TimedNoteEvent> MidiNoteEvents { get; set; } = [];
     [JsonIgnore] public TieContext? TieDetails { get; private set; }
-    [JsonIgnore] public Nota? Next { get; private set; }
-    [JsonIgnore] public Nota? Previous { get; private set; }
     [JsonIgnore] public bool LastInBeat { get; private set; }
     [JsonIgnore] public Time? TremoloDuration { get; private set; }
     [JsonIgnore] public int PureNoteNumber { get; private set; }
-    [JsonIgnore] public Time Start { get; private set; }
-    [JsonIgnore] public Time Duration { get; private set; }
-    [JsonIgnore] public Time End { get; private set; }
 
     public void SetNavigation(Beat beat, int index)
     {
         Index = index;
         Beat = beat;
+        Part = beat.Part;
         LastInBeat = Index == Beat.Notes.Count - 1;
 
         var prevBeat = Beat.Previous;
@@ -273,37 +267,12 @@ public sealed partial class Nota
     }
 
 
-    public IEnumerable<Nota> Forward()
-    {
-        var current = this;
-        while (current != null)
-        {
-            yield return current;
-            current = current.Next;
-        }
-    }
 
     public override string ToString() => $"N{Index} {Beat}";
     
 
 
-    public bool Is(string name, string? filter = null)
-    {
-        if (string.IsNullOrEmpty(name)) return false;
 
-        var trimmed = name.Trim().ToUpperInvariant();
-        var isMatching = trimmed[0] switch
-        {
-            'N' => $"{this}".Equals(trimmed),
-            'B' => $"{Beat}".Equals(trimmed),
-            'V' => $"{Voice}".Equals(trimmed),
-            'M' => $"{Measure}".Equals(trimmed),
-            'P' => $"{Part}".Equals(trimmed),
-            _ => false
-        };
-
-        return isMatching && (string.IsNullOrEmpty(filter) || Part.FullName.Contains(filter, StringComparison.OrdinalIgnoreCase));
-    }
 
 }
 

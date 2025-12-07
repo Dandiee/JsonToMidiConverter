@@ -1,27 +1,20 @@
-﻿using System.Diagnostics;
+﻿using JsonToMidiConverter.Context;
+using System.Diagnostics;
 using System.Text.Json.Serialization;
 
 namespace JsonToMidiConverter.Models.Song;
 
 [DebuggerDisplay("B{Index} V{Voice.Index} M{Measure.Index} P{Part.Index}")]
-public sealed partial class Beat
+public sealed partial class Beat : MusicalElement<Beat>
 {
-    [JsonIgnore] public int Index { get; private set; }
     [JsonIgnore] public Voice Voice { get; private set; }
     [JsonIgnore] public Measure Measure => Voice.Measure;
-    [JsonIgnore] public Part Part => Measure.Part;
     [JsonIgnore] public Song Song => Part.Song;
-
-    [JsonIgnore] public Time Start { get; private set; }
-    [JsonIgnore] public Time End { get; private set; }
-
     [JsonIgnore] public bool IsAccord { get; private set; }
-    [JsonIgnore] public Beat? Next { get; private set; }
-    [JsonIgnore] public Beat? Previous { get; private set; }
     [JsonIgnore] public bool LastInMeasure { get; private set; }
     private Time? _duration;
     [JsonIgnore]
-    public Time Duration
+    public override Time Duration
     {
         get
         {
@@ -40,10 +33,7 @@ public sealed partial class Beat
         Index = index;
         Voice = voice;
         LastInMeasure = Index == Measure.Voices[Voice.Index].Beats.Count - 1;
-
-
-
-
+        Part = voice.Part;
 
         if (Index > 0)
         {
@@ -91,43 +81,6 @@ public sealed partial class Beat
         }
 
         End = Start + Duration;
-    }
-
-    public IEnumerable<Beat> Forward()
-    {
-        var current = this;
-        while (current != null)
-        {
-            yield return current;
-            current = current.Next;
-        }
-    }
-
-    public IEnumerable<Beat> Backward()
-    {
-        var current = this;
-        while (current != null)
-        {
-            yield return current;
-            current = current.Previous;
-        }
-    }
-
-    public bool Is(string name, string? filter = null)
-    {
-        if (string.IsNullOrEmpty(name)) return false;
-
-        var trimmed = name.Trim().ToUpperInvariant();
-        var isMatching = trimmed[0] switch
-        {
-            'B' => $"{this}".Equals(trimmed),
-            'V' => $"{Voice}".Equals(trimmed),
-            'M' => $"{Measure}".Equals(trimmed),
-            'P' => $"{Part}".Equals(trimmed),
-            _ => false
-        };
-
-        return isMatching && (string.IsNullOrEmpty(filter) || Part.FullName.Contains(filter, StringComparison.OrdinalIgnoreCase));
     }
 
     public override string ToString() => $"B{Index} {Voice}";
