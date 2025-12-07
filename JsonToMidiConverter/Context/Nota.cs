@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Text.Json.Serialization;
 using JsonToMidiConverter.Context;
 using Melanchall.DryWetMidi.Common;
@@ -26,9 +25,9 @@ public sealed partial class Nota
     [JsonIgnore] public bool LastInBeat { get; private set; }
     [JsonIgnore] public Time? TremoloDuration { get; private set; }
     [JsonIgnore] public int PureNoteNumber { get; private set; }
-    [JsonIgnore] public Time Starts { get; private set; }
-    [JsonIgnore] public Time Dur { get; private set; }
-    [JsonIgnore] public Time Ends { get; private set; }
+    [JsonIgnore] public Time Start { get; private set; }
+    [JsonIgnore] public Time Duration { get; private set; }
+    [JsonIgnore] public Time End { get; private set; }
 
     public void SetNavigation(Beat beat, int index)
     {
@@ -79,12 +78,8 @@ public sealed partial class Nota
         Beat.SetTimes();
         Beat.Next?.SetTimes();
 
-        Starts = Beat.Start;
-
-
-
-
-        Ends = TieDetails?.Destination.Beat.End ?? Beat.End;
+        Start = Beat.Start;
+        End = TieDetails?.Destination.Beat.End ?? Beat.End;
 
         TieDetails?.Destination.Beat.SetTimes();
 
@@ -93,9 +88,9 @@ public sealed partial class Nota
         if (Beat.LetRing)
         {
             var firstNonRinging = Beat.Forward().SkipWhile(beat => beat.LetRing && beat.Next != null).First();
-            if (Ends < firstNonRinging.End)
+            if (End < firstNonRinging.End)
             {
-                Ends = firstNonRinging.End;
+                End = firstNonRinging.End;
             }
         }
 
@@ -106,26 +101,26 @@ public sealed partial class Nota
                 if (note.Beat.LetRing)
                 {
                     var firstNonRinging = note.Beat.Forward().SkipWhile(beat => beat.LetRing && beat.Next != null).First();
-                    if (Ends < firstNonRinging.End)
+                    if (End < firstNonRinging.End)
                     {
-                        Ends = firstNonRinging.End;
+                        End = firstNonRinging.End;
                     }
                 }
             }
         }
 
-        Ends += strum;
+        End += strum;
         if (Slides.Contains(Slide.Below))
         {
-            Starts -= 1920; 
+            Start -= 1920; 
         }
 
         if (Slides.Contains(Slide.Above))
         {
-            Starts -= 1920;
+            Start -= 1920;
         }
 
-        Dur = Ends - Starts;
+        Duration = End - Start;
 
         
     }
@@ -152,7 +147,7 @@ public sealed partial class Nota
 
         if (TremoloDuration.HasValue)
         {
-            var noteDuration = WillBeTied ? TieDetails.Destination.Ends.Tick - TieDetails.Source.Starts.Tick : Dur.Tick;
+            var noteDuration = WillBeTied ? TieDetails.Destination.End.Tick - TieDetails.Source.Start.Tick : Duration.Tick;
             var repeats = noteDuration / TremoloDuration.Value.Tick;
             for (var i = 0; i < repeats; i++)
             {
@@ -337,8 +332,8 @@ public sealed class TieContext
         Destination = FullChain[^1];
         //InBetweenNotes = FullChain.Skip(1).Take(FullChain.Count - 2).ToList();
         //FullDuration = new Time(FullChain.Sum(e => e.ActualDuration.Tick));
-        //FullDuration = new Time(FullChain.Sum(e => e.Dur.Tick));
+        //FullDuration = new Time(FullChain.Sum(e => e.Duration.Tick));
     }
 
-    public Time GetFullDuration() => new Time(FullChain.Sum(e => e.Dur.Tick));
+    public Time GetFullDuration() => new Time(FullChain.Sum(e => e.Duration.Tick));
 }

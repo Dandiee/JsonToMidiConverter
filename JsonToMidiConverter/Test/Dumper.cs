@@ -57,13 +57,13 @@ public static class Dumper
                     sb.AppendLine($"\r\n\r\n{voice}, Input = {GetJson(voice)}");
                     foreach (var beat in voice.Beats.Where(e => !e.Rest))
                     {
-                        sb.AppendLine($"\r\n\t{beat}, Starts: {beat.Start.Tick}, Attr = [{GetAttributes(beat)}], Input = {GetJson(beat)}");
+                        sb.AppendLine($"\r\n\t{beat}, Start: {beat.Start.Tick}, Attr = [{GetAttributes(beat)}], Input = {GetJson(beat)}");
                         foreach (var note in beat.Notes)
                         {
                             var slideMarker = note.Slides.Count > 0  ? $" Slide = [{string.Join(", ", note.Slides)}]" : "";
                             var tieMarker = note.Tie ? " Tie " : "";
 
-                            sb.AppendLine($"\t\t{note} {slideMarker}{tieMarker} CH {note.Channel}, NN {note.NoteNumber} Dur: {note.Dur.Tick}, Attr = [{GetAttributes(beat)}] Input = {GetJson(note)}");
+                            sb.AppendLine($"\t\t{note} {slideMarker}{tieMarker} CH {note.Channel}, NN {note.NoteNumber} Duration: {note.Duration.Tick}, Attr = [{GetAttributes(beat)}] Input = {GetJson(note)}");
 
                             foreach (var midiNoteEvent in note.MidiNoteEvents)
                             {
@@ -122,7 +122,7 @@ public static class Dumper
                 .SelectMany(e => e.Beats)
                 .SelectMany(n => n.Notes)
                 .Where(e => !e.Rest)
-                .OrderBy(e => e.Starts.Tick)
+                .OrderBy(e => e.Start.Tick)
                 .ToList();
 
             foreach(var note in notes)
@@ -150,13 +150,13 @@ public static class Dumper
                         .SkipWhile(e => e.On.Channel != note.Channel || e.On.NoteNumber != emittedNote)
                         .First();
 
-                    var startError = Math.Abs(noteEvent.Start - note.Starts.Tick);
-                    var endError = Math.Abs(noteEvent.End - note.Ends.Tick);
+                    var startError = Math.Abs(noteEvent.Start - note.Start.Tick);
+                    var endError = Math.Abs(noteEvent.End - note.End.Tick);
                     var epsilon = 10;
 
 
-                    if ((noteEvent.Start < note.Starts.Tick && startError > epsilon)  || 
-                        (!noteEvent.IsFuckedUp && noteEvent.End > note.Ends.Tick && endError > epsilon))
+                    if ((noteEvent.Start < note.Start.Tick && startError > epsilon)  || 
+                        (!noteEvent.IsFuckedUp && noteEvent.End > note.End.Tick && endError > epsilon))
                     {
                         if (StoppedCaringList.All(e => !note.Is(e.Addres, e.Track)))
                         {
@@ -220,11 +220,11 @@ public static class Dumper
                     foreach (var beat in voice.Beats)
                     {
                         var n = 0;
-                        sb.AppendLine($"\t\t\tB{b} V{v} M{m} P{p} Starts: {beat.Start.Tick} {GetJson(beat)}");
+                        sb.AppendLine($"\t\t\tB{b} V{v} M{m} P{p} Start: {beat.Start.Tick} {GetJson(beat)}");
                         foreach (var note in beat.Notes)
                         {
 
-                            sb.AppendLine($"\t\t\t\tN{n} B{b} V{v} M{m} P{p} Dur: {note.Dur.Tick} {GetJson(note)}");
+                            sb.AppendLine($"\t\t\t\tN{n} B{b} V{v} M{m} P{p} Duration: {note.Duration.Tick} {GetJson(note)}");
                             n++;
                         }
 
@@ -329,7 +329,7 @@ public static class Dumper
 
     private static string GetMidiEventString(TimedNoteEvent note)
     {
-        var timing = $"Start: {note.Start.ToString(),6}; End: {note.End.ToString(),6}, Dur: {note.Duration.ToString(),5}";
+        var timing = $"Start: {note.Start.ToString(),6}; End: {note.End.ToString(),6}, Duration: {note.Duration.ToString(),5}";
         return $"{note.EventIndex.ToString(),5} On {note.On.NoteNumber,2}; {timing}; Ch: {note.On.Channel}; Velocity: {note.On.Velocity}";
     }
 

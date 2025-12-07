@@ -43,8 +43,6 @@ public sealed partial class Part
         ApplyTripletFeel();
         ProcessGraceClusters();
 
-        //        FixGracePeriods();
-
         Measures.ForEach(m => m.Build());
 
         Notes = Measures

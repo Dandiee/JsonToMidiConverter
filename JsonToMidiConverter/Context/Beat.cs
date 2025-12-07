@@ -1,9 +1,5 @@
 ﻿using System.Diagnostics;
-using System.Security.Principal;
 using System.Text.Json.Serialization;
-using JsonToMidiConverter.Context;
-using Melanchall.DryWetMidi.Interaction;
-using Melanchall.DryWetMidi.Multimedia;
 
 namespace JsonToMidiConverter.Models.Song;
 
@@ -18,7 +14,6 @@ public sealed partial class Beat
 
     [JsonIgnore] public Time Start { get; private set; }
     [JsonIgnore] public Time End { get; private set; }
-    [JsonIgnore] public Time Dur { get; private set; }
 
     [JsonIgnore] public bool IsAccord { get; private set; }
     [JsonIgnore] public Beat? Next { get; private set; }
@@ -95,8 +90,7 @@ public sealed partial class Beat
             Start = Measure.Start;
         }
 
-        Dur = Duration;
-        End = Start + Dur;
+        End = Start + Duration;
     }
 
     public IEnumerable<Beat> Forward()
@@ -118,13 +112,6 @@ public sealed partial class Beat
             current = current.Previous;
         }
     }
-
-    //public Time GetDuration()
-    //{
-    //
-    //    var dur = new Time(DurationArray[0], DurationArray[1]);
-    //    return dur;
-    //}
 
     public bool Is(string name, string? filter = null)
     {
