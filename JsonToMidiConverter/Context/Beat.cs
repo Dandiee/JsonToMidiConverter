@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Security.Principal;
 using System.Text.Json.Serialization;
 using JsonToMidiConverter.Context;
 using Melanchall.DryWetMidi.Interaction;
@@ -24,7 +25,7 @@ public sealed partial class Beat
     [JsonIgnore] public Beat? Previous { get; private set; }
     [JsonIgnore] public bool LastInMeasure { get; private set; }
     [JsonIgnore] public bool TripletOverriden { get; set; }
-    public List<int> OriginalDuration { get; set; } = [];
+    public List<long> OriginalDuration { get; set; } = [];
 
     public void SetNavigation(Voice voice, int index)
     {
@@ -75,16 +76,26 @@ public sealed partial class Beat
 
     public void SetTimes()
     {
-        if (Is("B0 V0 M149 P2", "seek"))
-        {
-
-        }
+        
 
         Start = Previous?.End ?? new Time();
+
+        if (Is("P0", "money"))
+        {
+            if (Index == 0 && Start != Measure.StartTime)
+            {
+
+            }
+        }
 
         if (Voice.Index > 0 && Previous == null)
         {
             Start = Measure.StartTime;
+        }
+
+        if (!Part.Anacrusis && Index == 0 && Math.Abs(Start.Tick - Measure.StartTime.Tick) > 10 && GraceNote == null && !Rest)
+        {
+
         }
 
         Dur = GetDuration();
@@ -154,6 +165,7 @@ public sealed partial class Beat
 
     public Time GetDuration()
     {
+
         var dur = new Time(Duration[0], Duration[1]);
         return dur;
     }

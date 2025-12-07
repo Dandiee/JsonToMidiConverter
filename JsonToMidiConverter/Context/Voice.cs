@@ -29,5 +29,21 @@ public sealed partial class Voice
 
     public override string ToString() => $"V{Index} {Measure}";
 
-    
+    public bool Is(string name, string? filter = null)
+    {
+
+        if (string.IsNullOrEmpty(name)) return false;
+
+        var trimmed = name.Trim().ToUpperInvariant();
+        var isMatching = trimmed[0] switch
+        {
+            'V' => $"{this}".Equals(trimmed),
+            'M' => $"{Measure}".Equals(trimmed),
+            'P' => $"{Part}".Equals(trimmed),
+            _ => false
+        };
+
+        return isMatching && (string.IsNullOrEmpty(filter) || Part.FullName.Contains(filter, StringComparison.OrdinalIgnoreCase));
+    }
+
 }

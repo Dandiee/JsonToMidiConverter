@@ -9,7 +9,7 @@ public partial class Beat
     public string Velocity { get; set; } = string.Empty;
     public int Type { get; set; }
     public bool PalmMute { get; set; }
-    public List<int> Duration { get; set; } = [];
+    public List<long> Duration { get; set; } = [];
     public bool BeamStart { get; set; }
     public bool BeamStop { get; set; }
     public bool Vibrato { get; set; }

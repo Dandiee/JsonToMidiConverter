@@ -127,6 +127,14 @@ public static class Extensions
         }
     }
 
+    public static IEnumerable<T> Backwards<T>(this IList<T> items)
+    {
+        for (var i = items.Count - 1; i > -1; i--)
+        {
+            yield return items[i];
+        }
+    }
+
     public static readonly IReadOnlyDictionary<double, int> FretHarmonicOffsets = new Dictionary<double, int>
     {
         [2.4] = 36,

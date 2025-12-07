@@ -37,8 +37,6 @@ public readonly struct Time : IEquatable<Time>
         {
             Tick = TimeConverter.ConvertFrom(new MusicalTimeSpan(numerator, denominator), Map);
         }
-
-        
     } 
     public Time() : this(0) { }
 

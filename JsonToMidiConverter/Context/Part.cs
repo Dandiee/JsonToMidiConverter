@@ -1,7 +1,9 @@
-﻿using System.Diagnostics;
-using System.Text.Json.Serialization;
-using Melanchall.DryWetMidi.Core;
+﻿using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
+using System;
+using System.Diagnostics;
+using System.Text.Json.Serialization;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace JsonToMidiConverter.Models.Song;
 
@@ -32,9 +34,6 @@ public sealed partial class Part
 
         FixBeats();
 
-        ApplyTripletFeel();
-        
-
         Measures = UnfoldRepeats();
 
         for (var i = 0; i < Measures.Count; i++)
@@ -43,6 +42,7 @@ public sealed partial class Part
 
         }
 
+        ApplyTripletFeel();
         ProcessGraceClusters();
 
         //        FixGracePeriods();
@@ -68,84 +68,6 @@ public sealed partial class Part
         Debug.Assert(Measures.All(e => e.Voices.Count <= 1 || e.Voices.Count == maximumVoiceChannelCount));
     }
 
-    private void FixGracePeriods()
-    {
-        foreach (var measure in Measures)
-        {
-            foreach (var voice in measure.Voices)
-            {
-                var clusters = new List<List<Beat>>();
-                var currentCluster = new List<Beat>();
-
-                foreach (var beat in voice.Beats)
-                {
-                    if (beat.GraceNote != null)
-                    {
-                        if (currentCluster.Count == 0)
-                        {
-                            currentCluster.Add(beat);
-                        }
-                        else if (currentCluster[0].GraceNote == beat.GraceNote)
-                        {
-                            currentCluster.Add(beat);
-                        }
-                        else
-                        {
-                            clusters.Add(currentCluster);
-                            currentCluster = [beat];
-                        }
-                    }
-                    else
-                    {
-                        if (currentCluster.Count > 0)
-                        {
-                            clusters.Add(currentCluster);
-                            currentCluster = [];
-                        }
-                    }
-                }
-
-                if (currentCluster.Count > 0)
-                {
-                    clusters.Add(currentCluster);
-                }
-
-                foreach (var cluster in clusters)
-                {
-                    var head = cluster[0];
-                    var tail = cluster[^1];
-                    var clusterLength = cluster.Sum(e => e.GetDuration().Tick);
-                    
-                    if (head.GraceNote == "beforeBeat")
-                    {
-                        var prevDur = head.Previous.GetDuration();
-                        if (prevDur.Tick <= clusterLength)
-                        {
-                            head.Previous.Duration[1] *= 2;
-                            foreach (var note in cluster)
-                            {
-                                note.Duration[1] *= 2;
-                            }
-                        }
-                    }
-                    else if (head.GraceNote == "onBeat")
-                    {
-                        var nextDur = tail.Next.GetDuration();
-                        if (nextDur.Tick <= clusterLength)
-                        {
-                            tail.Next.Duration[1] *= 2;
-                            foreach (var note in cluster)
-                            {
-                                note.Duration[1] *= 2;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-    }
-
     public void ApplyTripletFeel()
     {
         var measureCounter = 0;
@@ -168,49 +90,70 @@ public sealed partial class Part
 
             if (tripletFeel == "8th")
             {
-                if (measureCounter == 134 && Index == 1)
-                {
+                var oneBeat = new Time(1, measure.Sgntr.Denominator);
+                var oneThird = oneBeat / 3.0;
+                var long8th = oneThird * 2.0;
+                var short8th = oneThird;
+                var eights = new Time(1, 8);
+                double step = new Time(1, 8).Tick;
 
-
-
-                }
-
-                var eightsCounter = 0;
-
-
+                
 
                 foreach (var voice in measure.Voices)
                 {
-                    var eightNotes = voice.Beats
-                        .Where(e => e.Duration[0] == 1 && e.Duration[1] == 8)
-                        .Where(e => !e.Notes.All(w => w.Staccato))
-                        .ToList();
-                    foreach (var eights in eightNotes)
+                    if (voice.Is("M7 P8", "money"))
                     {
-                        eights.OriginalDuration = eights.Duration.Select(e => e).ToList();
 
-                        if (eightsCounter % 2 == 0)
-                        {
-                            eights.Duration[1] = 6;
-                        }
-                        else
-                        {
-                            eights.Duration[1] = 12; // 1/12 -> 2/24 || 1/8 -> 3/24 -> 1/24 error
-                        }
-
-                        eightsCounter++;
                     }
 
-                    if (eightNotes.Count % 2 == 1)
+                    var cursor = new Time();
+                    var swangNotes = 0;
+                    foreach (var beat in voice.Beats)
                     {
-                        var last = voice.Beats[^1];
-                        var duration = new MusicalTimeSpan(last.Duration[0], last.Duration[1]);
-                        var error = new MusicalTimeSpan(1, 24);
-                        var compensated = duration - error;
+                        if (!string.IsNullOrEmpty(beat.GraceNote)) continue;
 
-                        last.Duration[0] = (int)compensated.Numerator;
-                        last.Duration[1] = (int)compensated.Denominator;
+                        if (beat.Is("M7 P8", "money"))
+                        {
+
+                        }
+
+                        var start = cursor;
+                        var duration = beat.GetDuration();
+                        var end = start + duration;
+
+                        if (start.Tick % eights.Tick == 0 && end.Tick % eights.Tick == 0)
+                        {
+                            var gridCellsCovered = duration / eights.Tick;
+                            if (gridCellsCovered % 2 > 0)
+                            {
+                                var targetDuration = duration;
+                                var startingGridIndex = start.Tick / eights.Tick;
+                                if (startingGridIndex % 2 == 0)
+                                {
+                                    targetDuration += new Time(1, 24);
+                                }
+                                else
+                                {
+                                    targetDuration -= new Time(1, 24);
+                                }
+
+                                beat.Duration = [targetDuration.Span.Numerator, targetDuration.Span.Denominator];
+                            }
+
+                        }
+
+                        
+
+                        cursor += duration;
                     }
+
+                    ShortenEnd(0, voice);
+
+                    //if (swangNotes % 2 == 1)
+                    //{
+                    //    var leftover = eights - short8th;
+                    //    ShortenEnd(leftover.Tick, voice);
+                    //}
                 }
             }
 
@@ -285,6 +228,11 @@ public sealed partial class Part
                     var tail = cluster[^1];
                     var clusterLength = cluster.Sum(e => e.GetDuration().Tick);
 
+                    if (head.Is("B3 V0 M7 P8", "money"))
+                    {
+
+                    }
+
                     if (head.GraceNote == "beforeBeat")
                     {
                         var prev = head.Previous;
@@ -350,38 +298,69 @@ public sealed partial class Part
 
             foreach (var voice in measure.Voices)
             {
+                if (voice.Is("M7 P8", "money"))
+                {
+
+                }
+
                 var sum = voice.Beats.Where(e => string.IsNullOrEmpty(e.GraceNote)).Sum(b => b.GetDuration().Tick);
                 var error = sum - duration.Tick;
 
                 if (error > 20)
                 {
-                    foreach (var beat in voice.Beats[^1].Backward())
-                    {
-                        if (beat.Rest || beat.Notes.All(e => e.Tie))
-                        {
-                            var beatDuration = beat.GetDuration().Tick;
-                            if (beatDuration < error)
-                            {
-                                beat.Duration = [0, 0];
-                                error -= beatDuration;
-                            }
-                            else if (beatDuration >= error)
-                            {
-                                var leftover = TimeConverter.ConvertTo<BarBeatFractionTimeSpan>(beatDuration - error, TempoMap);
-                                beat.Duration = [(int)leftover.Beats, (int)leftover.Bars];
-                                break;
-                            }
-                        }
-                        else throw new Exception();
-                    }
+                    ShortenEnd(error, voice, measure);
                 }
             }
 
 
-            measureIndex ++;
+            measureIndex++;
+        }
+    }
+
+    private void ShortenEnd(long duration1, Voice voice, Measure? measure = null)
+    {
+        if (Song.Name.Contains("money", StringComparison.OrdinalIgnoreCase))
+        {
+
         }
 
+        var targetMeasure = measure ?? voice.Measure;
 
+        var expectedDuration = new Time(targetMeasure.Sgntr.Numerator, targetMeasure.Sgntr.Denominator);
+        var actualDuration = voice.Beats.Where(e => string.IsNullOrEmpty(e.GraceNote)).Sum(e => e.GetDuration().Tick);
+        var error = expectedDuration - actualDuration;
+
+
+        if (error.Tick > 0)
+        {
+            var lastBeat = voice.Beats[^1];
+            var duration = lastBeat.GetDuration() + error;
+            lastBeat.Duration[0] = duration.Span.Numerator;
+            lastBeat.Duration[1] = duration.Span.Denominator;
+        }
+        else
+        {
+            foreach (var beat in voice.Beats[^1].Backward())
+            {
+                //if (beat.Rest || beat.Notes.All(e => e.Tie))
+                {
+                    var beatDuration = beat.GetDuration().Tick;
+                    if (beatDuration < Math.Abs(error.Tick))
+                    {
+                        beat.Duration = [0, 0];
+                        error += beatDuration;
+                    }
+                    else if (beatDuration >= error.Tick)
+                    {
+                        var leftover = TimeConverter.ConvertTo<MusicalTimeSpan>(beatDuration + error.Tick, TempoMap);
+                        beat.Duration = [(int)leftover.Numerator, (int)leftover.Denominator];
+                        break;
+                    }
+                }
+                // else throw new Exception();
+                // i think i have a proof, check N0 B5 V0 M73 P5 in greenday - Holiday, theres a 1/16 which gets shortened to 1/48 with triple feel 8ths
+            }
+        }
     }
 
     public List<Measure> UnfoldRepeats()
