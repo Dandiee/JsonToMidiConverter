@@ -35,6 +35,7 @@ public partial class Beat
     public BrushStroke? BrushStroke { get; set; }
     public int DownArpeggio { get; set; }
     public bool HasRasgueado { get; set; }
+    public BrushStroke? Arpeggio { get; set; }
 
     public Beat Clone() => new()
     {
@@ -67,6 +68,9 @@ public partial class Beat
         WideVibrato = WideVibrato,
         BrushStroke = BrushStroke?.Clone(),
         DownArpeggio = DownArpeggio,
+        HasRasgueado = HasRasgueado,
+        Arpeggio = Arpeggio?.Clone()
+
     };
 }
 

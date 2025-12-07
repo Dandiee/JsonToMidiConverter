@@ -185,7 +185,6 @@ public sealed partial class Part
                         var oneDuration = avgMusicalDuration / cluster.Count;
                         foreach (var beat in cluster)
                         {
-                            beat.OriginalDuration = beat.Duration.Select(e => e).ToList();
                             beat.Duration[0] = (int)oneDuration.Numerator;
                             beat.Duration[1] = (int)oneDuration.Denominator;
                         }
@@ -212,7 +211,6 @@ public sealed partial class Part
                             var clusterUnitDuration = TimeConverter.ConvertTo<MusicalTimeSpan>(stepSize.Tick, TempoMap);
                             foreach (var beat in cluster)
                             {
-                                beat.OriginalDuration = beat.Duration.Select(e => e).ToList();
                                 beat.Duration[0] = (int)clusterUnitDuration.Numerator;
                                 beat.Duration[1] = (int)clusterUnitDuration.Denominator;
                             }
@@ -220,7 +218,6 @@ public sealed partial class Part
                         else
                         {
                             var newPrevDur = TimeConverter.ConvertTo<MusicalTimeSpan>(prevDur.Tick - clusterLength, TempoMap);
-                            prev.OriginalDuration = prev.Duration.Select(e => e).ToList();
                             prev.Duration[0] = (int)newPrevDur.Numerator;
                             prev.Duration[1] = (int)newPrevDur.Denominator;
                         }
@@ -236,7 +233,6 @@ public sealed partial class Part
                             var clusterUnitDuration = TimeConverter.ConvertTo<MusicalTimeSpan>(stepSize.Tick, TempoMap);
                             foreach (var beat in cluster)
                             {
-                                beat.OriginalDuration = beat.Duration.Select(e => e).ToList();
                                 beat.Duration[0] = (int)clusterUnitDuration.Numerator;
                                 beat.Duration[1] = (int)clusterUnitDuration.Denominator;
                             }
@@ -244,7 +240,6 @@ public sealed partial class Part
                         else
                         {
                             var newNextDur = TimeConverter.ConvertTo<MusicalTimeSpan>(nextDur.Tick - clusterLength, TempoMap);
-                            next.OriginalDuration = next.Duration.Select(e => e).ToList();
                             next.Duration[0] = (int)newNextDur.Numerator;
                             next.Duration[1] = (int)newNextDur.Denominator;
                         }

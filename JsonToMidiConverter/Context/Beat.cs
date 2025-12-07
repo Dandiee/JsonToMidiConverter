@@ -25,7 +25,6 @@ public sealed partial class Beat
     [JsonIgnore] public Beat? Previous { get; private set; }
     [JsonIgnore] public bool LastInMeasure { get; private set; }
     [JsonIgnore] public bool TripletOverriden { get; set; }
-    public List<long> OriginalDuration { get; set; } = [];
 
     public void SetNavigation(Voice voice, int index)
     {
