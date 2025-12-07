@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Text.Json.Serialization;
 using Melanchall.DryWetMidi.Interaction;
 
 namespace JsonToMidiConverter.Models.Song;
@@ -7,7 +8,9 @@ namespace JsonToMidiConverter.Models.Song;
 public sealed partial class Measure
 {
     public List<Voice> Voices { get; set; } = [];
-    public List<int> Signature { get; set; } = [];
+    
+    [JsonPropertyName("signature")]
+    public List<int> SignatureArray { get; set; } = [];
     public Marker? Marker { get; set; }
     public bool Rest { get; set; }
     public bool RepeatStart { get; set; }
@@ -19,7 +22,7 @@ public sealed partial class Measure
     public Measure Clone() => new()
     {
         Voices = Voices.Select(v => v.Clone()).ToList(),
-        Signature = Signature.Select(e => e).ToList(),
+        SignatureArray = SignatureArray.Select(e => e).ToList(),
         Marker = Marker?.Clone(),
         Rest = Rest,
         RepeatStart = RepeatStart,
@@ -27,6 +30,6 @@ public sealed partial class Measure
         DoubleBarline = DoubleBarline,
         TripletFeel = TripletFeel,
 
-        Sgntr = new TimeSignature(Sgntr.Numerator, Sgntr.Denominator)
+        Signature = Signature
     };
 }

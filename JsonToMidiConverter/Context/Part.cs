@@ -25,11 +25,7 @@ public sealed partial class Part
         IsPianoLike = PianoLikeInstruments.Contains(InstrumentId);
         FullName = $"{song.Name} {Instrument} {Name}";
 
-        for (var i = 0; i < Measures.Count; i++)
-        {
-            Measures[i].Sgntr = TempoMap.GetTimeSignatureAtTime(new BarBeatTicksTimeSpan(i));
-        }
-
+        SetSignatures();
         FixBeats();
 
         Measures = UnfoldRepeats();
@@ -37,7 +33,6 @@ public sealed partial class Part
         for (var i = 0; i < Measures.Count; i++)
         {
             Measures[i].SetNavigation(this, i);
-
         }
 
         ApplyTripletFeel();
@@ -59,9 +54,19 @@ public sealed partial class Part
         }
 
         Notes.ForEach(e => e.SetTimings());
+    }
 
-        var maximumVoiceChannelCount = Measures.Max(e => e.Voices.Count);
-        Debug.Assert(Measures.All(e => e.Voices.Count <= 1 || e.Voices.Count == maximumVoiceChannelCount));
+    private void SetSignatures()
+    {
+        var signature = new Time();
+        foreach (var measure in Measures)
+        {
+            if (measure.SignatureArray.Count == 2)
+            {
+                signature = new Time(measure.SignatureArray[0], measure.SignatureArray[1]);
+            }
+            measure.Signature = signature;
+        }
     }
 
     public static readonly IReadOnlyDictionary<string, Time> SupportedSwings = new Dictionary<string, Time>
@@ -219,8 +224,7 @@ public sealed partial class Part
         {
             if (Anacrusis && measureIndex == 0) continue;
 
-            var signature = measure.Sgntr;
-            var duration = new Time(signature.Numerator, signature.Denominator);
+            var duration = measure.Signature;
 
             foreach (var voice in measure.Voices)
             {
@@ -239,17 +243,11 @@ public sealed partial class Part
 
     private void ShortenEnd(Voice voice, Measure? measure = null)
     {
-        if (Song.Name.Contains("money", StringComparison.OrdinalIgnoreCase))
-        {
-
-        }
-
         var targetMeasure = measure ?? voice.Measure;
 
-        var expectedDuration = new Time(targetMeasure.Sgntr.Numerator, targetMeasure.Sgntr.Denominator);
+        var expectedDuration = targetMeasure.Signature;
         var actualDuration = voice.Beats.Where(e => string.IsNullOrEmpty(e.GraceNote)).Sum(e => e.Duration.Tick);
         var error = expectedDuration - actualDuration;
-
 
         if (error.Tick > 0)
         {
@@ -261,22 +259,17 @@ public sealed partial class Part
         {
             foreach (var beat in voice.Beats[^1].Backward())
             {
-                //if (beat.Rest || beat.Notes.All(e => e.Tie))
+                var beatDuration = beat.Duration;
+                if (beatDuration.Tick < Math.Abs(error.Tick))
                 {
-                    var beatDuration = beat.Duration;
-                    if (beatDuration.Tick < Math.Abs(error.Tick))
-                    {
-                        beat.Duration = new Time();
-                        error += beatDuration;
-                    }
-                    else if (beatDuration.Tick >= error.Tick)
-                    {
-                        beat.Duration= beatDuration + error;
-                        break;
-                    }
+                    beat.Duration = new Time();
+                    error += beatDuration;
                 }
-                // else throw new Exception();
-                // i think i have a proof, check N0 B5 V0 M73 P5 in greenday - Holiday, theres a 1/16 which gets shortened to 1/48 with triple feel 8ths
+                else if (beatDuration.Tick >= error.Tick)
+                {
+                    beat.Duration = beatDuration + error;
+                    break;
+                }
             }
         }
     }
@@ -346,9 +339,9 @@ public sealed partial class Part
         for (var i = 0; i < Measures.Count; i++)
         {
             var measure = Measures[i];
-            if (measure.Signature.Count == 2)
+            if (measure.SignatureArray.Count == 2)
             {
-                lastSignature = measure.Signature;
+                lastSignature = measure.SignatureArray;
             }
 
             if (bpmChangeByMeasure.TryGetValue(i, out var newBpm))

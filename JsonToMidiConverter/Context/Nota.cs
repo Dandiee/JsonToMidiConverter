@@ -69,9 +69,6 @@ public sealed partial class Nota : MusicalElement<Nota>
 
     public void SetTimings()
     {
-        Beat.SetTimes();
-        Beat.Next?.SetTimes();
-
         Start = Beat.Start;
         End = TieDetails?.Destination.Beat.End ?? Beat.End;
 
@@ -115,8 +112,6 @@ public sealed partial class Nota : MusicalElement<Nota>
         }
 
         Duration = End - Start;
-
-        
     }
 
 

@@ -10,7 +10,6 @@ public sealed partial class Beat : MusicalElement<Beat>
     [JsonIgnore] public Voice Voice { get; private set; }
     [JsonIgnore] public Measure Measure => Voice.Measure;
     [JsonIgnore] public Song Song => Part.Song;
-    [JsonIgnore] public bool IsAccord { get; private set; }
     [JsonIgnore] public bool LastInMeasure { get; private set; }
     private Time? _duration;
     [JsonIgnore]
@@ -54,7 +53,7 @@ public sealed partial class Beat : MusicalElement<Beat>
         }
 
 
-        if (!Part.IsPianoLike) // for piano we dont change the fuckin note order
+        if (!Part.IsPianoLike)
         {
             Notes = Notes.OrderByDescending(e => e.StringNumber).ToList();
         }
@@ -67,7 +66,6 @@ public sealed partial class Beat : MusicalElement<Beat>
 
     public void Build()
     {
-        IsAccord = Notes.Count > 1;
         Notes.ForEach(e => e.Build());
     }
 

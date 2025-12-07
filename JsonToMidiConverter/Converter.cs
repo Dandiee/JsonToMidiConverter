@@ -95,9 +95,9 @@ internal static class Converter
             events.Add(new SetTempoEvent(newTempo), measure.Start, null, null, measure.Part.PartId);
         }
 
-        if (measure.Index > 0 && measure.Signature.Count > 0)
+        if (measure.Index > 0 && measure.SignatureArray.Count > 0)
         {
-            events.Add(new TimeSignatureEvent(measure.SignatureNominator, measure.SignatureDenominator), measure.Start, null, null, measure.Part.PartId);
+            events.Add(new TimeSignatureEvent((byte)measure.Signature.Span.Numerator, (byte)measure.Signature.Span.Denominator), measure.Start, null, null, measure.Part.PartId);
         }
     }
 
