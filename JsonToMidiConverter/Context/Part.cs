@@ -72,29 +72,24 @@ public sealed partial class Part
     public static readonly IReadOnlyDictionary<string, Time> SupportedSwings = new Dictionary<string, Time>
     {
         ["8th"] = new(1, 8),
+        ["16th"] = new(1, 16),
     };
 
     public void ApplyTripletFeel()
     {
-        var measureCounter = 0;
         Time? division = null;
 
         foreach (var measure in Measures)
         {
-            if (!string.IsNullOrEmpty(measure.TripletFeel))  
+            if (!string.IsNullOrEmpty(measure.TripletFeel))
             {
-                if (measure.TripletFeel.Equals("off", StringComparison.InvariantCulture))
-                {
-                    division = null;
-                }
-                else
-                {
-                    division = SupportedSwings[measure.TripletFeel];
-                }
+                division = measure.TripletFeel.Equals("off", StringComparison.InvariantCulture)
+                    ? null
+                    : SupportedSwings[measure.TripletFeel];
             }
 
             if (division == null) continue;
-            var divisionTick = division.Value.Tick;
+            var offset = division / 3.0;
 
             foreach (var voice in measure.Voices)
             {
@@ -109,19 +104,19 @@ public sealed partial class Part
 
                     cursor += duration;
 
-                    if (start.Tick % divisionTick == 0 && end.Tick % divisionTick == 0)
+                    if (start.Tick % division.Value.Tick == 0 && end.Tick % division.Value.Tick == 0)
                     {
-                        var gridCellsCovered = duration / divisionTick;
+                        var gridCellsCovered = duration / division.Value.Tick;
                         if (gridCellsCovered % 2 > 0)
                         {
-                            var startingGridIndex = start.Tick / divisionTick;
+                            var startingGridIndex = start.Tick / division.Value.Tick;
                             if (startingGridIndex % 2 == 0)
                             {
-                                duration += new Time(1, 24);
+                                duration += offset.Value;
                             }
                             else
                             {
-                                duration -= new Time(1, 24);
+                                duration -= offset.Value;
                             }
 
                             beat.Duration = [duration.Span.Numerator, duration.Span.Denominator];
@@ -131,8 +126,6 @@ public sealed partial class Part
 
                 ShortenEnd(0, voice);
             }
-
-            measureCounter++;
         }
     }
 
