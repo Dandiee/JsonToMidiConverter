@@ -68,6 +68,11 @@ public sealed partial class Part
         Debug.Assert(Measures.All(e => e.Voices.Count <= 1 || e.Voices.Count == maximumVoiceChannelCount));
     }
 
+    public static readonly IReadOnlyDictionary<string, Time> SupportedSwings = new Dictionary<string, Time>
+    {
+        ["8th"] = new(1, 8),
+    };
+
     public void ApplyTripletFeel()
     {
         var measureCounter = 0;
@@ -90,24 +95,11 @@ public sealed partial class Part
 
             if (tripletFeel == "8th")
             {
-                var oneBeat = new Time(1, measure.Sgntr.Denominator);
-                var oneThird = oneBeat / 3.0;
-                var long8th = oneThird * 2.0;
-                var short8th = oneThird;
                 var eights = new Time(1, 8);
-                double step = new Time(1, 8).Tick;
-
-                
 
                 foreach (var voice in measure.Voices)
                 {
-                    if (voice.Is("M7 P8", "money"))
-                    {
-
-                    }
-
                     var cursor = new Time();
-                    var swangNotes = 0;
                     foreach (var beat in voice.Beats)
                     {
                         if (!string.IsNullOrEmpty(beat.GraceNote)) continue;
@@ -121,39 +113,29 @@ public sealed partial class Part
                         var duration = beat.GetDuration();
                         var end = start + duration;
 
+                        cursor += duration;
+
                         if (start.Tick % eights.Tick == 0 && end.Tick % eights.Tick == 0)
                         {
                             var gridCellsCovered = duration / eights.Tick;
                             if (gridCellsCovered % 2 > 0)
                             {
-                                var targetDuration = duration;
                                 var startingGridIndex = start.Tick / eights.Tick;
                                 if (startingGridIndex % 2 == 0)
                                 {
-                                    targetDuration += new Time(1, 24);
+                                    duration += new Time(1, 24);
                                 }
                                 else
                                 {
-                                    targetDuration -= new Time(1, 24);
+                                    duration -= new Time(1, 24);
                                 }
 
-                                beat.Duration = [targetDuration.Span.Numerator, targetDuration.Span.Denominator];
+                                beat.Duration = [duration.Span.Numerator, duration.Span.Denominator];
                             }
-
                         }
-
-                        
-
-                        cursor += duration;
                     }
 
                     ShortenEnd(0, voice);
-
-                    //if (swangNotes % 2 == 1)
-                    //{
-                    //    var leftover = eights - short8th;
-                    //    ShortenEnd(leftover.Tick, voice);
-                    //}
                 }
             }
 
