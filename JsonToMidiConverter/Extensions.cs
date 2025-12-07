@@ -44,6 +44,8 @@ public static class Extensions
     public static SevenBitNumber To7(this int i) => (SevenBitNumber)i;
     public static FourBitNumber To4(this int i) => (FourBitNumber)i;
 
+    public static Time Sum(this IEnumerable<Time> times) => new (times.Sum(e => e.Tick));
+
     public static IReadOnlyList<TimedNoteEvent> GetEvents(this MidiFile midi, int partIndex)
     {
         var chunk = midi.Chunks.OfType<TrackChunk>().ToList()[partIndex];

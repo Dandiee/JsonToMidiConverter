@@ -1,10 +1,7 @@
 ﻿using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
-using System;
-using System.ComponentModel.Design;
 using System.Diagnostics;
 using System.Text.Json.Serialization;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace JsonToMidiConverter.Models.Song;
 
@@ -121,7 +118,7 @@ public sealed partial class Part
                     }
                 }
 
-                ShortenEnd(0, voice);
+                ShortenEnd(voice);
             }
         }
     }
@@ -170,19 +167,14 @@ public sealed partial class Part
 
                 foreach (var cluster in clusters)
                 {
-                    if (cluster[0].Is("B7 V0 M77 P1"))
-                    {
-
-                    }
-
                     if (cluster.Count > 1)
                     {
-                        var averageDuration = cluster.Average(e => e.Duration.Tick);
-                        var avgMusicalDuration = new Time((long)averageDuration);
-                        var oneDuration = avgMusicalDuration / cluster.Count;
+                        var averageDuration = new Time((long)cluster.Average(e => e.Duration.Tick));
+                        var unitDuration = averageDuration / cluster.Count;
+
                         foreach (var beat in cluster)
                         {
-                            beat.Duration = oneDuration;
+                            beat.Duration = unitDuration;
                         }
                     }
 
@@ -191,47 +183,31 @@ public sealed partial class Part
                     var tail = cluster[^1];
                     var clusterLength = cluster.Sum(e => e.Duration.Tick);
 
-                    if (head.Is("B3 V0 M7 P8", "money"))
-                    {
-
-                    }
-
                     if (head.GraceNote == "beforeBeat")
                     {
-                        var prev = head.Previous;
-                        var prevDur = prev.Duration;
-                        if (prevDur.Tick / 2 <= clusterLength)
+                        if (head.Previous!.Duration.Tick / 2 <= clusterLength)
                         {
-                            prev.Duration /= 2;
-                            var stepSize = (prevDur / 2) / cluster.Count;
+                            head.Previous.Duration /= 2;
+                            var stepSize = head.Previous.Duration / cluster.Count;
                             foreach (var beat in cluster)
                             {
                                 beat.Duration = stepSize;
                             }
                         }
-                        else
-                        {
-                            prev.Duration = prevDur- clusterLength;
-                        }
+                        else head.Previous.Duration -= clusterLength;
                     }
                     else if (head.GraceNote == "onBeat")
                     {
-                        var next = tail.Next;
-                        var nextDur = next.Duration;
-                        if (nextDur.Tick / 2 <= clusterLength)
+                        if (tail.Next!.Duration.Tick / 2 <= clusterLength)
                         {
-                            next.Duration /= 2;
-                            var stepSize = (nextDur / 2) / cluster.Count;
+                            tail.Next.Duration /= 2;
+                            var stepSize = tail.Next.Duration / cluster.Count;
                             foreach (var beat in cluster)
                             {
                                 beat.Duration = stepSize;
                             }
                         }
-                        else
-                        {
-                            var newNextDur = TimeConverter.ConvertTo<MusicalTimeSpan>(nextDur.Tick - clusterLength, TempoMap);
-                            next.Duration = nextDur- clusterLength;
-                        }
+                        else tail.Next.Duration -= clusterLength;
                     }
                 }
             }
@@ -250,26 +226,20 @@ public sealed partial class Part
 
             foreach (var voice in measure.Voices)
             {
-                if (voice.Is("M7 P8", "money"))
-                {
-
-                }
-
                 var sum = voice.Beats.Where(e => string.IsNullOrEmpty(e.GraceNote)).Sum(b => b.Duration.Tick);
                 var error = sum - duration.Tick;
 
                 if (error > 20)
                 {
-                    ShortenEnd(error, voice, measure);
+                    ShortenEnd(voice, measure);
                 }
             }
-
 
             measureIndex++;
         }
     }
 
-    private void ShortenEnd(long duration1, Voice voice, Measure? measure = null)
+    private void ShortenEnd(Voice voice, Measure? measure = null)
     {
         if (Song.Name.Contains("money", StringComparison.OrdinalIgnoreCase))
         {
@@ -317,11 +287,6 @@ public sealed partial class Part
     {
         var measures = new List<Measure>();
         var repeats = new List<Measure>();
-        var part = FullName;
-        if (Song.SongId == 580)
-        {
-
-        }
 
         var c = 0;
         foreach (var measure in Measures)
