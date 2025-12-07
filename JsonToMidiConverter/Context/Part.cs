@@ -99,27 +99,24 @@ public sealed partial class Part
                     if (!string.IsNullOrEmpty(beat.GraceNote)) continue;
 
                     var start = cursor;
-                    var duration = beat.Duration;
-                    var end = start + duration;
+                    var end = start + beat.Duration;
 
-                    cursor += duration;
+                    cursor += beat.Duration;
 
                     if (start.Tick % division.Value.Tick == 0 && end.Tick % division.Value.Tick == 0)
                     {
-                        var gridCellsCovered = duration / division.Value.Tick;
+                        var gridCellsCovered = beat.Duration / division.Value.Tick;
                         if (gridCellsCovered % 2 > 0)
                         {
                             var startingGridIndex = start.Tick / division.Value.Tick;
                             if (startingGridIndex % 2 == 0)
                             {
-                                duration += offset.Value;
+                                beat.Duration += offset.Value;
                             }
                             else
                             {
-                                duration -= offset.Value;
+                                beat.Duration -= offset.Value;
                             }
-
-                            beat.Duration = duration;
                         }
                     }
                 }
