@@ -95,7 +95,7 @@ public sealed partial class Beat
             Start = Measure.Start;
         }
 
-        Dur = GetDuration();
+        Dur = Duration;
         End = Start + Dur;
     }
 
@@ -119,12 +119,12 @@ public sealed partial class Beat
         }
     }
 
-    public Time GetDuration()
-    {
-
-        var dur = new Time(DurationArray[0], DurationArray[1]);
-        return dur;
-    }
+    //public Time GetDuration()
+    //{
+    //
+    //    var dur = new Time(DurationArray[0], DurationArray[1]);
+    //    return dur;
+    //}
 
     public bool Is(string name, string? filter = null)
     {

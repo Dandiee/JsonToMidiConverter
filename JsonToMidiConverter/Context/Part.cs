@@ -99,7 +99,7 @@ public sealed partial class Part
                     if (!string.IsNullOrEmpty(beat.GraceNote)) continue;
 
                     var start = cursor;
-                    var duration = beat.GetDuration();
+                    var duration = beat.Duration;
                     var end = start + duration;
 
                     cursor += duration;
@@ -119,7 +119,7 @@ public sealed partial class Part
                                 duration -= offset.Value;
                             }
 
-                            beat.DurationArray = [duration.Span.Numerator, duration.Span.Denominator];
+                            beat.Duration = duration;
                         }
                     }
                 }
@@ -180,20 +180,19 @@ public sealed partial class Part
 
                     if (cluster.Count > 1)
                     {
-                        var averageDuration = cluster.Average(e => e.GetDuration().Tick);
-                        var avgMusicalDuration = TimeConverter.ConvertTo<MusicalTimeSpan>((long)averageDuration, TempoMap);
+                        var averageDuration = cluster.Average(e => e.Duration.Tick);
+                        var avgMusicalDuration = new Time((long)averageDuration);
                         var oneDuration = avgMusicalDuration / cluster.Count;
                         foreach (var beat in cluster)
                         {
-                            beat.DurationArray[0] = (int)oneDuration.Numerator;
-                            beat.DurationArray[1] = (int)oneDuration.Denominator;
+                            beat.Duration = oneDuration;
                         }
                     }
 
 
                     var head = cluster[0];
                     var tail = cluster[^1];
-                    var clusterLength = cluster.Sum(e => e.GetDuration().Tick);
+                    var clusterLength = cluster.Sum(e => e.Duration.Tick);
 
                     if (head.Is("B3 V0 M7 P8", "money"))
                     {
@@ -203,45 +202,38 @@ public sealed partial class Part
                     if (head.GraceNote == "beforeBeat")
                     {
                         var prev = head.Previous;
-                        var prevDur = prev.GetDuration();
+                        var prevDur = prev.Duration;
                         if (prevDur.Tick / 2 <= clusterLength)
                         {
-                            prev.DurationArray[1] *= 2;
+                            prev.Duration /= 2;
                             var stepSize = (prevDur / 2) / cluster.Count;
-                            var clusterUnitDuration = TimeConverter.ConvertTo<MusicalTimeSpan>(stepSize.Tick, TempoMap);
                             foreach (var beat in cluster)
                             {
-                                beat.DurationArray[0] = (int)clusterUnitDuration.Numerator;
-                                beat.DurationArray[1] = (int)clusterUnitDuration.Denominator;
+                                beat.Duration = stepSize;
                             }
                         }
                         else
                         {
-                            var newPrevDur = TimeConverter.ConvertTo<MusicalTimeSpan>(prevDur.Tick - clusterLength, TempoMap);
-                            prev.DurationArray[0] = (int)newPrevDur.Numerator;
-                            prev.DurationArray[1] = (int)newPrevDur.Denominator;
+                            prev.Duration = prevDur- clusterLength;
                         }
                     }
                     else if (head.GraceNote == "onBeat")
                     {
                         var next = tail.Next;
-                        var nextDur = next.GetDuration();
+                        var nextDur = next.Duration;
                         if (nextDur.Tick / 2 <= clusterLength)
                         {
-                            next.DurationArray[1] *= 2;
+                            next.Duration /= 2;
                             var stepSize = (nextDur / 2) / cluster.Count;
-                            var clusterUnitDuration = TimeConverter.ConvertTo<MusicalTimeSpan>(stepSize.Tick, TempoMap);
                             foreach (var beat in cluster)
                             {
-                                beat.DurationArray[0] = (int)clusterUnitDuration.Numerator;
-                                beat.DurationArray[1] = (int)clusterUnitDuration.Denominator;
+                                beat.Duration = stepSize;
                             }
                         }
                         else
                         {
                             var newNextDur = TimeConverter.ConvertTo<MusicalTimeSpan>(nextDur.Tick - clusterLength, TempoMap);
-                            next.DurationArray[0] = (int)newNextDur.Numerator;
-                            next.DurationArray[1] = (int)newNextDur.Denominator;
+                            next.Duration = nextDur- clusterLength;
                         }
                     }
                 }
@@ -266,7 +258,7 @@ public sealed partial class Part
 
                 }
 
-                var sum = voice.Beats.Where(e => string.IsNullOrEmpty(e.GraceNote)).Sum(b => b.GetDuration().Tick);
+                var sum = voice.Beats.Where(e => string.IsNullOrEmpty(e.GraceNote)).Sum(b => b.Duration.Tick);
                 var error = sum - duration.Tick;
 
                 if (error > 20)
@@ -290,16 +282,15 @@ public sealed partial class Part
         var targetMeasure = measure ?? voice.Measure;
 
         var expectedDuration = new Time(targetMeasure.Sgntr.Numerator, targetMeasure.Sgntr.Denominator);
-        var actualDuration = voice.Beats.Where(e => string.IsNullOrEmpty(e.GraceNote)).Sum(e => e.GetDuration().Tick);
+        var actualDuration = voice.Beats.Where(e => string.IsNullOrEmpty(e.GraceNote)).Sum(e => e.Duration.Tick);
         var error = expectedDuration - actualDuration;
 
 
         if (error.Tick > 0)
         {
             var lastBeat = voice.Beats[^1];
-            var duration = lastBeat.GetDuration() + error;
-            lastBeat.DurationArray[0] = duration.Span.Numerator;
-            lastBeat.DurationArray[1] = duration.Span.Denominator;
+            var duration = lastBeat.Duration + error;
+            lastBeat.Duration = duration;
         }
         else
         {
@@ -307,16 +298,15 @@ public sealed partial class Part
             {
                 //if (beat.Rest || beat.Notes.All(e => e.Tie))
                 {
-                    var beatDuration = beat.GetDuration().Tick;
-                    if (beatDuration < Math.Abs(error.Tick))
+                    var beatDuration = beat.Duration;
+                    if (beatDuration.Tick < Math.Abs(error.Tick))
                     {
-                        beat.DurationArray = [0, 0];
+                        beat.Duration = new Time();
                         error += beatDuration;
                     }
-                    else if (beatDuration >= error.Tick)
+                    else if (beatDuration.Tick >= error.Tick)
                     {
-                        var leftover = TimeConverter.ConvertTo<MusicalTimeSpan>(beatDuration + error.Tick, TempoMap);
-                        beat.DurationArray = [(int)leftover.Numerator, (int)leftover.Denominator];
+                        beat.Duration= beatDuration + error;
                         break;
                     }
                 }

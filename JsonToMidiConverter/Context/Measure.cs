@@ -52,7 +52,7 @@ public sealed partial class Measure
 
         Start = Previous?.End ?? new Time();
         Duration = Part.Anacrusis && Index == 0 
-            ? new Time(Voices[0].Beats.Where(e => string.IsNullOrEmpty(e.GraceNote)).Sum(e => e.GetDuration().Tick))
+            ? new Time(Voices[0].Beats.Where(e => string.IsNullOrEmpty(e.GraceNote)).Sum(e => e.Duration.Tick))
             : new Time(SignatureNominator, SignatureDenominator);
         End = Start + Duration;
 
