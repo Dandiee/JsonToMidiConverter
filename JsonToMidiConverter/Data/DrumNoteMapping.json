@@ -10,6 +10,16 @@
     "Name": "Fuck knows really"
   },
   {
+    "Fret": 29,
+    "NoteNumber": 29,
+    "Name": "Acoustic Bass Drum"
+  },
+  {
+    "Fret": 30,
+    "NoteNumber": 30,
+    "Name": "Acoustic Bass Drum"
+  },
+  {
     "Fret": 31,
     "NoteNumber": 37,
     "Name": "Acoustic Bass Drum"
@@ -253,6 +263,11 @@
   {
     "Fret": 82,
     "NoteNumber": 69,
+    "Name": "Open Triangle"
+  },
+  {
+    "Fret": 84,
+    "NoteNumber": 84,
     "Name": "Open Triangle"
   },
   {

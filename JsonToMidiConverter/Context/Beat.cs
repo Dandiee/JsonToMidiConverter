@@ -4,13 +4,14 @@ using System.Text.Json.Serialization;
 
 namespace JsonToMidiConverter.Models.Song;
 
-[DebuggerDisplay("B{Index} V{Voice.Index} M{Measure.Index} P{Part.Index}")]
+[DebuggerDisplay("B{Index} V{Voice.Index} M{Measure.Index} P{Part.Index} - {Duration.Span}")]
 public sealed partial class Beat : MusicalElement<Beat>
 {
     [JsonIgnore] public Voice Voice { get; private set; }
     [JsonIgnore] public Measure Measure => Voice.Measure;
     [JsonIgnore] public Song Song => Part.Song;
     [JsonIgnore] public bool LastInMeasure { get; private set; }
+    [JsonIgnore] public List<string> Modifications { get; private set; } = [];
     private Time? _duration;
     [JsonIgnore]
     public override Time Duration
@@ -24,7 +25,14 @@ public sealed partial class Beat : MusicalElement<Beat>
 
             return _duration.Value;
         }
-        set => _duration = value;
+        set
+        {
+            if (_duration.HasValue)
+            {
+                Modifications.Add($"Changed from {_duration.Value.Span} to {value.Span}");
+            }
+            _duration = value;
+        }
     }
 
     public void SetNavigation(Voice voice, int index)

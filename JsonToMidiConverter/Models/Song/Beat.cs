@@ -38,6 +38,7 @@ public partial class Beat
     public int DownArpeggio { get; set; }
     public bool HasRasgueado { get; set; }
     public BrushStroke? Arpeggio { get; set; }
+    public int UpArpeggio { get; set; }
 
     public Beat Clone() => new()
     {
@@ -71,7 +72,8 @@ public partial class Beat
         BrushStroke = BrushStroke?.Clone(),
         DownArpeggio = DownArpeggio,
         HasRasgueado = HasRasgueado,
-        Arpeggio = Arpeggio?.Clone()
+        Arpeggio = Arpeggio?.Clone(),
+        UpArpeggio = UpArpeggio
 
     };
 }
@@ -80,7 +82,7 @@ public class BrushStroke
 {
     public string Direction { get; set; }
     public int Duration { get; set; }
-    public int Shift { get; set; }
+    public double Shift { get; set; }
 
     public BrushStroke Clone() => new()
     {

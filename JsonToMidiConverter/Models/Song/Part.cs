@@ -24,4 +24,5 @@ public sealed partial class Part
     public bool TuningFlat { get; set; }
     public bool Anacrusis { get; set; }
     public int Capo { get; set; }
+    public int Voices { get; set; }
 }

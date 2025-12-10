@@ -15,16 +15,27 @@ foreach (var midiPath in midis)
     var title = string.Join("-", pathParts.Skip(1).Take(pathParts.Length - 4));
 
     var record = Database.Search(artist, title).First();
-    
+    //if (!record.Title.Contains("Simple Man")) continue;
 
     var song = Database.GetMidiData(record.SongId);
 
     var mid = new MidiFile { TimeDivision = Converter.Tpqn };
     Time.Map = song.Parts[0].GetTempo(mid);
     mid.ReplaceTempoMap(Time.Map);
-    song.Build(mid, record);
+
+    if (song.Parts.SelectMany(e => e.Measures).SelectMany(e => e.Voices).SelectMany(e => e.Beats)
+        .SelectMany(e => e.Notes).Any(e => e.Tremolo.Count != 0))
+    {
+        Console.WriteLine("Fuck this piece of shit.");
+        continue;
+    }
 
     var reference = GetNormalizedMidi(midiPath);
+    Dumper.DumpBeforeBuild(song, reference, record, false);
+
+    song.Build(mid, record);
+
+    
     Dumper.Dump(song, reference, record, false);
     //Dumper.TestSlides(song, reference, record);
     c++;

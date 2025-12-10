@@ -10,6 +10,7 @@ public sealed partial class Measure : MusicalElement<Measure>
     [JsonIgnore]public Song Song => Part.Song;
     [JsonIgnore] public int OriginalIndex { get; set; }
     [JsonIgnore] public Time Signature { get; set; }
+    [JsonIgnore] public int RepeatIndex { get; set; }
 
     public void SetNavigation(Part part, int index)
     {

@@ -30,6 +30,7 @@ public sealed partial class Measure
         DoubleBarline = DoubleBarline,
         TripletFeel = TripletFeel,
 
-        Signature = Signature
+        Signature = Signature,
+        OriginalIndex = OriginalIndex,
     };
 }

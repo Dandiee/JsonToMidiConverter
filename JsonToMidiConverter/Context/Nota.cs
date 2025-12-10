@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Text.Json.Serialization;
 using JsonToMidiConverter.Context;
 using Melanchall.DryWetMidi.Common;
@@ -67,53 +68,83 @@ public sealed partial class Nota : MusicalElement<Nota>
         }
     }
 
+    private static readonly HashSet<Slide> SlidesWhichMakesTheNotePlayEarlierForSomeReason = [Slide.Below, Slide.Above];
+
     public void SetTimings()
     {
-        Start = Beat.Start;
-        End = TieDetails?.Destination.Beat.End ?? Beat.End;
+        Start = Slides.Any(e => SlidesWhichMakesTheNotePlayEarlierForSomeReason.Contains(e))
+            ? Beat.Start - 1920
+            : Beat.Start;
 
-        TieDetails?.Destination.Beat.SetTimes();
+        Start += Part.IsPianoLike ? new Time() : new Time(100 * Index);
 
-        var strum = Part.IsPianoLike ? new Time() : new Time(100 * Index);
+        End = GetEndTime();
 
-        if (Beat.LetRing)
+        if (Next?.Slides.Contains(Slide.Below) == true)
         {
-            var firstNonRinging = Beat.Forward().SkipWhile(beat => beat.LetRing && beat.Next != null).First();
-            if (End < firstNonRinging.End)
-            {
-                End = firstNonRinging.End;
-            }
-        }
-
-        if (TieDetails != null)
-        {
-            foreach (var note in TieDetails.FullChain)
-            {
-                if (note.Beat.LetRing)
-                {
-                    var firstNonRinging = note.Beat.Forward().SkipWhile(beat => beat.LetRing && beat.Next != null).First();
-                    if (End < firstNonRinging.End)
-                    {
-                        End = firstNonRinging.End;
-                    }
-                }
-            }
-        }
-
-        End += strum;
-        if (Slides.Contains(Slide.Below))
-        {
-            Start -= 1920; 
-        }
-
-        if (Slides.Contains(Slide.Above))
-        {
-            Start -= 1920;
+            //End -= 1920;
         }
 
         Duration = End - Start;
     }
 
+    private Time GetEndTime()
+    {
+        if (Dead) return Start + 400;
+
+        if (Staccato)
+        {
+            var totalTiedDuration = (TieDetails?.Destination ?? this).Beat.End - Start;
+            return Start + totalTiedDuration / 2;
+        }
+
+        if (!Beat.LetRing && !WillBeTied)
+            return Next?.Slides.IsBefore() == true
+                ? Beat.End
+                : Beat.End;
+
+        var tieEnd = (TieDetails?.Destination ?? this).Beat.Notes.First(e =>
+            Part.InstrumentId == 1024
+                ? DrumMapping.Mapping[e.Fret].NoteNumber == DrumMapping.Mapping[Fret].NoteNumber
+                : e.StringNumber == StringNumber);
+
+
+        if (!tieEnd.Beat.LetRing || tieEnd.Bend != null)
+        {
+            return tieEnd.Beat.Next?.Notes.Any(e => e.StringNumber == StringNumber && e.Slides.IsBefore()) == true
+                ? tieEnd.Beat.End - 1920
+                : tieEnd.Beat.End;
+        }
+
+        foreach (var nextBeat in tieEnd.Beat.Forward().Skip(1))
+        {
+            if (nextBeat.Notes.Any(e => e.StringNumber == StringNumber))
+            {
+                return nextBeat.Start;
+            }
+
+            if (nextBeat.Notes.Any(e => e.Slides.Contains(Slide.Below) || e.Slides.Contains(Slide.Above)))
+            {
+                continue;
+            }
+
+            if (!nextBeat.LetRing)
+            {
+                return nextBeat.Rest 
+                    ? nextBeat.Start
+                    : nextBeat.End;
+            }
+
+            
+
+            if (nextBeat.Measure.Index > Measure.Index + 20)
+            {
+                //return tieEnd.Measure.End;
+            }
+        }
+
+        return Part.Measures[^1].Voices[Voice.Index].Beats[^1].End;
+    }
 
 
     public IEnumerable<int> GetEmittedNotes()

@@ -129,13 +129,8 @@ public static class Extensions
         }
     }
 
-    public static IEnumerable<T> Backwards<T>(this IList<T> items)
-    {
-        for (var i = items.Count - 1; i > -1; i--)
-        {
-            yield return items[i];
-        }
-    }
+    public static bool IsBefore(this IEnumerable<Slide> slides)
+        => slides.Any(e => e is Slide.Below /*or Slide.Above*/);
 
     public static readonly IReadOnlyDictionary<double, int> FretHarmonicOffsets = new Dictionary<double, int>
     {
@@ -145,12 +140,57 @@ public static class Extensions
         [3] = 31,
         [4] = 28,
         [5] = 24,
+        [5.8] = 34,
         [7] = 19,
+        [8.2] = 36,
         [9] = 28,
+        [9.6] = 34,
         [12] = 12,
+        [16] = 28,
         [19] = 19,
+        [21.7] = 34,
         [24] = 24,
     };
+
+    public static int GetHarmonicOffset(double fret)
+    {
+        // 1. Convert Fret to Physical String Position (Ratio from Nut)
+        // Formula: position = 1 - (1 / 2^(fret/12))
+        double position = 1.0 - Math.Pow(2.0, -fret / 12.0);
+
+        // 2. Find the matching Harmonic Number (N)
+        // We scan harmonics 2 (octave) through 8 (3 octaves) to find the closest fit.
+        // We look for a node k/N that matches the string position.
+
+        int bestHarmonic = 0;
+        double minDifference = double.MaxValue;
+
+        // Iterate through harmonics 2 to 8 (Standard guitar harmonics range)
+        for (int n = 2; n <= 8; n++)
+        {
+            // For each harmonic N, there are N-1 nodes (k) along the string
+            for (int k = 1; k < n; k++)
+            {
+                double targetNode = (double)k / n;
+                double diff = Math.Abs(position - targetNode);
+
+                // If this is the closest node we've found so far, store it.
+                // We use a tolerance because frets like '3' are approximations of '3.2'
+                if (diff < minDifference)
+                {
+                    minDifference = diff;
+                    bestHarmonic = n;
+                }
+            }
+        }
+
+        // 3. Convert Harmonic Number to Semitone Offset
+        // Formula: Offset = 12 * Log2(HarmonicNumber)
+        double exactOffset = 12.0 * Math.Log(bestHarmonic, 2);
+
+        // Round to nearest integer to match the Dictionary (e.g. 27.86 -> 28)
+        return (int)Math.Round(exactOffset);
+    }
 
     public static int GetNoteNumber(this Nota note, bool withHarmonic = true)
     {
@@ -163,7 +203,7 @@ public static class Extensions
 
         var open = note.Part.Tuning.Length == 0 ? (int)note.StringNumber : note.Part.Tuning[(int)note.StringNumber];
         if (note.Harmonic == null || !withHarmonic) return open + note.Fret;
-        var harmonicOffset = FretHarmonicOffsets[note.HarmonicFret];
+        var harmonicOffset = GetHarmonicOffset(note.HarmonicFret);
         if (note.Harmonic.Equals("natural", StringComparison.OrdinalIgnoreCase)) return open + harmonicOffset;
         return open + harmonicOffset + note.Fret;
     }

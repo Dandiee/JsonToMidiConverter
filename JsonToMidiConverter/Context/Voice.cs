@@ -25,7 +25,13 @@ public sealed partial class Voice
         }
     }
 
-    public void Build() => Beats.ForEach(beat => beat.Build());
+    public void Build()
+    {
+        foreach (var beat in Beats)
+        {
+            beat.Build();
+        }
+    } 
 
     public override string ToString() => $"V{Index} {Measure}";
 

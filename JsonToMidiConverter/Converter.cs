@@ -24,7 +24,7 @@ internal static class Converter
 
     public static MidiFile Convert(Song song, MidiFile referenceMidi)
     {
-        Dumper.AssignNotesToMidiEvents(song, referenceMidi);
+        //Dumper.AssignNotesToMidiEvents(song, referenceMidi);
 
         var midiFile = new MidiFile { TimeDivision = new TicksPerQuarterNoteTimeDivision(TicksPerQuarter) };
         Time.Map = song.Parts[0].GetTempo(midiFile);
