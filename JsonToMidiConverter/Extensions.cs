@@ -14,8 +14,8 @@ public sealed class TimedNoteEvent
     public int MeasureIndex { get; }
     public int EventIndex { get; }
 
-    public long Start { get;  }
-    public long End { get;  }
+    public long Start { get; }
+    public long End { get; }
     public long Duration { get; }
 
     public NoteOnEvent On { get; }
@@ -34,7 +34,7 @@ public sealed class TimedNoteEvent
         Off = (NoteOffEvent)off.Event;
         IsFuckedUp = isSongsterSpecialPieceOfShit;
     }
-    
+
 
     public bool IsMatching(int channel, int noteNumber) => On.Channel == channel && On.NoteNumber == noteNumber;
 }
@@ -44,7 +44,7 @@ public static class Extensions
     public static SevenBitNumber To7(this int i) => (SevenBitNumber)i;
     public static FourBitNumber To4(this int i) => (FourBitNumber)i;
 
-    public static Time Sum(this IEnumerable<Time> times) => new (times.Sum(e => e.Tick));
+    public static Time Sum(this IEnumerable<Time> times) => new(times.Sum(e => e.Tick));
 
     public static IReadOnlyList<TimedNoteEvent> GetEvents(this MidiFile midi, int partIndex)
     {
@@ -76,7 +76,7 @@ public static class Extensions
                     .ToList();
 
                 fuckedUpNotes.ForEach(e => e.IsFuckedUp = true);
-                noteOns.Add(new (i, new TimedEvent(noteOn, time), fuckedUpNotes.Count > 0));
+                noteOns.Add(new(i, new TimedEvent(noteOn, time), fuckedUpNotes.Count > 0));
             }
             else if (midiEvent is NoteOffEvent noteOff)
             {
@@ -129,28 +129,74 @@ public static class Extensions
         }
     }
 
+    private static readonly int[] _velocityLadder = { 45, 55, 67, 80, 87, 95, 105, 112 };
+    private static readonly Dictionary<string, int> _dynamicMap = new Dictionary<string, int>
+        {
+            { "ppp", 0 }, { "pp", 1 }, { "p", 2 }, { "mp", 3 },
+            { "mf", 4 },  { "f", 5 },  { "ff", 6 }, { "fff", 7 }
+        };
+
+    //private static string _currentDynamic = "f"; // Default to 'f' if no start value provided
+
+    public static int CalculateVelocity2(this Nota input, bool isPrimary)
+    {
+        var currentDynamic = "f";
+        // 1. Update State: If the beat has a new original velocity, update our current dynamic
+        if (!string.IsNullOrEmpty(input.Beat.CalculatedVelocity))
+        {
+            currentDynamic = input.Beat.CalculatedVelocity;
+
+        }
+
+        // 2. Get Base Index
+        int index = _dynamicMap.GetValueOrDefault(currentDynamic, 5);
+
+        // 3. Apply Modifiers
+        // Note: Check if Note_Acentuated is an integer or boolean in your raw input. 
+        // The CSV implies 0 (None), 1 (Normal), 2 (Heavy/Marcato).
+        // RULE UPDATE: Ghost notes override Accents. 
+        if (input.Ghost)
+        {
+            if (input.Part.InstrumentId == 1024)
+            {
+                if (input.Beat.Notes.Count > 1)
+                {
+                    return 55;
+                }
+                else
+                {
+                    index -= 4;
+                }
+            }
+            else
+            {
+                index -= 2;
+            }
+            // Do NOT apply accent modifiers here.
+        }
+        else
+        {
+            // Only apply accent if it's NOT a ghost note
+            if (input.Accentuated == 1) index += 1;
+            if (input.Accentuated == 2) index += 2;
+        }
+
+        if (input.IsHpTarget) index -= 1;
+        if (input.Beat.Tapping) index -= 1;
+        if (input.Harmonic == "tapped") index--;
+
+        if (!isPrimary) index -= 1;
+
+        // 4. Clamp Index to valid range [0, 7]
+        if (index < 0) index = 0;
+        if (index > 7) index = 7;
+
+        // 5. Lookup Result
+        return _velocityLadder[index];
+    }
+
     public static bool IsBefore(this IEnumerable<Slide> slides)
         => slides.Any(e => e is Slide.Below /*or Slide.Above*/);
-
-    public static readonly IReadOnlyDictionary<double, int> FretHarmonicOffsets = new Dictionary<double, int>
-    {
-        [2.4] = 36,
-        [2.7] = 34,
-        [3.2] = 31,
-        [3] = 31,
-        [4] = 28,
-        [5] = 24,
-        [5.8] = 34,
-        [7] = 19,
-        [8.2] = 36,
-        [9] = 28,
-        [9.6] = 34,
-        [12] = 12,
-        [16] = 28,
-        [19] = 19,
-        [21.7] = 34,
-        [24] = 24,
-    };
 
     public static int GetHarmonicOffset(double fret)
     {

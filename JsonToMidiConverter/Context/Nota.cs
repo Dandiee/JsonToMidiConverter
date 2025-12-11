@@ -22,6 +22,7 @@ public sealed partial class Nota : MusicalElement<Nota>
     [JsonIgnore] public bool LastInBeat { get; private set; }
     [JsonIgnore] public Time? TremoloDuration { get; private set; }
     [JsonIgnore] public int PureNoteNumber { get; private set; }
+    [JsonIgnore] public bool IsHpTarget { get; private set; }
 
     public void SetNavigation(Beat beat, int index)
     {
@@ -66,6 +67,8 @@ public sealed partial class Nota : MusicalElement<Nota>
                 tiedNote.TieDetails = TieDetails;
             }
         }
+
+        IsHpTarget = Previous?.Hp == true;
     }
 
     private static readonly HashSet<Slide> SlidesWhichMakesTheNotePlayEarlierForSomeReason = [Slide.Below, Slide.Above];
@@ -112,7 +115,7 @@ public sealed partial class Nota : MusicalElement<Nota>
         if (!tieEnd.Beat.LetRing || tieEnd.Bend != null)
         {
             return tieEnd.Beat.Next?.Notes.Any(e => e.StringNumber == StringNumber && e.Slides.IsBefore()) == true
-                ? tieEnd.Beat.End - 1920
+                ? tieEnd.Beat.End
                 : tieEnd.Beat.End;
         }
 
@@ -168,8 +171,15 @@ public sealed partial class Nota : MusicalElement<Nota>
         if (TremoloDuration.HasValue)
         {
             var noteDuration = WillBeTied ? TieDetails.Destination.End.Tick - TieDetails.Source.Start.Tick : Duration.Tick;
-            var repeats = noteDuration / TremoloDuration.Value.Tick;
-            for (var i = 0; i < repeats; i++)
+            var integerRepeats = noteDuration / TremoloDuration.Value.Tick;
+            var leftover = noteDuration / (float)TremoloDuration.Value.Tick - integerRepeats;
+            if (leftover > 0.5)
+            {
+                integerRepeats++;
+            }
+
+            //var repeats = noteDuration / TremoloDuration.Value.Tick;
+            for (var i = 0; i < integerRepeats; i++)
             {
                 if (Tie && i == 0) continue;
                 if (Dead)
@@ -262,7 +272,7 @@ public sealed partial class Nota : MusicalElement<Nota>
             var maxTargetFret = Math.Min(Math.Max(24, maxChordFret), maxChordFret + 10);
             var maxDistance = maxTargetFret - maxChordFret;
 
-            if (slide == Context.Slide.Upwards && maxDistance == 9)
+            if (maxDistance == 9)
             {
                 return note.Fret + 10; // the killin in the name rule or idk
             }
@@ -325,10 +335,5 @@ public sealed class TieContext
         FullChain = chain;
         Source = FullChain[0];
         Destination = FullChain[^1];
-        //InBetweenNotes = FullChain.Skip(1).Take(FullChain.Count - 2).ToList();
-        //FullDuration = new Time(FullChain.Sum(e => e.ActualDuration.Tick));
-        //FullDuration = new Time(FullChain.Sum(e => e.Duration.Tick));
     }
-
-    public Time GetFullDuration() => new Time(FullChain.Sum(e => e.Duration.Tick));
 }

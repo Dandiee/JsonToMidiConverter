@@ -36,7 +36,7 @@ public static class Dumper
 
             var numberOfMidiMeasures = parts[part.Index].Events.OfType<MarkerEvent>().Count(e => e.Text.StartsWith("MEASURE_"));
             Debug.Assert(part.Measures.Count == numberOfMidiMeasures);
-            
+
         }
     }
 
@@ -158,6 +158,50 @@ public static class Dumper
         return name.ToLowerInvariant().Replace(" ", "-");
     }
 
+    public record Velocity(
+        int ResultVelocity,
+
+        double Part_Balance,
+        double Part_Volume,
+        int Part_InstrumentId,
+
+        string Beat_OriginalVelocity,
+        string Beat_CalculatedVelocity,
+
+        bool Beat_PalmMute,
+        bool Beat_Vibrato,
+        bool Beat_Tapping,
+        string Beat_GraceNote,
+        int Beat_UpStroke,
+        int Beat_DownStroke,
+        bool Beat_Slapping,
+        bool Beat_Popping,
+        string? Beat_GradualVelocity,
+        string? Beat_VibratoWithTremoloBar,
+        string? Beat_PickStroke,
+        bool Beat_WideVibrato,
+        int Beat_DownArpeggio,
+        int Beat_UpArpeggio,
+
+        bool Beat_IsPartOfBeamGroup,
+        int? Beat_BeamGroupSize,
+        int? Beat_IndexWithinBeamGroup,
+        bool? Beat_BeamGroupContainsAccent,
+        bool Beat_HasMultipleNotes,
+
+        bool Note_Vibrato,
+        bool Note_HammerOnPullOffTargetNote,
+        bool Note_Tie,
+        bool Note_Staccato,
+        double Note_Acentuated,
+        bool Note_Ghost,
+        string? Note_Harmonic,
+        bool Note_Dead,
+        bool Note_WideVibrato
+    );
+
+
+    public static List<Velocity> Velocities = [];
     public static void AssignNotesToMidiEvents(Song song, MidiFile midi, RecordModel record)
     {
         foreach (var part in song.Parts)
@@ -180,28 +224,47 @@ public static class Dumper
                 if (note.Slides.Count > 0 && note.Tremolo.Count > 0)
                     throw new Exception("Just drop this track in the bin doesnt matter fuck that");
 
-                
 
-                var q = note.GetNoteNumber();
+                if (note.Is("N0 B2 V0 M31 P0", "Santeria"))
+                {
+
+                }
 
                 var emittedNotes = note.GetEmittedNotes().ToList();
 
+                if (note.Fret == 13 && note.StringNumber == 0)
+                {
+
+                }
+
+                if (!string.IsNullOrEmpty(note.Beat.GradualVelocity))
+                {
+                    //OpenForDebug(note, record);
+                }
+
+                var c = 0;
                 foreach (var emittedNote in emittedNotes)
                 {
                     var noteEvent = measureEvents
                         .SkipWhile(e => e.On.Channel != note.Channel || e.On.NoteNumber != emittedNote)
                         .First();
 
+                    if (noteEvent.EventIndex == 9580)
+                    {
+
+                    }
+
                     var startError = Math.Abs(noteEvent.Start - note.Start.Tick);
                     var endError = Math.Abs(noteEvent.End - note.End.Tick);
                     var epsilon = 1929; // 320 + (note.Index * 150);
 
-                    var isSliding = ParticipatesInSlide(note);
-                    if (!isSliding && !noteEvent.IsFuckedUp && note.Voice.Index == 0)
+                    if (!noteEvent.IsFuckedUp && note.Beat.Measure.Voices.Count == 1)
                     {
+
                         //Debug.Assert(startError < epsilon);
                         //Debug.Assert(endError < epsilon);
-                        note.SetTimings();
+                        //OpenForDebug(note, record);
+                        //note.SetTimings();
 
                         var fucked = note.Part.Measures
                             .SelectMany(e => e.Voices)
@@ -210,16 +273,19 @@ public static class Dumper
                             .ToList();
                     }
 
-
                     if ((noteEvent.Start < note.Start.Tick && startError > epsilon) ||
                         ((!noteEvent.IsFuckedUp && /*!note.Beat.LetRing &&*/ !note.TremoloDuration.HasValue) && noteEvent.End > note.End.Tick && endError > epsilon))
                     {
+                        if (note.Part.Volume != 0 && note.Part.Volume != 1)
+                        {
+
+                        }
 
                         if ((startError > 1920 || endError > 1920) && note.Voice.Index == 0)
                         {
-                            OpenForDebug(note, record);
-                            note.SetTimings();
-                        } 
+
+                            //note.SetTimings();
+                        }
                     }
 
                     var nextChannelEvent = measureEvents
@@ -233,12 +299,21 @@ public static class Dumper
 
                     measureEvents.Remove(noteEvent);
                     note.MidiNoteEvents.Add(noteEvent);
+                    c++;
                 }
 
                 if (note.LastInBeat && note.Beat.LastInMeasure)
                 {
-                    Debug.Assert(measureEvents.All(e => e.MeasureIndex >= note.Measure.Index));
+                    var allUsed = measureEvents.All(e => e.MeasureIndex >= note.Measure.Index);
+                    Debug.Assert(allUsed);
+                    if (!allUsed)
+                    {
+                        OpenForDebug(note, record);
+                    }
                 }
+
+
+
             }
             Debug.Assert(measureEvents.Count == 0);
         }

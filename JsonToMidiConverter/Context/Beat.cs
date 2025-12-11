@@ -7,11 +7,6 @@ namespace JsonToMidiConverter.Models.Song;
 [DebuggerDisplay("B{Index} V{Voice.Index} M{Measure.Index} P{Part.Index} - {Duration.Span}")]
 public sealed partial class Beat : MusicalElement<Beat>
 {
-    [JsonIgnore] public Voice Voice { get; private set; }
-    [JsonIgnore] public Measure Measure => Voice.Measure;
-    [JsonIgnore] public Song Song => Part.Song;
-    [JsonIgnore] public bool LastInMeasure { get; private set; }
-    [JsonIgnore] public List<string> Modifications { get; private set; } = [];
     private Time? _duration;
     [JsonIgnore]
     public override Time Duration
@@ -34,6 +29,15 @@ public sealed partial class Beat : MusicalElement<Beat>
             _duration = value;
         }
     }
+    [JsonIgnore] public Voice Voice { get; private set; }
+    [JsonIgnore] public Measure Measure => Voice.Measure;
+    [JsonIgnore] public Song Song => Part.Song;
+    [JsonIgnore] public bool LastInMeasure { get; private set; }
+    [JsonIgnore] public List<string> Modifications { get; private set; } = [];
+    [JsonIgnore] public List<Beat>? BeamGroup { get; set; }
+    [JsonIgnore] public string CalculatedVelocity { get; set; }
+    [JsonIgnore] public List<Beat>? GradualVelocityGroup { get; set; }
+
 
     public void SetNavigation(Voice voice, int index)
     {

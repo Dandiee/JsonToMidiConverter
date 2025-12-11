@@ -12,7 +12,7 @@ public sealed partial class Voice
     [JsonIgnore] public Part Part => Measure.Part;
     [JsonIgnore] public Song Song => Part.Song;
     [JsonIgnore] public int Index { get; private set; }
-
+    [JsonIgnore] public List<List<Beat>> BeamGroups { get; private set; } = [];
 
     public void SetNavigation(Measure measure, int index)
     {
@@ -27,9 +27,33 @@ public sealed partial class Voice
 
     public void Build()
     {
+        List<Beat>? currentBeamGroup = null;
+
         foreach (var beat in Beats)
         {
+            Debug.Assert(beat is { BeamStart: true, BeamStop: false } || 
+                         beat is { BeamStart: false, BeamStop: true } || 
+                         beat is { BeamStart: false, BeamStop: false });
+
             beat.Build();
+            if (beat.BeamStart)
+            {
+                currentBeamGroup = [beat];
+                beat.BeamGroup = currentBeamGroup;
+
+            }
+            else if (beat.BeamStop)
+            {
+                currentBeamGroup.Add(beat);
+                BeamGroups.Add(currentBeamGroup);
+                beat.BeamGroup = currentBeamGroup;
+                currentBeamGroup = null;
+            }
+            else if (currentBeamGroup != null)
+            {
+                currentBeamGroup.Add(beat);
+                beat.BeamGroup = currentBeamGroup;
+            }
         }
     } 
 

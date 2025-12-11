@@ -37,6 +37,7 @@ public sealed partial class Part
 
         ApplyTripletFeel();
         ProcessGraceClusters();
+        
 
         Measures.ForEach(m => m.Build());
 
@@ -57,7 +58,91 @@ public sealed partial class Part
             }
         }
 
+        ApplyBeatVelocities();
+
         Notes.ForEach(e => e.SetTimings());
+    }
+
+    private void ApplyBeatVelocities()
+    {
+        //var dict = new Dictionary<int, string>();
+        var currentVelocity = "f";
+        List<Beat> gradualVelocitySpan = [];
+
+        foreach (var measure in Measures)
+        {
+            foreach (var voice in measure.Voices)
+            {
+                foreach (var beat in voice.Beats)
+                {
+                    if (!string.IsNullOrEmpty(beat.Velocity))
+                    {
+                        currentVelocity = beat.Velocity;
+                    }
+
+                    if (!string.IsNullOrEmpty(beat.GradualVelocity))
+                    {
+                        if (gradualVelocitySpan.Count == 0 || gradualVelocitySpan[0].GradualVelocity == beat.GradualVelocity)
+                        {
+                            gradualVelocitySpan.Add(beat);
+                        }
+                        else
+                        {
+                            ProcessGradualVelocity(ref gradualVelocitySpan);
+                            gradualVelocitySpan = [beat];
+                        }
+                    }
+                    else if (gradualVelocitySpan.Count > 0)
+                    {
+                        ProcessGradualVelocity(ref gradualVelocitySpan);
+                    }
+
+                    beat.CalculatedVelocity = currentVelocity;
+                }
+            }
+        }
+
+        if (gradualVelocitySpan.Count > 0)
+        {
+            ProcessGradualVelocity(ref gradualVelocitySpan);
+        }
+
+        Debug.Assert(
+            Measures.SelectMany(e => e.Voices[0].Beats).SkipWhile(e => string.IsNullOrEmpty(e.Velocity))
+                .All(e => !string.IsNullOrEmpty(e.CalculatedVelocity))
+        );
+    }
+
+    private static readonly List<string> Velocities = ["ppp", "pp", "p", "mp", "mf", "f", "ff", "fff"];
+    private void ProcessGradualVelocity(ref List<Beat> span)
+    {
+        var start = span[0].CalculatedVelocity;
+        var end = span[^1].Velocity;
+
+        if (start == end)
+        {
+
+        }
+
+        var startIndex = Velocities.IndexOf(start);
+        var endIndex = Velocities.IndexOf(end);
+
+        var distance = endIndex - startIndex;
+        var duration = span[^1].End - span[0].Start;
+
+        //var stepDuration = duration / Math.Abs(distance);
+
+        var cursor = span[0].Start;
+        var firstBeat = span[0];
+        foreach (var beat in span)
+        {
+            var diff = beat.Start - cursor;
+            //var step = diff.Tick / stepDuration.Tick;
+            //beat.CalculatedVelocity = Velocities[(int)(startIndex + step * Math.Sign(distance))];
+            beat.GradualVelocityGroup = span;
+        }
+
+        span = [];
     }
 
     private void SetSignatures()

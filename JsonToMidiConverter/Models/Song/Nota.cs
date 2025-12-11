@@ -45,8 +45,3 @@ public sealed partial class Nota
         WideVibrato = WideVibrato,
     };
 }
-
-public class Tremolo
-{
-
-}

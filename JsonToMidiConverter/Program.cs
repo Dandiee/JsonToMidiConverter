@@ -1,7 +1,9 @@
-﻿using JsonToMidiConverter;
+﻿using CsvHelper;
+using JsonToMidiConverter;
 using JsonToMidiConverter.Test;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
+using System.Globalization;
 
 
 //await Database.RefreshSong(27);
@@ -15,7 +17,7 @@ foreach (var midiPath in midis)
     var title = string.Join("-", pathParts.Skip(1).Take(pathParts.Length - 4));
 
     var record = Database.Search(artist, title).First();
-    //if (!record.Title.Contains("Simple Man")) continue;
+    //if (!record.Artist.Contains("Slash")) continue;
 
     var song = Database.GetMidiData(record.SongId);
 
@@ -27,7 +29,7 @@ foreach (var midiPath in midis)
         .SelectMany(e => e.Notes).Any(e => e.Tremolo.Count != 0))
     {
         Console.WriteLine("Fuck this piece of shit.");
-        continue;
+        //continue;
     }
 
     var reference = GetNormalizedMidi(midiPath);
@@ -35,12 +37,21 @@ foreach (var midiPath in midis)
 
     song.Build(mid, record);
 
-    
+
     Dumper.Dump(song, reference, record, false);
     //Dumper.TestSlides(song, reference, record);
     c++;
 
 }
+
+var vels = Dumper.Velocities.ToHashSet();
+
+using (var writer = new StreamWriter("velocities.csv"))
+using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
+{
+    csv.WriteRecords(vels);
+}
+
 
 static MidiFile GetNormalizedMidi(string file)
 {
