@@ -12,7 +12,7 @@ using Slide = JsonToMidiConverter.Context.Slide;
 
 namespace JsonToMidiConverter;
 
-public record ProcessedEvent(TimedEvent Event, Nota Note);
+public record ProcessedEvent(TimedEvent Event);
 
 [DebuggerDisplay("[{TimedEvents.Count} Last at [{LastEvent.Time}]: {LastNote}]")]
 public class Events : IEnumerable<ProcessedEvent>
@@ -29,31 +29,9 @@ public class Events : IEnumerable<ProcessedEvent>
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
 
-    public TimedEvent Add(
-        MidiEvent midiEvent,
-        Time time,
-        Nota? note,
-        int? channelOverride = null,
-        int? partId = null,
-        SevenBitNumber? noteNumberOverride = null)
+    public TimedEvent Add(MidiEvent midiEvent, Time time)
     {
-        if (noteNumberOverride != null)
-        {
-            note.NoteNumber = noteNumberOverride.Value;
-        }
-
-        if (midiEvent is ChannelEvent channelEvent)
-        {
-            var w = note?.GetNoteChannel();
-            channelEvent.Channel = (channelOverride ?? note.Channel).To4();
-        }
-        Recap = TimedEvents.Skip(Math.Max(0, TimedEvents.Count - 30)).ToList();
-        TimedEvents.Add(new ProcessedEvent(new TimedEvent(midiEvent, time.Tick), note));
-        LastNote = note;
-
+        TimedEvents.Add(new ProcessedEvent(new TimedEvent(midiEvent, time.Tick)));
         return null;
     }
-
-
-
 }

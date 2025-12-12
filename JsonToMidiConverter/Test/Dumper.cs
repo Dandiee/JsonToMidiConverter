@@ -521,7 +521,7 @@ public static class Dumper
     }
 
 
-    private static string GetFileName(string name, RecordModel record)
+    public static string GetFileName(string name, RecordModel record)
         => Path.Combine(DumperRoot, Database.CleanString(record.Artist!), Database.CleanString(record.Title!),
             name + ".js");
 

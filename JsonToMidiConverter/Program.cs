@@ -26,6 +26,7 @@ foreach (var midiPath in midis)
     Time.Map = song.Parts[0].GetTempo(mid);
     mid.ReplaceTempoMap(Time.Map);
 
+
     if (song.Parts.SelectMany(e => e.Measures).SelectMany(e => e.Voices).SelectMany(e => e.Beats)
         .SelectMany(e => e.Notes).Any(e => e.Tremolo.Count != 0))
     {
@@ -33,13 +34,16 @@ foreach (var midiPath in midis)
         //continue;
     }
 
-    var reference = GetNormalizedMidi(midiPath);
-    Dumper.DumpBeforeBuild(song, reference, record, true);
-
     song.Build(mid, record);
+    Converter.Convert(song, record);
+
+    //var reference = GetNormalizedMidi(midiPath);
+    //Dumper.DumpBeforeBuild(song, reference, record, true);
 
 
-    Dumper.Dump(song, reference, record, true);
+
+
+    //Dumper.Dump(song, reference, record, true);
     //Dumper.TestSlides(song, reference, record);
     c++;
 

@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Text.Json.Serialization;
 using JsonToMidiConverter.Context;
+using Melanchall.DryWetMidi.Interaction;
 
 namespace JsonToMidiConverter.Models.Song;
 
@@ -11,6 +12,7 @@ public sealed partial class Measure : MusicalElement<Measure>
     [JsonIgnore] public int OriginalIndex { get; set; }
     [JsonIgnore] public Time Signature { get; set; }
     [JsonIgnore] public int RepeatIndex { get; set; }
+    [JsonIgnore] public int Bpm { get; set; }
 
     public void SetNavigation(Part part, int index)
     {
@@ -36,7 +38,7 @@ public sealed partial class Measure : MusicalElement<Measure>
             ? new Time(Voices[0].Beats.Where(e => string.IsNullOrEmpty(e.GraceNote)).Sum(e => e.Duration.Tick))
             : Signature;
         End = Start + Duration;
-
+        Bpm = (int)Math.Round(Part.TempoMap.GetTempoAtTime(Start.Span).BeatsPerMinute);
         Voices.ForEach(v => v.Build());
     }
 
