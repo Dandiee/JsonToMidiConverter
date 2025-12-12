@@ -1,13 +1,47 @@
 ﻿using CsvHelper;
 using JsonToMidiConverter;
+using JsonToMidiConverter.Models.Song;
 using JsonToMidiConverter.Test;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text.Json;
 
 
 //await Database.RefreshSong(27);
+
+while (true)
+{
+
+
+    Console.Write("Whatcha looking for:");
+    var filter = Console.ReadLine();
+    Console.WriteLine("Looking for it...");
+    var onlineResults = await Database.OnlineSearch(filter);
+
+    foreach (var result in onlineResults.Records.Take(10))
+    {
+        Console.WriteLine($"[{result.SongId}] {result.Artist} - {result.Title}");
+    }
+
+    Console.WriteLine("Stealing track...");
+    var best = onlineResults.Records.First();
+    await Database.RefreshSong(best.SongId);
+
+    Console.WriteLine("Processing midi...");
+    var bestMidi = Database.GetMidiData(best.SongId);
+    var bestSong = Database.Get(best.SongId);
+    Dumper.DumpWithoutReference(bestMidi, bestSong, true);
+    var output = new MidiFile { TimeDivision = Converter.Tpqn };
+    Time.Map = bestMidi.Parts[0].GetTempo(output);
+    output.ReplaceTempoMap(Time.Map);
+    bestMidi.Build(output, bestSong);
+
+
+    Converter.Convert(bestMidi, bestSong);
+    Console.WriteLine("EZ GG WP");
+}
 
 var midis = Directory.GetFiles("FreshSongs");
 var c = 0;

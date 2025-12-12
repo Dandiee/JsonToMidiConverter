@@ -25,7 +25,7 @@ public static class Database
         PropertyNameCaseInsensitive = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
         WriteIndented = true,
-        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
+        //UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
     };
 
     static Database()
@@ -88,6 +88,10 @@ public static class Database
                 (e.Artist != null && CleanString(e.Artist) == CleanString(artist)))
             .OrderByDescending(e => e.Views)
             .ToList();
+
+
+    public static RecordModel Get(int songId)
+        => Songs.Single(e => e.SongId == songId);
 
     public static IReadOnlyList<RecordModel> Search(string filter)
         => Songs.Where(e =>
@@ -167,6 +171,20 @@ public static class Database
             Parts = e.Tracks?.Length ?? 0,
             Views = e.Views
         };
+
+    public static async Task<SearchResultsModel?> OnlineSearch(string filter)
+    {
+        if (string.IsNullOrEmpty(filter)) return null;
+
+        var client = new HttpClient();
+        var response = await client.GetAsync(
+            $"https://www.songsterr.com/api/search?pattern={filter}&inst=undefined&tuning=undefined&difficulty=undefined&size=50&from=0&more=true");
+
+        response.EnsureSuccessStatusCode();
+
+        var content = await response.Content.ReadAsStringAsync();
+        return JsonSerializer.Deserialize<SearchResultsModel>(content, JsonOptions);
+    }
 
     private static void ProcessSearchResults()
     {

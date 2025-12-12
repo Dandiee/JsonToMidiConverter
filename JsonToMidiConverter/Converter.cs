@@ -103,6 +103,11 @@ internal static class Converter
         }
 
         var dumpFileName = Dumper.GetFileName("Output", record).Replace(".js", ".mid");
+        var fi = new FileInfo(dumpFileName);
+        if (!fi.Directory.Exists)
+        {
+            fi.Directory.Create();
+        }
         midiFile.Write(dumpFileName, true);
 
         return midiFile;
@@ -114,7 +119,7 @@ internal static class Converter
 
         if ((measure.Previous?.Bpm ?? 0) != measure.Bpm)
         {
-            events.Add(new SetTempoEvent(measure.Bpm), measure.Start);
+            //events.Add(new SetTempoEvent(measure.Bpm), measure.Start);
         }
 
         if (measure.Index > 0 && measure.SignatureArray.Count > 0)
@@ -134,19 +139,19 @@ internal static class Converter
         foreach (var i in channels)
         {
             // Program Change
-            events.Add(new ProgramChangeEvent(part.InstrumentId.To7()) { Channel = i.To4() }, timeZero);
+            //events.Add(new ProgramChangeEvent(part.InstrumentId.To7()) { Channel = i.To4() }, timeZero);
         }
 
         foreach (var i in channels)
         {
             // Mod Wheel Reset
-            events.Add(new ControlChangeEvent(1.To7(), 0.To7()) { Channel = i.To4() }, timeZero);
+            // events.Add(new ControlChangeEvent(1.To7(), 0.To7()) { Channel = i.To4() }, timeZero);
         }
 
         foreach (var i in channels)
         {
             // Pitch Bend Reset
-            events.Add(new PitchBendEvent(8192) { Channel = i.To4() }, timeZero);
+            //events.Add(new PitchBendEvent(8192) { Channel = i.To4() }, timeZero);
         }
 
         foreach (var i in channels)

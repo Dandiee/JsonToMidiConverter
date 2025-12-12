@@ -450,7 +450,7 @@ public sealed partial class Part
         var bpmChangeByMeasure = Automations.Tempo.GroupBy(e => e.Measure)
             .ToDictionary(kvp => kvp.Key, kvp => kvp.Last().Bpm);
         List<int> lastSignature = [];
-        var lastBpm = -1;
+        var lastBpm = 120;
 
         using var tempoMapManager = new TempoMapManager(midi.TimeDivision);
 

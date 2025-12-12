@@ -41,6 +41,12 @@ public static class Dumper
         }
     }
 
+    public static void DumpWithoutReference(Song song, RecordModel record, bool overwrite)
+    {
+        WriteMinifiedMidiInputJson(record, overwrite);
+        WriteMetaData(record, overwrite);
+    }
+
     public static void DumpBeforeBuild(Song song, MidiFile midi, RecordModel record, bool overwrite)
     {
         WriteMinifiedMidiInputJson(record, overwrite);

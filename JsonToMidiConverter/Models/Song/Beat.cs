@@ -39,6 +39,9 @@ public partial class Beat
     public bool HasRasgueado { get; set; }
     public BrushStroke? Arpeggio { get; set; }
     public int UpArpeggio { get; set; }
+    public object Tempo { get; set; }
+    public bool Dotted { get; set; }
+    public bool FadeIn { get; set; }
 
     public Beat Clone() => new()
     {
@@ -73,8 +76,10 @@ public partial class Beat
         DownArpeggio = DownArpeggio,
         HasRasgueado = HasRasgueado,
         Arpeggio = Arpeggio?.Clone(),
-        UpArpeggio = UpArpeggio
-
+        UpArpeggio = UpArpeggio,
+        Tempo = Tempo,
+        Dotted = Dotted,
+        FadeIn = FadeIn
     };
 }
 

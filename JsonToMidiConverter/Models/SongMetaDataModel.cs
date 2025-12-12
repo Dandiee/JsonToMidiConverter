@@ -49,6 +49,10 @@ public class SongMetaDataModel
     public string? NextMidi { get; set; }
     public string? NextMidiGenerated { get; set; }
     public AudioMeta NextAudioMeta { get; set; }
+    public object Audio { get; set; }
+    public object AudioV2 { get; set; }
+    public object AudioV2Generated { get; set; }
+    public object AudioV2Midi { get; set; }
 
 }
 

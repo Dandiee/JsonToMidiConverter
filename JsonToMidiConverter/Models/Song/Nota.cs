@@ -24,6 +24,7 @@ public sealed partial class Nota
     public bool Dead { get; set; }
     public List<long> Tremolo { get; set; } = [];
     public bool WideVibrato { get; set; }
+    public string? Velocity { get; set; }
 
     public Nota Clone() => new()
     {
@@ -43,5 +44,6 @@ public sealed partial class Nota
         Dead = Dead,
         Tremolo = Tremolo.Select(e => e).ToList(),
         WideVibrato = WideVibrato,
+        Velocity = Velocity
     };
 }
