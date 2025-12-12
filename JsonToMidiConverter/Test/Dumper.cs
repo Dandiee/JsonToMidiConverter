@@ -4,6 +4,7 @@ using JsonToMidiConverter.Models.Song;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using System;
+using System.Data;
 using System.Diagnostics;
 using System.Net.Sockets;
 using System.Text;
@@ -90,6 +91,15 @@ public static class Dumper
                             foreach (var midiNoteEvent in note.MidiNoteEvents)
                             {
                                 sb.AppendLine($"\t\t\t {GetMidiEventString(midiNoteEvent)}");
+
+                                if (midiNoteEvent.PitchBends.Count > 0)
+                                {
+                                    foreach (var pitchBend in midiNoteEvent.PitchBends)
+                                    {
+                                        sb.AppendLine($"\t\t\t\t Value {pitchBend.Value}, Time: {pitchBend.Time}");
+                                    }
+                                }
+
                             }
 
                             if (note.MidiNoteEvents.Count > 1)
@@ -200,6 +210,7 @@ public static class Dumper
         bool Note_WideVibrato
     );
 
+    public static List<(TimedNoteEvent Event, Nota Note)> Bends = [];
 
     public static List<Velocity> Velocities = [];
     public static void AssignNotesToMidiEvents(Song song, MidiFile midi, RecordModel record)
@@ -221,26 +232,9 @@ public static class Dumper
 
             foreach (var note in notes)
             {
-                if (note.Slides.Count > 0 && note.Tremolo.Count > 0)
-                    throw new Exception("Just drop this track in the bin doesnt matter fuck that");
-
-
-                if (note.Is("N0 B2 V0 M31 P0", "Santeria"))
-                {
-
-                }
+                if (note.Slides.Count > 0 && note.Tremolo.Count > 0) throw new Exception("Just drop this track in the bin doesnt matter fuck that");
 
                 var emittedNotes = note.GetEmittedNotes().ToList();
-
-                if (note.Fret == 13 && note.StringNumber == 0)
-                {
-
-                }
-
-                if (!string.IsNullOrEmpty(note.Beat.GradualVelocity))
-                {
-                    //OpenForDebug(note, record);
-                }
 
                 var c = 0;
                 foreach (var emittedNote in emittedNotes)
@@ -249,52 +243,31 @@ public static class Dumper
                         .SkipWhile(e => e.On.Channel != note.Channel || e.On.NoteNumber != emittedNote)
                         .First();
 
-                    if (noteEvent.EventIndex == 9580)
+                    if (note.Bend != null && note.Beat.TremoloBar != null)
                     {
-
-                    }
-
-                    var startError = Math.Abs(noteEvent.Start - note.Start.Tick);
-                    var endError = Math.Abs(noteEvent.End - note.End.Tick);
-                    var epsilon = 1929; // 320 + (note.Index * 150);
-
-                    if (!noteEvent.IsFuckedUp && note.Beat.Measure.Voices.Count == 1)
-                    {
-
-                        //Debug.Assert(startError < epsilon);
-                        //Debug.Assert(endError < epsilon);
                         //OpenForDebug(note, record);
-                        //note.SetTimings();
-
-                        var fucked = note.Part.Measures
-                            .SelectMany(e => e.Voices)
-                            .SelectMany(e => e.Beats)
-                            .Where(e => e.Modifications.Count > 0)
-                            .ToList();
                     }
 
-                    if ((noteEvent.Start < note.Start.Tick && startError > epsilon) ||
-                        ((!noteEvent.IsFuckedUp && /*!note.Beat.LetRing &&*/ !note.TremoloDuration.HasValue) && noteEvent.End > note.End.Tick && endError > epsilon))
+                    if (note.Bend != null)
                     {
-                        if (note.Part.Volume != 0 && note.Part.Volume != 1)
-                        {
-
-                        }
-
-                        if ((startError > 1920 || endError > 1920) && note.Voice.Index == 0)
-                        {
-
-                            //note.SetTimings();
-                        }
+                        //var pitchBends = note.GeneratePitchBends();
                     }
 
-                    var nextChannelEvent = measureEvents
-                        .SkipWhile(e => e.On.Channel != note.Channel)
-                        .First();
-
-                    if (note.Is("P1", "hendrix") && nextChannelEvent != noteEvent)
+                    if (note.Beat.TremoloBar != null)
                     {
+                        //Bends.Add(new (noteEvent, note));
+                        var pitchBends = note.GenerateBends((int)note.Duration.Tick);
+                    }
 
+                    if (note.Bend == null && note.Beat.TremoloBar == null && note.Slides.Count > 0 && emittedNotes.Count > 1 && note.TieDetails == null && noteEvent.PitchBends.Count > 2)
+                    {
+                        OpenForDebug(note, record);
+                    }
+
+
+                    if (noteEvent.PitchBends.Count > 0 && note.Bend == null)
+                    {
+                        //OpenForDebug(note, record);
                     }
 
                     measureEvents.Remove(noteEvent);
@@ -308,11 +281,9 @@ public static class Dumper
                     Debug.Assert(allUsed);
                     if (!allUsed)
                     {
-                        OpenForDebug(note, record);
+                        //OpenForDebug(note, record);
                     }
                 }
-
-
 
             }
             Debug.Assert(measureEvents.Count == 0);
@@ -486,6 +457,10 @@ public static class Dumper
                 if (partEvent.Event is NoteEvent noteEvent)
                 {
                     sb.AppendLine($"\t\t\t {i} {noteEvent.EventType.ToString()[4..],3} CH {noteEvent.Channel} NN {noteEvent.NoteNumber} V {noteEvent.Velocity} Time: {partEvent.Time}");
+                }
+                else if (partEvent.Event is PitchBendEvent pitch)
+                {
+                    sb.AppendLine($"\t\t\t {i} {"Pitch",3} CH {pitch.Channel} P {pitch.PitchValue} Time: {partEvent.Time}");
                 }
                 else if (partEvent.Event is MarkerEvent marker)
                 {

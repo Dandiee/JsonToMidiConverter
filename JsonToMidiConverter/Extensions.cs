@@ -21,9 +21,11 @@ public sealed class TimedNoteEvent
     public NoteOnEvent On { get; }
     public NoteOffEvent Off { get; }
 
+    public List<PitchBending> PitchBends { get; } = [];
+
     public bool IsFuckedUp { get; }
 
-    public TimedNoteEvent(int measureIndex, int eventIndex, TimedEvent on, TimedEvent off, bool isSongsterSpecialPieceOfShit)
+    public TimedNoteEvent(int measureIndex, int eventIndex, TimedEvent on, TimedEvent off, bool isSongsterSpecialPieceOfShit, List<TimedEvent> pitchBends)
     {
         MeasureIndex = measureIndex;
         EventIndex = eventIndex;
@@ -33,11 +35,14 @@ public sealed class TimedNoteEvent
         On = (NoteOnEvent)on.Event;
         Off = (NoteOffEvent)off.Event;
         IsFuckedUp = isSongsterSpecialPieceOfShit;
+        PitchBends = pitchBends.Select(e => new PitchBending(e.Time, ((PitchBendEvent)e.Event).PitchValue)).ToList();
     }
 
 
     public bool IsMatching(int channel, int noteNumber) => On.Channel == channel && On.NoteNumber == noteNumber;
 }
+
+public record PitchBending(long Time, ushort Value);
 
 public static class Extensions
 {
@@ -55,6 +60,8 @@ public static class Extensions
         var measureIndex = 0;
 
         var noteOns = new List<(int Index, TimedEvent On, bool IsFuckedUp)>();
+
+        var pitchBends = new Dictionary<int, List<TimedEvent>>();
 
         for (var i = 0; i < chunk.Events.Count; i++)
         {
@@ -88,7 +95,20 @@ public static class Extensions
 
                 noteOns.Remove(pair);
 
-                timedEvents.Add(new TimedNoteEvent(measureIndex, pair.Index, pair.On, new TimedEvent(noteOff, time), pair.IsFuckedUp));
+                pitchBends.TryGetValue(noteOff.Channel, out var bends);
+
+                timedEvents.Add(new TimedNoteEvent(measureIndex, pair.Index, pair.On, new TimedEvent(noteOff, time), pair.IsFuckedUp, bends ?? []));
+                pitchBends[noteOff.Channel] = [];
+            }
+            else if (midiEvent is PitchBendEvent pitch && pitch.PitchValue != 8192)
+            {
+                if (!pitchBends.TryGetValue(pitch.Channel, out var bends))
+                {
+                    bends = [];
+                    pitchBends[pitch.Channel] = bends;
+                }
+
+                bends.Add(new TimedEvent(pitch, time));
             }
         }
 

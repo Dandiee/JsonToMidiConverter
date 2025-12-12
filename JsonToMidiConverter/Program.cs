@@ -4,6 +4,7 @@ using JsonToMidiConverter.Test;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using System.Globalization;
+using System.Text.Json;
 
 
 //await Database.RefreshSong(27);
@@ -33,16 +34,28 @@ foreach (var midiPath in midis)
     }
 
     var reference = GetNormalizedMidi(midiPath);
-    Dumper.DumpBeforeBuild(song, reference, record, false);
+    Dumper.DumpBeforeBuild(song, reference, record, true);
 
     song.Build(mid, record);
 
 
-    Dumper.Dump(song, reference, record, false);
+    Dumper.Dump(song, reference, record, true);
     //Dumper.TestSlides(song, reference, record);
     c++;
 
 }
+
+
+var q = Dumper.Bends.Select(e => new
+{
+    NoteDuration = e.Note.Duration.Tick,
+    OutputPitchBends = e.Event.PitchBends,
+    InputData = e.Note.Beat.TremoloBar
+});
+
+var data = JsonSerializer.Serialize(q);
+File.WriteAllText("PitchBendings.json", data);
+
 
 var vels = Dumper.Velocities.ToHashSet();
 
