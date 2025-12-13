@@ -1,5 +1,5 @@
 ﻿namespace JsonToMidiConverter.Models.Song.Enums;
-public enum TripletFeel
+public enum TripletFeel : byte
 {
     Off,
 

@@ -3,7 +3,7 @@
 namespace JsonToMidiConverter.Models.Song.Enums;
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
-public enum Velocity
+public enum Velocity : byte
 {
     Ppp,
     Pp,

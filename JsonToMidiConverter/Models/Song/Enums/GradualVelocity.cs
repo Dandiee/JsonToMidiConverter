@@ -3,7 +3,7 @@
 namespace JsonToMidiConverter.Models.Song.Enums;
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
-public enum GradualVelocity
+public enum GradualVelocity : byte
 {
     Crescendo,
     Decrescendo
