@@ -32,10 +32,7 @@ public class SongMetaDataModel
     public int Views { get; set; }
     public string Image { get; set; }
     public bool Lyrics { get; set; }
-    public string AudioV4 { get; set; }
-    public string AudioV4Generated { get; set; }
-    public string AudioV4Midi { get; set; }
-    public Audiov4Meta AudioV4Meta { get; set; }
+    
     public string ModerationType { get; set; }
     public bool IsBlocked { get; set; }
     public bool IsOnModeration { get; set; }
@@ -49,10 +46,18 @@ public class SongMetaDataModel
     public string? NextMidi { get; set; }
     public string? NextMidiGenerated { get; set; }
     public AudioMeta NextAudioMeta { get; set; }
-    public object Audio { get; set; }
-    public object AudioV2 { get; set; }
-    public object AudioV2Generated { get; set; }
-    public object AudioV2Midi { get; set; }
+    public string Audio { get; set; }
+    
+    public string AudioV2 { get; set; }
+    public string AudioV2Generated { get; set; }
+    public string AudioV2Midi { get; set; }
+    public int AudioV2Error { get; set; }
+
+    public string AudioV4 { get; set; }
+    public string AudioV4Generated { get; set; }
+    public string AudioV4Midi { get; set; }
+    public Audiov4Meta AudioV4Meta { get; set; }
+    public int AudioV4Error { get; set; }
 
 }
 
