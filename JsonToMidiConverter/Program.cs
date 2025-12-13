@@ -75,6 +75,8 @@ foreach (var midiPath in midis)
     song.Build(mid, record);
     Converter.Convert(song, record);
 
+    Console.WriteLine($"Processing completed for {record.Title} {record.Artist}");
+
     //var reference = GetNormalizedMidi(midiPath);
     //Dumper.DumpBeforeBuild(song, reference, record, true);
 

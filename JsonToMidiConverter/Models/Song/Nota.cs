@@ -11,7 +11,7 @@ public sealed partial class Nota
     public int Fret { get; set; }
 
     [JsonPropertyName("string")]
-    public double StringNumber { get; set; }
+    public float StringNumber { get; set; }
 
     [JsonPropertyName("slide")]
     public RawSlide? RawSlide { get; set; }
@@ -24,10 +24,10 @@ public sealed partial class Nota
     public bool Staccato { get; set; }
 
     [JsonConverter(typeof(AccentuatedConverter))]
-    public double Accentuated { get; set; }
+    public float Accentuated { get; set; }
     public bool Ghost { get; set; }
     public Harmonic? Harmonic { get; set; }
-    public double HarmonicFret { get; set; }
+    public float HarmonicFret { get; set; }
     public Bend? Bend { get; set; }
     public bool Dead { get; set; }
 

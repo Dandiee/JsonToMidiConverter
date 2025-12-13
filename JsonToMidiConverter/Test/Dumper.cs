@@ -177,8 +177,8 @@ public static class Dumper
     public record Velocity(
         int ResultVelocity,
 
-        double Part_Balance,
-        double Part_Volume,
+        float Part_Balance,
+        float Part_Volume,
         int Part_InstrumentId,
 
         string Beat_OriginalVelocity,
@@ -209,7 +209,7 @@ public static class Dumper
         bool Note_HammerOnPullOffTargetNote,
         bool Note_Tie,
         bool Note_Staccato,
-        double Note_Acentuated,
+        float Note_Acentuated,
         bool Note_Ghost,
         string? Note_Harmonic,
         bool Note_Dead,

@@ -2,7 +2,7 @@
 
 public sealed class Bend
 {
-    public double Tone { get; set; }
+    public float Tone { get; set; }
     public List<Point> Points { get; set; } = [];
     
     public bool LegacyFlag { get; set; }

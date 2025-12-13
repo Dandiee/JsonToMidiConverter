@@ -6,7 +6,7 @@ public static class PitchBendGenerator
 {
     private const int MidiCenter = 8192;
     private const int PitchBendRangeSemitones = 12;
-    private const double UnitsPerCent = 8192.0 / (PitchBendRangeSemitones * 100.0);
+    private const float UnitsPerCent = 8192.0f / (PitchBendRangeSemitones * 100.0f);
     private const int PositionGridMax = 60;
 
     public static List<BendEvent> GenerateSlide(int noteDuration, int startFret, int endFret)
@@ -25,8 +25,8 @@ public static class PitchBendGenerator
 
         for (int tick = 0; tick <= slideDuration; tick += step)
         {
-            double progress = (double)tick / slideDuration;
-            int value = (int)(8192 + (targetShift * progress));
+            var progress = (float)tick / slideDuration;
+            var value = (int)(8192 + (targetShift * progress));
             events.Add(new BendEvent { Tick = tick, Value = value });
         }
 
@@ -132,7 +132,7 @@ public static class PitchBendGenerator
         int run = p2.Ticks - p1.Ticks;
         if (run == 0) return p1.Value;
 
-        double progress = (double)(tick - p1.Ticks) / run;
+        var progress = (float)(tick - p1.Ticks) / run;
         return (int)(p1.Value + (p2.Value - p1.Value) * progress);
     }
 }

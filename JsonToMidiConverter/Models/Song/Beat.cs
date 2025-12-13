@@ -10,7 +10,7 @@ public partial class Beat
 {
     public List<Nota> Notes { get; set; } = [];
     public Velocity? Velocity { get; set; }
-    public double Type { get; set; }
+    public float Type { get; set; }
     public bool PalmMute { get; set; }
     
     [JsonPropertyName("duration")]

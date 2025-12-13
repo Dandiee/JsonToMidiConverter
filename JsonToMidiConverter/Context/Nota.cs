@@ -267,7 +267,7 @@ public sealed partial class Nota : MusicalElement<Nota>
             // really wants to go above 24, on ryhtm guitar at measure 46, there are two double-upwards, both goes up 10 steps,
             // including fret 15 on string 4, resulting in fret 25 - both strings go up equally 10 steps each-each
             // but enter sandmen: https://www.songsterr.com/a/wsa/metallica-enter-sandman-tab-s19
-            // on the lead guitar at measure 99 after a long tie chain theres a double upwards from 17/16 
+            // on the lead guitar at measure 99 after a long tie chain theres a float upwards from 17/16 
             // both note goes up 6 semitones, stopping at 24. if we go till 25 we overflow with one extra note on each note 
             var maxChordFret = note.Beat.Notes.Where(e => e.Slides.Contains(slide)).Max(e => e.Fret);
             var maxTargetFret = Math.Min(Math.Max(24, maxChordFret), maxChordFret + 10);

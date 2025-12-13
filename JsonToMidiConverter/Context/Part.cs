@@ -173,7 +173,7 @@ public sealed partial class Part
             }
 
             if (division == null) continue;
-            var offset = division / 3.0;
+            var offset = division / 3.0f;
 
             foreach (var voice in measure.Voices)
             {

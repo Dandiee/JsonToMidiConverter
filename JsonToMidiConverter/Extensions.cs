@@ -219,18 +219,18 @@ public static class Extensions
     public static bool IsBefore(this IEnumerable<Slide> slides)
         => slides.Any(e => e is Slide.Below /*or Slide.Above*/);
 
-    public static int GetHarmonicOffset(double fret)
+    public static int GetHarmonicOffset(float fret)
     {
         // 1. Convert Fret to Physical String Position (Ratio from Nut)
         // Formula: position = 1 - (1 / 2^(fret/12))
-        double position = 1.0 - Math.Pow(2.0, -fret / 12.0);
+        var position = 1.0f - (float)Math.Pow(2.0f, -fret / 12.0f);
 
         // 2. Find the matching Harmonic Number (N)
         // We scan harmonics 2 (octave) through 8 (3 octaves) to find the closest fit.
         // We look for a node k/N that matches the string position.
 
         int bestHarmonic = 0;
-        double minDifference = double.MaxValue;
+        var minDifference = float.MaxValue;
 
         // Iterate through harmonics 2 to 8 (Standard guitar harmonics range)
         for (int n = 2; n <= 8; n++)
@@ -238,8 +238,8 @@ public static class Extensions
             // For each harmonic N, there are N-1 nodes (k) along the string
             for (int k = 1; k < n; k++)
             {
-                double targetNode = (double)k / n;
-                double diff = Math.Abs(position - targetNode);
+                var targetNode = (float)k / n;
+                var diff = Math.Abs(position - targetNode);
 
                 // If this is the closest node we've found so far, store it.
                 // We use a tolerance because frets like '3' are approximations of '3.2'
@@ -253,7 +253,7 @@ public static class Extensions
 
         // 3. Convert Harmonic Number to Semitone Offset
         // Formula: Offset = 12 * Log2(HarmonicNumber)
-        double exactOffset = 12.0 * Math.Log(bestHarmonic, 2);
+        var exactOffset = 12.0f * (float)Math.Log(bestHarmonic, 2);
 
         // Round to nearest integer to match the Dictionary (e.g. 27.86 -> 28)
         return (int)Math.Round(exactOffset);

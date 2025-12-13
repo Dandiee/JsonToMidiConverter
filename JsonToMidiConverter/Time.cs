@@ -25,7 +25,7 @@ public readonly struct Time : IEquatable<Time>
 
     public override string ToString() => $"{Tick} - {Span}";
 
-    public Time(long bars, double beats) : this(new BarBeatFractionTimeSpan(bars, beats)) { }
+    public Time(long bars, float beats) : this(new BarBeatFractionTimeSpan(bars, beats)) { }
 
     public Time(long numerator, long denominator)
     {
@@ -54,8 +54,8 @@ public readonly struct Time : IEquatable<Time>
     public static long operator %(Time lhs, long rhs) => lhs.Tick % rhs;
 
 
-    public static Time operator *(Time lhs, double rhs) => new((long)(lhs.Tick * rhs));
-    public static Time operator /(Time lhs, double rhs) => new((long)(lhs.Tick / rhs));
+    public static Time operator *(Time lhs, float rhs) => new((long)(lhs.Tick * rhs));
+    public static Time operator /(Time lhs, float rhs) => new((long)(lhs.Tick / rhs));
 
     public static Time operator *(Time lhs, long rhs) => new(lhs.Tick * rhs);
     public static Time operator /(Time lhs, long rhs) => new(lhs.Tick / rhs);

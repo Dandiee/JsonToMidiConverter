@@ -2,8 +2,8 @@
 
 public sealed class Point
 {
-    public double Position { get; set; }
-    public double Tone { get; set; }
+    public float Position { get; set; }
+    public float Tone { get; set; }
     public int Vibrato { get; set; }
 
     public Point Clone() => new()

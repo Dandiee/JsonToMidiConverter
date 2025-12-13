@@ -6,8 +6,8 @@ namespace JsonToMidiConverter.Models.Song;
 public sealed partial class Part
 {
     public string Name { get; set; } = string.Empty;
-    public double Balance { get; set; }
-    public double Volume { get; set; }
+    public float Balance { get; set; }
+    public float Volume { get; set; }
     public List<Measure> Measures { get; set; } = [];
     public int Frets { get; set; }
     public int[] Tuning { get; set; } = [];
