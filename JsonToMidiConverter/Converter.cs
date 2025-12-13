@@ -1,9 +1,10 @@
+using JsonToMidiConverter.Models;
 using JsonToMidiConverter.Models.Song;
+using JsonToMidiConverter.Test;
 using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
-using JsonToMidiConverter.Models;
-using JsonToMidiConverter.Test;
+using System.Threading.Channels;
 
 namespace JsonToMidiConverter;
 
@@ -26,14 +27,13 @@ internal static class Converter
         Time.Map = song.Parts[0].GetTempo(midiFile);
         midiFile.ReplaceTempoMap(Time.Map);
 
+        var usedChannels = new HashSet<int>();
+
         foreach (var part in song.Parts)
         {
-            var events = new Events();
-            AddTrackHeader(events, part);
-
             foreach (var measure in part.Measures)
             {
-                AddMeasureMarker(events, measure);
+                AddMeasureMarker(part.TimedEvents, measure);
             }
 
             var notes = part.Measures
@@ -59,9 +59,12 @@ internal static class Converter
                 {
                     var velocity = note.CalculateVelocity2(pitch == note.NoteNumber);
 
-                    events.Add(new PitchBendEvent(PitchBendCenter) { Channel = note.Channel.To4() }, cursor);
-                    events.Add(new NoteOnEvent(pitch.To7(), velocity.To7()) { Channel = note.Channel.To4() }, cursor);
-                    events.Add(new NoteOffEvent(pitch.To7(), velocity.To7()) { Channel = note.Channel.To4() }, cursor + step);
+                    usedChannels.Add(note.Channel);
+
+
+                    part.TimedEvents.Add(new PitchBendEvent(PitchBendCenter) { Channel = note.Channel.To4() }.ToTimed(cursor));
+                    part.TimedEvents.Add(new NoteOnEvent(pitch.To7(), velocity.To7()) { Channel = note.Channel.To4() }.ToTimed(cursor));
+                    part.TimedEvents.Add(new NoteOffEvent(pitch.To7(), velocity.To7()) { Channel = note.Channel.To4() }.ToTimed(cursor + step));
 
                     cursor += step;
                 }
@@ -71,7 +74,7 @@ internal static class Converter
                     var bends = note.GenerateBends((int)note.Duration.Tick);
                     foreach (var bend in bends)
                     {
-                        events.Add(new PitchBendEvent((ushort)bend.Value), note.Start + bend.Tick);
+                        part.TimedEvents.Add(new PitchBendEvent((ushort)bend.Value) { Channel = note.Channel.To4() }.ToTimed(note.Start + bend.Tick));
                     }
                 }
 
@@ -81,26 +84,34 @@ internal static class Converter
                     var bends = PitchBendGenerator.GenerateSlide((int)note.Duration.Tick, note.Fret, target);
                     foreach (var bend in bends)
                     {
-                        events.Add(new PitchBendEvent((ushort)bend.Value), note.Start + bend.Tick);
+                        part.TimedEvents.Add(new PitchBendEvent((ushort)bend.Value) { Channel = note.Channel.To4() }.ToTimed(note.Start + bend.Tick));
                     }
                 }
             }
+        }
 
-            var timedEvents = events.TimedEvents
-                .OrderBy(e => e.Event.Time)
+
+
+        foreach (var part in song.Parts)
+        {
+            AddTrackHeader(part, usedChannels);
+
+            var timedEvents = part.TimedEvents
+                .OrderBy(e => e.Time)
                 .ToList();
 
             var lastEventTime = new Time();
-            foreach(var timedEvent in timedEvents)
+            foreach (var timedEvent in timedEvents)
             {
-                var relativeTime = timedEvent.Event.Time - lastEventTime.Tick;
-                timedEvent.Event.Event.DeltaTime = relativeTime;
-                lastEventTime = new Time(timedEvent.Event.Time);
+                var relativeTime = timedEvent.Time - lastEventTime.Tick;
+                timedEvent.Event.DeltaTime = relativeTime;
+                lastEventTime = new Time(timedEvent.Time);
             }
 
+            midiFile.Chunks.Add(new TrackChunk(timedEvents.Select(e => e.Event)));
 
-            midiFile.Chunks.Add(new TrackChunk(timedEvents.Select(e => e.Event.Event)));
         }
+
 
         var dumpFileName = Dumper.GetFileName("Output", record).Replace(".js", ".mid");
         var fi = new FileInfo(dumpFileName);
@@ -109,13 +120,13 @@ internal static class Converter
             fi.Directory.Create();
         }
         midiFile.Write(dumpFileName, true);
-
+        
         return midiFile;
     }
 
-    public static void AddMeasureMarker(Events events, Measure measure)
+    public static void AddMeasureMarker(List<TimedEvent> events, Measure measure)
     {
-        events.Add(new MarkerEvent($"MEASURE_{measure.Index}"), measure.Start);
+        events.Add(new MarkerEvent($"MEASURE_{measure.Index}").ToTimed(measure.Start));
 
         if ((measure.Previous?.Bpm ?? 0) != measure.Bpm)
         {
@@ -124,22 +135,27 @@ internal static class Converter
 
         if (measure.Index > 0 && measure.SignatureArray.Count > 0)
         {
-            events.Add(new TimeSignatureEvent((byte)measure.Signature.Span.Numerator, (byte)measure.Signature.Span.Denominator), measure.Start);
+            events.Add(new TimeSignatureEvent((byte)measure.Signature.Span.Numerator, (byte)measure.Signature.Span.Denominator).ToTimed(measure.Start));
         }
     }
 
-    public static void AddTrackHeader(Events events, Part part)
+    public static void AddTrackHeader(Part part, HashSet<int> usedChannels)
     {
         var timeZero = new Time();
 
         var channels = part.InstrumentId == 1024
             ? [9]
-            : Enumerable.Range(0, 9).ToArray();
+            : usedChannels;
 
         foreach (var i in channels)
         {
             // Program Change
-            //events.Add(new ProgramChangeEvent(part.InstrumentId.To7()) { Channel = i.To4() }, timeZero);
+            var instru = part.InstrumentId == 1024 
+                ? 1024 
+                : part.InstrumentId;
+
+            //if (instru > 127) instru = 127; // Default to Acoustic Grand Piano if out of range
+            part.TimedEvents.Add(new ProgramChangeEvent(instru.To7()) { Channel = i.To4() }.ToTimed(timeZero));
         }
 
         foreach (var i in channels)
@@ -157,21 +173,21 @@ internal static class Converter
         foreach (var i in channels)
         {
             // RPN Pitch Range Setup (Your 4 events)
-            events.Add(new ControlChangeEvent(101.To7(), 0.To7()) { Channel = i.To4() }, timeZero);
-            events.Add(new ControlChangeEvent(100.To7(), 0.To7()) { Channel = i.To4() }, timeZero);
-            events.Add(new ControlChangeEvent(6.To7(), 24.To7()) { Channel = i.To4() }, timeZero);
-            events.Add(new ControlChangeEvent(38.To7(), 0.To7()) { Channel = i.To4() }, timeZero);
+            part.TimedEvents.Add(new ControlChangeEvent(101.To7(), 0.To7()) { Channel = i.To4() }.ToTimed(timeZero));
+            part.TimedEvents.Add(new ControlChangeEvent(100.To7(), 0.To7()) { Channel = i.To4() }.ToTimed(timeZero));
+            part.TimedEvents.Add(new ControlChangeEvent(6.To7(), 24.To7()) { Channel = i.To4() }.ToTimed(timeZero));
+            part.TimedEvents.Add(new ControlChangeEvent(38.To7(), 0.To7()) { Channel = i.To4() }.ToTimed(timeZero));
         }
 
 
         if (!string.IsNullOrEmpty(part.Name))
         {
-            events.Add(new SequenceTrackNameEvent(part.Name), timeZero);
+            part.TimedEvents.Add(new SequenceTrackNameEvent(part.Name).ToTimed(timeZero));
         }
 
         if (!string.IsNullOrEmpty(part.Instrument))
         {
-            events.Add(new InstrumentNameEvent(part.Instrument), timeZero);
+            part.TimedEvents.Add(new InstrumentNameEvent(part.Instrument).ToTimed(timeZero));
         }
     }
 }

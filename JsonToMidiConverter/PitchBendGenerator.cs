@@ -41,22 +41,14 @@ public static class PitchBendGenerator
     }
 
 
-    /// <summary>
-    /// Generates the combined Pitch Bend events for a note, summing Bend and Tremolo effects.
-    /// </summary>
     public static List<BendEvent> GenerateBends(this Nota input, int actualNoteDuration)
     {
         var events = new List<BendEvent>();
 
-        // 1. Determine Base Duration (Source of the 0-60 grid)
-        // If Dots=1, Base is half of Actual. Otherwise Base = Actual.
         int baseDuration = (int)input.Duration.Tick;
-
-        // 2. Determine Resolution
         int tickResolution = baseDuration / PositionGridMax;
         if (tickResolution < 1) tickResolution = 1;
 
-        // 3. Parse Definitions
         var bendPoints = ParsePoints(input.Bend, baseDuration, tickResolution);
         var tremoloPoints = ParsePoints(input.Beat.TremoloBar, baseDuration, tickResolution); // Tremolo uses same parsing logic
 
@@ -67,7 +59,7 @@ public static class PitchBendGenerator
         {
             // --- BEND LOGIC: LOOPING ---
             // Bends repeat if the note extends beyond the base duration.
-            int bendTick = currentTick % baseDuration;
+            int bendTick = Math.Min(currentTick, baseDuration);  //currentTick % baseDuration;
             int bendValue = InterpolateValue(bendPoints, bendTick);
             int bendOffset = bendValue - MidiCenter;
 

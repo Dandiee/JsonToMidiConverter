@@ -11,10 +11,8 @@ using System.Text.Json;
 
 //await Database.RefreshSong(27);
 
-while (true)
+while (false)
 {
-
-
     Console.Write("Whatcha looking for:");
     var filter = Console.ReadLine();
     Console.WriteLine("Looking for it...");
@@ -52,7 +50,11 @@ foreach (var midiPath in midis)
     var title = string.Join("-", pathParts.Skip(1).Take(pathParts.Length - 4));
 
     var record = Database.Search(artist, title).First();
-    //if (!record.Artist.Contains("Slash")) continue;
+    //if (!record.Title.Contains("Californication"))
+    if (!record.Title.Contains("Nothing Else Matters", StringComparison.OrdinalIgnoreCase))
+    {
+        continue;
+    }
 
     var song = Database.GetMidiData(record.SongId);
 
@@ -71,7 +73,7 @@ foreach (var midiPath in midis)
     song.Build(mid, record);
     Converter.Convert(song, record);
 
-    //var reference = GetNormalizedMidi(midiPath);
+    var reference = GetNormalizedMidi(midiPath);
     //Dumper.DumpBeforeBuild(song, reference, record, true);
 
 

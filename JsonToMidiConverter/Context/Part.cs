@@ -15,10 +15,15 @@ public sealed partial class Part
     [JsonIgnore] public TempoMap TempoMap { get; private set; }
     [JsonIgnore] public string FullName { get; private set; }
     [JsonIgnore] public List<Nota> Notes { get; set; } = [];
+    [JsonIgnore] public List<TimedEvent> TimedEvents { get; set; } = [];
 
 
     public void Build(Song song, int index)
     {
+        if (index == 2)
+        {
+
+        }
         TempoMap = GetTempo(song.Midi);
         Index = index;
         Song = song;

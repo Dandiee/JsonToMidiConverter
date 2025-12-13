@@ -51,6 +51,9 @@ public static class Extensions
 
     public static Time Sum(this IEnumerable<Time> times) => new(times.Sum(e => e.Tick));
 
+    public static TimedEvent ToTimed(this MidiEvent midiEvent, Time time) =>
+        new TimedEvent(midiEvent, time.Tick);
+
     public static IReadOnlyList<TimedNoteEvent> GetEvents(this MidiFile midi, int partIndex)
     {
         var chunk = midi.Chunks.OfType<TrackChunk>().ToList()[partIndex];
