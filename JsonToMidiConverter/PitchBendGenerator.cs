@@ -95,7 +95,7 @@ public static class PitchBendGenerator
 
         foreach (var p in data.Points)
         {
-            int ticks = p.Position * resolution;
+            int ticks = (int)p.Position * resolution;
             int shift = (int)Math.Round(p.Tone * UnitsPerCent);
             int value = Math.Clamp(MidiCenter + shift, 0, 16383);
             points.Add(new BendPoint { Ticks = ticks, Value = value });

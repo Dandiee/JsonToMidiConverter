@@ -25,4 +25,26 @@ public sealed partial class Part
     public bool Anacrusis { get; set; }
     public int Capo { get; set; }
     public int Voices { get; set; }
+    public bool TuningShortDrone { get; set; }
+    public CapoPartial? CapoPartial { get; set; }
+    public TrackAutomations? TrackAutomations { get; set; }
+}
+
+public sealed class CapoPartial
+{
+    public int Fret { get; set; }
+    public int[] Strings { get; set; } = [];
+}
+
+public sealed class TrackAutomations
+{
+    public TrackSoundAutomation[] TrackSoundAutomations { get; set; } = [];
+
+}
+
+public sealed class TrackSoundAutomation
+{
+    public int InstrumentId { get; set; }
+    public int Measure { get; set; }
+    public int Position { get; set; }
 }

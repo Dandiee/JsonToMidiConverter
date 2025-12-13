@@ -11,6 +11,8 @@ public sealed partial class Measure
     
     [JsonPropertyName("signature")]
     public List<int> SignatureArray { get; set; } = [];
+
+    [JsonConverter(typeof(MarkerConverter))]
     public Marker? Marker { get; set; }
     public bool Rest { get; set; }
     public bool RepeatStart { get; set; }
@@ -18,6 +20,7 @@ public sealed partial class Measure
     public bool DoubleBarline { get; set; }
     public int[] AlternateEnding { get; set; } = [];
     public string TripletFeel { get; set; }
+    public MeasureTempo? Tempo { get; set; }
 
     public Measure Clone() => new()
     {
@@ -29,6 +32,7 @@ public sealed partial class Measure
         Repeat = Repeat,
         DoubleBarline = DoubleBarline,
         TripletFeel = TripletFeel,
+        Tempo = Tempo?.Clone(),
 
         Signature = Signature,
         OriginalIndex = OriginalIndex,

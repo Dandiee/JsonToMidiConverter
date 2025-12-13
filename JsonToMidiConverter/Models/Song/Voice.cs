@@ -7,10 +7,12 @@ public sealed partial class Voice
 {
     public bool Rest { get; set; }
     public List<Beat> Beats { get; set; } = [];
+    public bool HasSameRhythm { get; set; }
 
     public Voice Clone() => new()
     {
         Rest = Rest,
-        Beats = Beats.Select(b => b.Clone()).ToList()
+        Beats = Beats.Select(b => b.Clone()).ToList(),
+        HasSameRhythm = HasSameRhythm
     };
 }

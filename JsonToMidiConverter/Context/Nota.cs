@@ -51,9 +51,10 @@ public sealed partial class Nota : MusicalElement<Nota>
         PureNoteNumber = this.GetNoteNumber(false) + Part.Capo;
         Channel = this.GetNoteChannel();
 
-        if (Tremolo.Count > 0)
+        if (Tremolo != null)
         {
-            TremoloDuration = new Time(Tremolo[0], Tremolo[1]);
+            TremoloDuration = new Time(Tremolo.Numerator, Tremolo.Denominator);
+
         }
 
         WillBeTied = Next?.Tie ?? false;
@@ -133,12 +134,12 @@ public sealed partial class Nota : MusicalElement<Nota>
 
             if (!nextBeat.LetRing)
             {
-                return nextBeat.Rest 
+                return nextBeat.Rest
                     ? nextBeat.Start
                     : nextBeat.End;
             }
 
-            
+
 
             if (nextBeat.Measure.Index > Measure.Index + 20)
             {
@@ -305,7 +306,7 @@ public sealed partial class Nota : MusicalElement<Nota>
 
 
     public override string ToString() => $"N{Index} {Beat}";
-    
+
 
 
 

@@ -2,12 +2,14 @@
 
 public sealed class Point
 {
-    public int Position { get; set; }
+    public double Position { get; set; }
     public double Tone { get; set; }
+    public int Vibrato { get; set; }
 
     public Point Clone() => new()
     {
         Position = Position,
-        Tone = Tone
+        Tone = Tone,
+        Vibrato = Vibrato
     };
 }

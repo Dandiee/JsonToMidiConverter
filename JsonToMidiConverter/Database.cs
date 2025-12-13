@@ -14,6 +14,7 @@ public static class Database
     public static readonly string MetaPath = Path.Combine(RootPath, "Meta");
     public static readonly string DatabaseFile = Path.Combine(RootPath, "Database.json");
     public static readonly string DataPath = Path.Combine(RootPath, "Data");
+    public static readonly string DumpPath = Path.Combine(RootPath, "Dump");
 
     public static readonly HashSet<char> WeirdoCharacters = new[] { '/', '?', '_' }.ToHashSet();
 
@@ -25,13 +26,57 @@ public static class Database
         PropertyNameCaseInsensitive = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
         WriteIndented = true,
-        //UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        NumberHandling = JsonNumberHandling.AllowReadingFromString,
     };
 
     static Database()
     {
         Songs = LoadDatabase();
         SongsById = Songs.ToDictionary(e => e.SongId);
+    }
+
+    public static void TestAll()
+    {
+        var c = 0;
+        foreach (var file in Directory.GetFiles(DataPath))
+        {
+            using var originalFileStream = File.OpenRead(file);
+            using var decompressionStream = new GZipStream(originalFileStream, CompressionMode.Decompress);
+
+            try
+            {
+                var result = JsonSerializer.Deserialize<Part>(decompressionStream, JsonOptions);
+                Console.WriteLine($"{c++}: {file} Ok... {result.Measures.Count}");
+            }
+            catch (Exception e)
+            {
+                DumpFile(file);
+                Console.WriteLine("Fuckedup");
+                //throw e;
+            }
+        }
+
+        Console.WriteLine("All done");
+    }
+
+    private static void DumpFile(string file)
+    {
+        using var originalFileStream = File.OpenRead(file);
+        using var decompressionStream = new GZipStream(originalFileStream, CompressionMode.Decompress);
+        using var outputStream = File.Create(Path.Combine(DumpPath, "dump.json"));
+        decompressionStream.CopyTo(outputStream);
+    }
+
+    public static async Task FullScan()
+    {
+        var ids = Enumerable.Range(100000, 100000);
+
+        await Parallel.ForEachAsync(ids,  async (i, b) =>
+        {
+            await Task.Delay(300, b);
+            await RefreshSong(i);
+        });
     }
 
     public static Song GetMidiData(int songId)
@@ -90,8 +135,7 @@ public static class Database
             .ToList();
 
 
-    public static RecordModel Get(int songId)
-        => Songs.Single(e => e.SongId == songId);
+    public static RecordModel Get(int songId) => Songs.Single(e => e.SongId == songId);
 
     public static IReadOnlyList<RecordModel> Search(string filter)
         => Songs.Where(e =>
@@ -198,23 +242,32 @@ public static class Database
         var distinctSongs = searchResultModels.DistinctBy(e => e.SongId).Select(e => e.SongId);
     }
 
+    public static List<int> FailedIds { get; set; } = [];
+
     public static async Task RefreshSong(int songId)
     {
         var client = new HttpClient();
 
-        var metaResponse = await client.GetAsync($"https://www.songsterr.com/api/meta/{songId}");
-        var metaText = await metaResponse.Content.ReadAsStringAsync();
+        Console.WriteLine($"Scanning: {songId}");
 
+        var metaResponse = await client.GetAsync($"https://www.songsterr.com/api/meta/{songId}");
+        if (!metaResponse.IsSuccessStatusCode)
+        {
+            Console.WriteLine($"Failed to load: {songId} with status code: {metaResponse.StatusCode}");
+            FailedIds.Add(songId);
+            return;
+        }
+
+        var metaText = await metaResponse.Content.ReadAsStringAsync();
         var meta = JsonSerializer.Deserialize<SongMetaDataModel>(metaText, JsonOptions);
+        Console.WriteLine($"Meta found: {meta.Artist} {meta.Title}");
 
         await File.WriteAllTextAsync(Path.Combine(MetaPath, $"{songId}.json"), metaText);
-
         for (var i = 0; i < meta!.Tracks.Length; i++)
         {
             var dataUrl = $"https://dqsljvtekg760.cloudfront.net/{meta.SongId}/{meta.RevisionId}/{meta.Image}/{i}.json";
             var dataResponse = await client.GetAsync(dataUrl);
             var dataBytes = await dataResponse.Content.ReadAsByteArrayAsync();
-
             await File.WriteAllBytesAsync(Path.Combine(DataPath, $"{meta.SongId}_{meta.RevisionId}_{i}.gz"), dataBytes);
         }
 
@@ -232,6 +285,5 @@ public static class Database
         {
             await RefreshSong(topSong.SongId);
         }
-
     }
 }

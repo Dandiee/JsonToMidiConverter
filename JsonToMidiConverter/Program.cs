@@ -8,6 +8,8 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 
+Database.TestAll();
+
 
 //await Database.RefreshSong(27);
 
@@ -64,7 +66,7 @@ foreach (var midiPath in midis)
 
 
     if (song.Parts.SelectMany(e => e.Measures).SelectMany(e => e.Voices).SelectMany(e => e.Beats)
-        .SelectMany(e => e.Notes).Any(e => e.Tremolo.Count != 0))
+        .SelectMany(e => e.Notes).Any(e => e.Tremolo != null))
     {
         Console.WriteLine("Fuck this piece of shit.");
         //continue;

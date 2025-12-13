@@ -238,7 +238,7 @@ public static class Dumper
 
             foreach (var note in notes)
             {
-                if (note.Slides.Count > 0 && note.Tremolo.Count > 0) throw new Exception("Just drop this track in the bin doesnt matter fuck that");
+                if (note.Slides.Count > 0 && note.Tremolo != null) throw new Exception("Just drop this track in the bin doesnt matter fuck that");
 
                 var emittedNotes = note.GetEmittedNotes().ToList();
 
