@@ -8,7 +8,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 
-Database.TestAll();
+//Database.TestAll();
 
 
 //await Database.RefreshSong(27);
@@ -55,7 +55,7 @@ foreach (var midiPath in midis)
     //if (!record.Title.Contains("Californication"))
     if (!record.Title.Contains("Nothing Else Matters", StringComparison.OrdinalIgnoreCase))
     {
-        continue;
+        //continue;
     }
 
     var song = Database.GetMidiData(record.SongId);
@@ -68,14 +68,14 @@ foreach (var midiPath in midis)
     if (song.Parts.SelectMany(e => e.Measures).SelectMany(e => e.Voices).SelectMany(e => e.Beats)
         .SelectMany(e => e.Notes).Any(e => e.Tremolo != null))
     {
-        Console.WriteLine("Fuck this piece of shit.");
+        //Console.WriteLine("Fuck this piece of shit.");
         //continue;
     }
 
     song.Build(mid, record);
     Converter.Convert(song, record);
 
-    var reference = GetNormalizedMidi(midiPath);
+    //var reference = GetNormalizedMidi(midiPath);
     //Dumper.DumpBeforeBuild(song, reference, record, true);
 
 

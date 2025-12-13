@@ -1,21 +1,20 @@
 ﻿using System.Diagnostics;
 using System.Text.Json.Serialization;
+using JsonToMidiConverter.Models.Song.Enums;
+using JsonToMidiConverter.Models.Song.JsonConverters;
 
 namespace JsonToMidiConverter.Models.Song;
-
-public record MusicalFraction(long Numerator, long Denominator)
-{
-    public MusicalFraction Copy() => new(Numerator, Denominator);
-}
 
 [DebuggerDisplay("N{Index} B{Beat.Index} M{Measure.Index} P{Part.Index} STR{StringNumber}/FRT{Fret} NN{NoteNumber}")]
 public sealed partial class Nota
 {
     public int Fret { get; set; }
+
     [JsonPropertyName("string")]
-    public double? StringNumber { get; set; }
+    public double StringNumber { get; set; }
+
     [JsonPropertyName("slide")]
-    public string? SlideString { get; set; }
+    public RawSlide? RawSlide { get; set; }
 
     [JsonConverter(typeof(VibratoConverter))]
     public bool Vibrato { get; set; }
@@ -27,7 +26,7 @@ public sealed partial class Nota
     [JsonConverter(typeof(AccentuatedConverter))]
     public double Accentuated { get; set; }
     public bool Ghost { get; set; }
-    public string? Harmonic { get; set; }
+    public Harmonic? Harmonic { get; set; }
     public double HarmonicFret { get; set; }
     public Bend? Bend { get; set; }
     public bool Dead { get; set; }
@@ -37,17 +36,16 @@ public sealed partial class Nota
 
     [JsonConverter(typeof(VibratoConverter))]
     public bool WideVibrato { get; set; }
-    public string? Velocity { get; set; }
+    public Velocity? Velocity { get; set; }
     public bool Grace { get; set; }
     public HarmonicData? HarmonicData { get; set; }
     public bool Trill { get; set; }
-    public string? LeftFingering { get; set; }
 
     public Nota Clone() => new()
     {
         Fret = Fret,
         StringNumber = StringNumber,
-        SlideString = SlideString,
+        RawSlide = RawSlide,
         Vibrato = Vibrato,
         Hp = Hp,
         Tie = Tie,
@@ -65,6 +63,5 @@ public sealed partial class Nota
         Grace = Grace,
         HarmonicData = HarmonicData?.Clone(),
         Trill = Trill,
-        LeftFingering = LeftFingering
     };
 }

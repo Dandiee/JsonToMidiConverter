@@ -14,7 +14,7 @@ public sealed partial class Part
     public int Strings { get; set; }
     public int InstrumentId { get; set; }
     public string Instrument { get; set; } = string.Empty;
-    public List<Newlyric> NewLyrics { get; set; } = [];
+    public List<NewLyric> NewLyrics { get; set; } = [];
     public int PartId { get; set; }
     public Automations Automations { get; set; } = new();
     public int Version { get; set; }
@@ -28,23 +28,4 @@ public sealed partial class Part
     public bool TuningShortDrone { get; set; }
     public CapoPartial? CapoPartial { get; set; }
     public TrackAutomations? TrackAutomations { get; set; }
-}
-
-public sealed class CapoPartial
-{
-    public int Fret { get; set; }
-    public int[] Strings { get; set; } = [];
-}
-
-public sealed class TrackAutomations
-{
-    public TrackSoundAutomation[] TrackSoundAutomations { get; set; } = [];
-
-}
-
-public sealed class TrackSoundAutomation
-{
-    public int InstrumentId { get; set; }
-    public int Measure { get; set; }
-    public int Position { get; set; }
 }

@@ -2,5 +2,5 @@
 
 public sealed class Automations
 {
-    public Tempó[] Tempo { get; set; } = Array.Empty<Tempó>();
+    public List<Tempó> Tempo { get; set; } = [];
 }

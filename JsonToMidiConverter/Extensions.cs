@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using JsonToMidiConverter.Models;
 using JsonToMidiConverter.Models.Song;
+using JsonToMidiConverter.Models.Song.Enums;
 using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
@@ -123,9 +124,11 @@ public static class Extensions
             .ToList();
     }
 
-    public static IEnumerable<Slide> ToSlides(this string slide)
+    public static IEnumerable<Slide> ToSlides(this RawSlide slide)
     {
-        var rest = slide;
+        if (slide == RawSlide.Unknown) yield break;
+
+        var rest = slide.ToString().ToLowerInvariant();
 
         if (rest.StartsWith("below"))
         {
@@ -153,23 +156,18 @@ public static class Extensions
     }
 
     private static readonly int[] _velocityLadder = { 45, 55, 67, 80, 87, 95, 105, 112 };
-    private static readonly Dictionary<string, int> _dynamicMap = new Dictionary<string, int>
+    private static readonly Dictionary<Velocity, int> _dynamicMap = new Dictionary<Velocity, int>
         {
-            { "ppp", 0 }, { "pp", 1 }, { "p", 2 }, { "mp", 3 },
-            { "mf", 4 },  { "f", 5 },  { "ff", 6 }, { "fff", 7 }
+            { Velocity.Ppp, 0 }, { Velocity.Pp, 1 }, { Velocity.P, 2 }, { Velocity.Mp, 3 },
+            { Velocity.Mf, 4 },  { Velocity.F, 5 },  { Velocity.Ff, 6 }, { Velocity.Fff, 7 }
         };
 
     //private static string _currentDynamic = "f"; // Default to 'f' if no start value provided
 
     public static int CalculateVelocity2(this Nota input, bool isPrimary)
     {
-        var currentDynamic = "f";
         // 1. Update State: If the beat has a new original velocity, update our current dynamic
-        if (!string.IsNullOrEmpty(input.Beat.CalculatedVelocity))
-        {
-            currentDynamic = input.Beat.CalculatedVelocity;
-
-        }
+        var currentDynamic = input.Beat.CalculatedVelocity;
 
         // 2. Get Base Index
         int index = _dynamicMap.GetValueOrDefault(currentDynamic, 5);
@@ -206,7 +204,7 @@ public static class Extensions
 
         if (input.IsHpTarget) index -= 1;
         if (input.Beat.Tapping) index -= 1;
-        if (input.Harmonic == "tapped") index--;
+        if (input.Harmonic == Harmonic.Tapped) index--;
 
         if (!isPrimary) index -= 1;
 
@@ -273,7 +271,7 @@ public static class Extensions
         var open = note.Part.Tuning.Length == 0 ? (int)note.StringNumber : note.Part.Tuning[(int)note.StringNumber];
         if (note.Harmonic == null || !withHarmonic) return open + note.Fret;
         var harmonicOffset = GetHarmonicOffset(note.HarmonicFret);
-        if (note.Harmonic.Equals("natural", StringComparison.OrdinalIgnoreCase)) return open + harmonicOffset;
+        if (note.Harmonic == Harmonic.Natural) return open + harmonicOffset;
         return open + harmonicOffset + note.Fret;
     }
 

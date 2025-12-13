@@ -1,8 +1,8 @@
 ﻿using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
-using Melanchall.DryWetMidi.MusicTheory;
 using System.Diagnostics;
 using System.Text.Json.Serialization;
+using JsonToMidiConverter.Models.Song.Enums;
 
 namespace JsonToMidiConverter.Models.Song;
 
@@ -71,7 +71,7 @@ public sealed partial class Part
     private void ApplyBeatVelocities()
     {
         //var dict = new Dictionary<int, string>();
-        var currentVelocity = "f";
+        var currentVelocity = Velocity.F;
         List<Beat> gradualVelocitySpan = [];
 
         foreach (var measure in Measures)
@@ -80,12 +80,12 @@ public sealed partial class Part
             {
                 foreach (var beat in voice.Beats)
                 {
-                    if (!string.IsNullOrEmpty(beat.Velocity))
+                    if (beat.Velocity.HasValue)
                     {
-                        currentVelocity = beat.Velocity;
+                        currentVelocity = beat.Velocity.Value;
                     }
 
-                    if (!string.IsNullOrEmpty(beat.GradualVelocity))
+                    if (!beat.GradualVelocity.HasValue)
                     {
                         if (gradualVelocitySpan.Count == 0 || gradualVelocitySpan[0].GradualVelocity == beat.GradualVelocity)
                         {
@@ -111,23 +111,13 @@ public sealed partial class Part
         {
             ProcessGradualVelocity(ref gradualVelocitySpan);
         }
-
-        Debug.Assert(
-            Measures.SelectMany(e => e.Voices[0].Beats).SkipWhile(e => string.IsNullOrEmpty(e.Velocity))
-                .All(e => !string.IsNullOrEmpty(e.CalculatedVelocity))
-        );
     }
 
-    private static readonly List<string> Velocities = ["ppp", "pp", "p", "mp", "mf", "f", "ff", "fff"];
+    private static readonly List<Velocity> Velocities = [Velocity.Ppp, Velocity.Pp, Velocity.P, Velocity.Mp, Velocity.Mf, Velocity.F, Velocity.Ff, Velocity.Fff];
     private void ProcessGradualVelocity(ref List<Beat> span)
     {
         var start = span[0].CalculatedVelocity;
-        var end = span[^1].Velocity;
-
-        if (start == end)
-        {
-
-        }
+        var end = span[^1].Velocity ?? Velocity.F;
 
         var startIndex = Velocities.IndexOf(start);
         var endIndex = Velocities.IndexOf(end);
@@ -163,10 +153,10 @@ public sealed partial class Part
         }
     }
 
-    public static readonly IReadOnlyDictionary<string, Time> SupportedSwings = new Dictionary<string, Time>
+    public static readonly IReadOnlyDictionary<TripletFeel, Time> SupportedSwings = new Dictionary<TripletFeel, Time>
     {
-        ["8th"] = new(1, 8),
-        ["16th"] = new(1, 16),
+        [TripletFeel.Eights] = new(1, 8),
+        [TripletFeel.Sixteen] = new(1, 16),
     };
 
     public void ApplyTripletFeel()
@@ -175,16 +165,11 @@ public sealed partial class Part
 
         foreach (var measure in Measures)
         {
-            if (measure.Is("M51 P2", "no one knows"))
+            if (measure.TripletFeel.HasValue)
             {
-
-            }
-
-            if (!string.IsNullOrEmpty(measure.TripletFeel))
-            {
-                division = measure.TripletFeel.Equals("off", StringComparison.InvariantCulture)
+                division = measure.TripletFeel == TripletFeel.Off
                     ? null
-                    : SupportedSwings[measure.TripletFeel];
+                    : SupportedSwings[measure.TripletFeel.Value];
             }
 
             if (division == null) continue;
@@ -195,7 +180,7 @@ public sealed partial class Part
                 var cursor = new Time();
                 foreach (var beat in voice.Beats)
                 {
-                    if (!string.IsNullOrEmpty(beat.GraceNote)) continue;
+                    if (beat.GraceNote.HasValue) continue;
 
                     var start = cursor;
                     var end = start + beat.Duration;
@@ -288,7 +273,7 @@ public sealed partial class Part
                     var tail = cluster[^1];
                     var clusterLength = cluster.Sum(e => e.Duration.Tick);
 
-                    if (head.GraceNote == "beforeBeat")
+                    if (head.GraceNote == GraceNote.BeforeBeat)
                     {
                         if (head.Previous!.Duration.Tick / 2 <= clusterLength)
                         {
@@ -302,7 +287,7 @@ public sealed partial class Part
                         }
                         else head.Previous.Duration -= clusterLength;
                     }
-                    else if (head.GraceNote == "onBeat")
+                    else if (head.GraceNote == GraceNote.OnBeat)
                     {
                         if (tail.Next!.Duration.Tick / 2 <= clusterLength)
                         {
@@ -337,7 +322,7 @@ public sealed partial class Part
 
             foreach (var voice in measure.Voices)
             {
-                var sum = voice.Beats.Where(e => string.IsNullOrEmpty(e.GraceNote)).Sum(b => b.Duration.Tick);
+                var sum = voice.Beats.Where(e => !e.GraceNote.HasValue).Sum(b => b.Duration.Tick);
                 var error = sum - duration.Tick;
 
                 if (Math.Abs(error) > 20)
@@ -355,7 +340,7 @@ public sealed partial class Part
         var targetMeasure = measure ?? voice.Measure;
 
         var expectedDuration = targetMeasure.Signature;
-        var actualDuration = voice.Beats.Where(e => string.IsNullOrEmpty(e.GraceNote)).Sum(e => e.Duration.Tick);
+        var actualDuration = voice.Beats.Where(e => !e.GraceNote.HasValue).Sum(e => e.Duration.Tick);
         var error = expectedDuration - actualDuration;
 
         if (error.Tick == 0) return;
@@ -370,7 +355,7 @@ public sealed partial class Part
             {
                 voice.Beats.Add(new Beat
                 {
-                    DurationArray = [error.Span.Numerator, error.Span.Denominator],
+                    DurationArray = new MusicalFraction(error.Span.Numerator, error.Span.Denominator),
                     Rest = true,
                     Modifications = { "Manually created" }
                 });

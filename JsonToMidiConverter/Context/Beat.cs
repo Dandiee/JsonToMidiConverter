@@ -1,6 +1,7 @@
 ﻿using JsonToMidiConverter.Context;
 using System.Diagnostics;
 using System.Text.Json.Serialization;
+using JsonToMidiConverter.Models.Song.Enums;
 
 namespace JsonToMidiConverter.Models.Song;
 
@@ -15,7 +16,7 @@ public sealed partial class Beat : MusicalElement<Beat>
         {
             if (!_duration.HasValue)
             {
-                _duration = new Time(DurationArray[0], DurationArray[1]);
+                _duration = new Time(DurationArray.Numerator, DurationArray.Denominator);
             }
 
             return _duration.Value;
@@ -35,7 +36,7 @@ public sealed partial class Beat : MusicalElement<Beat>
     [JsonIgnore] public bool LastInMeasure { get; private set; }
     [JsonIgnore] public List<string> Modifications { get; private set; } = [];
     [JsonIgnore] public List<Beat>? BeamGroup { get; set; }
-    [JsonIgnore] public string CalculatedVelocity { get; set; }
+    [JsonIgnore] public Velocity CalculatedVelocity { get; set; }
     [JsonIgnore] public List<Beat>? GradualVelocityGroup { get; set; }
 
 

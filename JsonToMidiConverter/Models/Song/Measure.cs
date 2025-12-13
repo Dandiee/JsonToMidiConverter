@@ -1,8 +1,12 @@
 ﻿using System.Diagnostics;
+using System.Text.Json;
 using System.Text.Json.Serialization;
-using Melanchall.DryWetMidi.Interaction;
+using JsonToMidiConverter.Models.Song.Enums;
+using JsonToMidiConverter.Models.Song.JsonConverters;
 
 namespace JsonToMidiConverter.Models.Song;
+
+
 
 [DebuggerDisplay("M{Index} P{Part.Index}")]
 public sealed partial class Measure
@@ -19,7 +23,9 @@ public sealed partial class Measure
     public int Repeat { get; set; }
     public bool DoubleBarline { get; set; }
     public int[] AlternateEnding { get; set; } = [];
-    public string TripletFeel { get; set; }
+
+    [JsonConverter(typeof(TripletFeelConverter))]
+    public TripletFeel? TripletFeel { get; set; }
     public MeasureTempo? Tempo { get; set; }
 
     public Measure Clone() => new()

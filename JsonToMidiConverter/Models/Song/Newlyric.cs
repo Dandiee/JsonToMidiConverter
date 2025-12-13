@@ -1,6 +1,6 @@
 ﻿namespace JsonToMidiConverter.Models.Song;
 
-public sealed class Newlyric
+public sealed class NewLyric
 {
     public int Line { get; set; }
     public int Offset { get; set; }

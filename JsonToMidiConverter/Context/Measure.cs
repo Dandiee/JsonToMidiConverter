@@ -35,7 +35,7 @@ public sealed partial class Measure : MusicalElement<Measure>
     {
         Start = Previous?.End ?? new Time();
         Duration = Part.Anacrusis && Index == 0 
-            ? new Time(Voices[0].Beats.Where(e => string.IsNullOrEmpty(e.GraceNote)).Sum(e => e.Duration.Tick))
+            ? new Time(Voices[0].Beats.Where(e => !e.GraceNote.HasValue).Sum(e => e.Duration.Tick))
             : Signature;
         End = Start + Duration;
         Bpm = (int)Math.Round(Part.TempoMap.GetTempoAtTime(Start.Span).BeatsPerMinute);

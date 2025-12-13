@@ -26,7 +26,7 @@ public static class Database
         PropertyNameCaseInsensitive = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
         WriteIndented = true,
-        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        //UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
         NumberHandling = JsonNumberHandling.AllowReadingFromString,
     };
 
@@ -38,29 +38,42 @@ public static class Database
 
     public static void TestAll()
     {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         var c = 0;
-        foreach (var file in Directory.GetFiles(MetaPath))
+        foreach (var file in Directory.GetFiles(DataPath))
         {
             using var originalFileStream = File.OpenRead(file);
-            //using var decompressionStream = new GZipStream(originalFileStream, CompressionMode.Decompress);
+            using var decompressionStream = new GZipStream(originalFileStream, CompressionMode.Decompress);
 
             try
             {
-                var result = JsonSerializer.Deserialize<SongMetaDataModel>(originalFileStream, JsonOptions);
-                Console.WriteLine($"{c++}: {file} Ok...");
+                var result = JsonSerializer.Deserialize<Part>(decompressionStream, JsonOptions);
+                //Console.WriteLine($"{c++}: {file} Ok... {result.Measures.Count}");
+
+                var shits = result.Measures;
+
+                foreach (var shit in shits)
+                {
+                    //if (shit.TripletFeel != null && set.Add(shit.TripletFeel))
+                    //{
+                    //    Console.WriteLine(shit.TripletFeel);
+                    //}
+                }
+
             }
             catch (Exception e)
             {
                 DumpFile(file);
+                
                 Console.WriteLine("Fuckedup");
-
                 if (e.Message.Contains(
-                        "The JSON property 'error' could not be mapped to any .NET member contained in type"))
+                        "The JSON value could not be converted to System.String. Path: $.measures[0].voices[0].beats[0].text.text | LineNumber: 0 | BytePositionInLine: 263.'"))
                 {
                     continue;
                 }
-                else throw e;
 
+                throw e;
             }
         }
 
@@ -70,9 +83,9 @@ public static class Database
     private static void DumpFile(string file)
     {
         using var originalFileStream = File.OpenRead(file);
-        //using var decompressionStream = new GZipStream(originalFileStream, CompressionMode.Decompress);
+        using var decompressionStream = new GZipStream(originalFileStream, CompressionMode.Decompress);
         using var outputStream = File.Create(Path.Combine(DumpPath, "dump.json"));
-        originalFileStream.CopyTo(outputStream);
+        decompressionStream.CopyTo(outputStream);
     }
 
     public static async Task FullScan()

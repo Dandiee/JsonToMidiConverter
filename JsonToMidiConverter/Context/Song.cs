@@ -14,9 +14,9 @@ public sealed partial class Song
         Name = $"{record.Artist} {record.Title}";
 
         Midi = midi;
-        Parts = Parts.OrderBy(e => e.PartId).ToArray();
+        Parts = Parts.OrderBy(e => e.PartId).ToList();
 
-        for (var i = 0; i < Parts.Length; i++)
+        for (var i = 0; i < Parts.Count; i++)
         {
             Parts[i].Build(this, i);
         }
