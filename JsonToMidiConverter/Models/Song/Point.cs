@@ -4,7 +4,7 @@ public sealed class Point
 {
     public float Position { get; set; }
     public float Tone { get; set; }
-    public int Vibrato { get; set; }
+    public byte Vibrato { get; set; }
 
     public Point Clone() => new()
     {

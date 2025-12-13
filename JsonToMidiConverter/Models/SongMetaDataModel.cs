@@ -97,8 +97,8 @@ public class Track
     public string Instrument { get; set; }
     public int Views { get; set; }
     public string Name { get; set; }
-    public int[] Tuning { get; set; }
+    public byte[] Tuning { get; set; }
     public string Hash { get; set; }
-    public int Difficulty { get; set; }
+    public byte Difficulty { get; set; }
     public bool IsVocalTrack { get; set; }
 }

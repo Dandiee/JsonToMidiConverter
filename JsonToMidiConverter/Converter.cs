@@ -133,7 +133,7 @@ internal static class Converter
             //events.Add(new SetTempoEvent(measure.Bpm), measure.Start);
         }
 
-        if (measure.Index > 0 && measure.SignatureArray.Count > 0)
+        if (measure.Index > 0 && measure.SignatureArray != null)
         {
             events.Add(new TimeSignatureEvent((byte)measure.Signature.Span.Numerator, (byte)measure.Signature.Span.Denominator).ToTimed(measure.Start));
         }

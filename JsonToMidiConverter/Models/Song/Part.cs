@@ -9,13 +9,13 @@ public sealed partial class Part
     public float Balance { get; set; }
     public float Volume { get; set; }
     public List<Measure> Measures { get; set; } = [];
-    public int Frets { get; set; }
-    public int[] Tuning { get; set; } = [];
-    public int Strings { get; set; }
-    public int InstrumentId { get; set; }
+    public sbyte Frets { get; set; }
+    public sbyte[] Tuning { get; set; } = [];
+    public byte Strings { get; set; }
+    public ushort InstrumentId { get; set; }
     public string Instrument { get; set; } = string.Empty;
     public List<NewLyric> NewLyrics { get; set; } = [];
-    public int PartId { get; set; }
+    public byte PartId { get; set; }
     public Automations Automations { get; set; } = new();
     public int Version { get; set; }
     public int SongId { get; set; }

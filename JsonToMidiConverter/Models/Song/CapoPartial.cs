@@ -2,6 +2,6 @@
 
 public sealed class CapoPartial
 {
-    public int Fret { get; set; }
-    public int[] Strings { get; set; } = [];
+    public byte Fret { get; set; }
+    public byte[] Strings { get; set; } = [];
 }

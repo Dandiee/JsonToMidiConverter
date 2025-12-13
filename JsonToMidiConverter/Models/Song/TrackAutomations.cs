@@ -9,6 +9,6 @@ public sealed class TrackAutomations
 public sealed class TrackSoundAutomation
 {
     public int InstrumentId { get; set; }
-    public int Measure { get; set; }
+    public ushort Measure { get; set; }
     public int Position { get; set; }
 }

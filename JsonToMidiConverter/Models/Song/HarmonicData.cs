@@ -4,8 +4,8 @@ public sealed class HarmonicData
 {
     public string Type { get; set; }
     public string Note { get; set; }
-    public int Shift { get; set; }
-    public int? Fret { get; set; }
+    public byte Shift { get; set; }
+    public sbyte Fret { get; set; }
 
     public HarmonicData Clone() => new()
     {

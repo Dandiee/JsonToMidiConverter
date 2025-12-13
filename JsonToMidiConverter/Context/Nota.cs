@@ -240,7 +240,7 @@ public sealed partial class Nota : MusicalElement<Nota>
     }
 
 
-    public static int GetSlideTargetPitch(Context.Slide slide, Nota note)
+    public static sbyte GetSlideTargetPitch(Context.Slide slide, Nota note)
     {
         if (slide == Context.Slide.Shift || slide == Context.Slide.Legato)
         {
@@ -270,15 +270,15 @@ public sealed partial class Nota : MusicalElement<Nota>
             // on the lead guitar at measure 99 after a long tie chain theres a float upwards from 17/16 
             // both note goes up 6 semitones, stopping at 24. if we go till 25 we overflow with one extra note on each note 
             var maxChordFret = note.Beat.Notes.Where(e => e.Slides.Contains(slide)).Max(e => e.Fret);
-            var maxTargetFret = Math.Min(Math.Max(24, maxChordFret), maxChordFret + 10);
+            var maxTargetFret = Math.Min(Math.Max((sbyte)24, maxChordFret), maxChordFret + 10);
             var maxDistance = maxTargetFret - maxChordFret;
 
             if (maxDistance == 9)
             {
-                return note.Fret + 10; // the killin in the name rule or idk
+                return (sbyte)(note.Fret + 10); // the killin in the name rule or idk
             }
 
-            return note.Fret + maxDistance;
+            return (sbyte)(note.Fret + maxDistance);
         }
         if (slide == Context.Slide.Downwards || slide == Context.Slide.Below)
         {
@@ -289,15 +289,15 @@ public sealed partial class Nota : MusicalElement<Nota>
                 .Where(e => e.Fret != 0)
                 .Min(e => e.Fret);
 
-            var minTargetFret = minChordFret - Math.Min(10, minChordFret);
+            var minTargetFret = minChordFret - Math.Min((sbyte)10, minChordFret);
             var minDistance = minTargetFret - minChordFret;
 
             if (!moveTogether)
             {
-                return Math.Max(0, note.Fret - Math.Min(10, note.Fret));
+                return (sbyte)Math.Max(0, note.Fret - Math.Min((sbyte)10, note.Fret));
             }
 
-            return Math.Max(0, note.Fret + minDistance);
+            return (sbyte)Math.Max(0, note.Fret + minDistance);
         }
 
         throw new Exception("what slide");

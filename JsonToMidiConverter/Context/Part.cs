@@ -145,9 +145,9 @@ public sealed partial class Part
         var signature = new Time();
         foreach (var measure in Measures)
         {
-            if (measure.SignatureArray.Count == 2)
+            if (measure.SignatureArray != null)
             {
-                signature = new Time(measure.SignatureArray[0], measure.SignatureArray[1]);
+                signature = new Time(measure.SignatureArray.Numerator, measure.SignatureArray.Denominator);
             }
             measure.Signature = signature;
         }
@@ -355,7 +355,7 @@ public sealed partial class Part
             {
                 voice.Beats.Add(new Beat
                 {
-                    DurationArray = new MusicalFraction(error.Span.Numerator, error.Span.Denominator),
+                    DurationArray = new MusicalFraction((byte)error.Span.Numerator, (byte)error.Span.Denominator),
                     Rest = true,
                     Modifications = { "Manually created" }
                 });
@@ -407,12 +407,12 @@ public sealed partial class Part
                 for (var i = 0; i < measure.Repeat; i++)
                 {
                     var part1 = repeats
-                        .TakeWhile(e => e.AlternateEnding.Length == 0 || e.AlternateEnding.Contains(i + 1))
+                        .TakeWhile(e => e.AlternateEnding.Count == 0 || e.AlternateEnding.Contains((byte)(i + 1)))
                         .ToList();
                     var part2 = repeats
                         .Skip(part1.Count)
-                        .SkipWhile(e => !e.AlternateEnding.Contains(i + 1))
-                        .TakeWhile(e => e.AlternateEnding.Length == 0 || e.AlternateEnding.Contains(i + 1))
+                        .SkipWhile(e => !e.AlternateEnding.Contains((byte)(i + 1)))
+                        .TakeWhile(e => e.AlternateEnding.Count == 0 || e.AlternateEnding.Contains((byte)(i + 1)))
                         .ToList();
 
                     var parts = part1.Concat(part2).ToList();
@@ -439,15 +439,15 @@ public sealed partial class Part
     {
         var bpmChangeByMeasure = Automations.Tempo.GroupBy(e => e.Measure)
             .ToDictionary(kvp => kvp.Key, kvp => kvp.Last().Bpm);
-        List<int> lastSignature = [];
+        MusicalFraction? lastSignature = null;
         var lastBpm = 120;
 
         using var tempoMapManager = new TempoMapManager(midi.TimeDivision);
 
-        for (var i = 0; i < Measures.Count; i++)
+        for (ushort i = 0; i < Measures.Count; i++)
         {
             var measure = Measures[i];
-            if (measure.SignatureArray.Count == 2)
+            if (measure.SignatureArray != null)
             {
                 lastSignature = measure.SignatureArray;
             }
@@ -458,7 +458,7 @@ public sealed partial class Part
             }
 
             var time = new BarBeatTicksTimeSpan(i, 0, 0);
-            tempoMapManager.SetTimeSignature(time, new TimeSignature(lastSignature[0], lastSignature[1]));
+            tempoMapManager.SetTimeSignature(time, new TimeSignature(lastSignature.Numerator, lastSignature.Denominator));
             tempoMapManager.SetTempo(time, Tempo.FromBeatsPerMinute(lastBpm));
         }
 

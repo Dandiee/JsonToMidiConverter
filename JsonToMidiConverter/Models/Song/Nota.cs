@@ -8,7 +8,7 @@ namespace JsonToMidiConverter.Models.Song;
 [DebuggerDisplay("N{Index} B{Beat.Index} M{Measure.Index} P{Part.Index} STR{StringNumber}/FRT{Fret} NN{NoteNumber}")]
 public sealed partial class Nota
 {
-    public int Fret { get; set; }
+    public sbyte Fret { get; set; }
 
     [JsonPropertyName("string")]
     public float StringNumber { get; set; }

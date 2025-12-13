@@ -17,14 +17,14 @@ public class MusicalFractionConverter : JsonConverter<MusicalFraction>
         // 2. Read the Numerator (First element)
         reader.Read();
         if (reader.TokenType != JsonTokenType.Number) throw new JsonException("Expected numerator.");
-        long numerator = reader.GetInt64();
+        var numerator = reader.GetByte();
 
         // 3. Read the Denominator (Second element)
         reader.Read();
         if (reader.TokenType != JsonTokenType.Number && reader.TokenType != JsonTokenType.Null) throw new JsonException("Expected denominator.");
-        long denominator = reader.TokenType == JsonTokenType.Null
-            ? 0
-            : reader.GetInt64();
+        var denominator = reader.TokenType == JsonTokenType.Null
+            ? (byte)0
+            : reader.GetByte();
 
         // 4. Consume the End of Array ']'
         reader.Read();
