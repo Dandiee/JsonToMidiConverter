@@ -1,9 +1,10 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using JsonToMidiConverter.Models;
+﻿using JsonToMidiConverter.Models;
+using JsonToMidiConverter.Models.Song;
+using Parquet.Meta;
+using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using JsonToMidiConverter.Models.Song;
 
 namespace JsonToMidiConverter;
 
@@ -15,6 +16,7 @@ public static class Database
     public static readonly string DatabaseFile = Path.Combine(RootPath, "Database.json");
     public static readonly string DataPath = Path.Combine(RootPath, "Data");
     public static readonly string DumpPath = Path.Combine(RootPath, "Dump");
+    public static readonly string BinPath = Path.Combine(RootPath, "Bin");
 
     public static readonly HashSet<char> WeirdoCharacters = new[] { '/', '?', '_' }.ToHashSet();
 
@@ -34,6 +36,42 @@ public static class Database
     {
         Songs = LoadDatabase();
         SongsById = Songs.ToDictionary(e => e.SongId);
+    }
+
+
+    public static async Task DeserEndToEnd()
+    {
+        int counter = 0;
+
+        //foreach (var metaFile in Directory.GetFiles(MetaPath))
+        await Parallel.ForEachAsync(Directory.GetFiles(MetaPath), async (metaFile, _) =>
+        {
+            var id = int.Parse(Path.GetFileNameWithoutExtension(metaFile));
+            await using var metaFileStream = File.OpenRead(metaFile);
+            var meta = JsonSerializer.Deserialize<SongMetaDataModel>(metaFileStream, JsonOptions);
+            var song = new Song { SongId = id, RevisionId = meta.RevisionId };
+
+            foreach (var partFile in Directory.GetFiles(DataPath, $"{id}_{meta.RevisionId}_*"))
+            {
+                await using var originalFileStream = File.OpenRead(partFile);
+                await using var decompressionStream = new GZipStream(originalFileStream, CompressionMode.Decompress);
+                song.Parts.Add(JsonSerializer.Deserialize<Part>(decompressionStream, JsonOptions)!);
+            }
+
+
+            var location = Path.Combine(BinPath, $"{id}.bin");
+            var bytes = DaniSerializer.Serialize(song).ToArray();
+
+            await File.WriteAllBytesAsync(location, bytes, _);
+            var returnBytes = await File.ReadAllBytesAsync(location, _);
+            var returnSong = DaniSerializer.Deserialize<Song>(returnBytes);
+
+            Interlocked.Increment(ref counter);
+            if (counter % 100 == 0)
+            {
+                Console.WriteLine($"Processed {counter} files...");
+            }
+        });
     }
 
     public static async Task DeserializeRawJsons()

@@ -1,39 +1,41 @@
 ﻿using System.Collections;
+using System.Collections.Concurrent;
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.Json.Serialization;
 
 namespace JsonToMidiConverter.Models;
-public interface ISerializable
+
+public static class DaniSerializer
 {
-    public bool GetIsDefault(object? value, Type type)
+    private record Prop(PropertyInfo Info, string Name);
+
+    private static readonly ConcurrentDictionary<Type, List<Prop>> PropCache = new();
+    private static readonly ConcurrentDictionary<PropertyInfo, Func<object, object>> GetterCache = new();
+    private static readonly ConcurrentDictionary<PropertyInfo, Action<object, object>> SetterCache = new();
+
+    private static bool GetIsDefault(object? value, Type type)
     {
         if (value is string) return true;
-
         if (value is IList list && list.Count == 0) return true;
         if (value is string str && string.IsNullOrEmpty(str)) return true;
         var defaultValue = type.IsValueType ? Activator.CreateInstance(type) : null;
         return Equals(defaultValue, value);
     }
 
-    public IEnumerable<byte> Serialize()
+    public static IEnumerable<byte> Serialize(object obj)
     {
-        var props = this
-            .GetType()
-            .GetProperties(BindingFlags.Instance | BindingFlags.Public)
-            .Where(e => e.GetCustomAttribute<JsonIgnoreAttribute>() == null)
-            .OrderBy(e => e.Name)
+        var props = GetProps(obj.GetType())
             .Select(prop =>
             {
-                var value = prop.GetValue(this);
-
+                var value = GetValue(prop, obj);
                 return new
                 {
-                    Type = prop.PropertyType,
+                    Type = prop.Info.PropertyType,
                     Value = value,
-                    IsDefault = GetIsDefault(value, prop.PropertyType)
+                    IsDefault = GetIsDefault(value, prop.Info.PropertyType)
                 };
-            })
-            .ToList();
+            }).ToList();
 
         var presenceByteCount = (props.Count + 7) / 8;
         var presenceBytes = new byte[presenceByteCount];
@@ -52,11 +54,11 @@ public interface ISerializable
 
         foreach (var prop in props.Where(e => !e.IsDefault))
         {
-            foreach (var b in GetBytes(prop.Value!, prop.Type)) yield return b;
+            foreach (var b in Serialize(prop.Value, prop.Type)) yield return b;
         }
     }
 
-    public IEnumerable<byte> GetBytes(object value, Type type)
+    private static  IEnumerable<byte> Serialize(object value, Type type)
     {
         var isList = type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>);
         if (isList && value is IList list)
@@ -66,7 +68,7 @@ public interface ISerializable
 
             foreach (var item in list)
             {
-                foreach (var b in GetBytes(item, itemType)) yield return b;
+                foreach (var b in Serialize(item, itemType)) yield return b;
             }
         }
         else if ((Nullable.GetUnderlyingType(type) ?? type).IsEnum)
@@ -75,22 +77,12 @@ public interface ISerializable
         }
         else
         {
-            foreach (var b in GetBytes(value)) yield return b;
+            foreach (var b in SerializeObject(value)) yield return b;
         }
     }
 
-    public IEnumerable<byte> GetBytes(object value)
+    private static IEnumerable<byte> SerializeObject(object value)
     {
-        if (value is ISerializable serializable)
-        {
-            foreach (var b in serializable.Serialize())
-            {
-                yield return b;
-            }
-
-            yield break;
-        }
-
         var bytes = value switch
         {
             int i => BitConverter.GetBytes(i),
@@ -104,34 +96,25 @@ public interface ISerializable
             byte b => [b],
             sbyte sb => [(byte)sb],
             string str => SerializeString(str),
-
-            _ => throw new InvalidOperationException($"Unsupported type: {value.GetType().FullName}")
+            _ => Serialize(value)
         };
 
         foreach (var b in bytes) yield return b;
     }
 
-    private IEnumerable<byte> SerializeString(string str)
+    private static IEnumerable<byte> SerializeString(string str)
     {
         var strBytes = System.Text.Encoding.UTF8.GetBytes(str);
         foreach (var b in BitConverter.GetBytes(strBytes.Length)) yield return b;
         foreach (var b in strBytes) yield return b;
     }
-}
-public static class BinaryDeserializer
-{
+
     public static T Deserialize<T>(byte[] data) where T : new()
-    {
-        var queue = new Queue<byte>(data);
-        var size = ReadBytes(queue, 4);
-        return (T)DeserializeValue(typeof(T), queue);
-    }
+        => (T)DeserializeValue(typeof(T), new Queue<byte>(data));
 
     private static object DeserializeValue(Type type, Queue<byte> queue)
     {
-        var underlyingType = Nullable.GetUnderlyingType(type);
-        var nonNullType = underlyingType ?? type;
-
+        var nonNullType = Nullable.GetUnderlyingType(type) ?? type;
         if (nonNullType.IsGenericType && nonNullType.GetGenericTypeDefinition() == typeof(List<>))
         {
             var count = BitConverter.ToInt32(ReadBytes(queue, 4));
@@ -150,37 +133,6 @@ public static class BinaryDeserializer
             return Enum.ToObject(nonNullType, queue.Dequeue());
         }
 
-        if (typeof(ISerializable).IsAssignableFrom(nonNullType))
-        {
-            var obj = Activator.CreateInstance(nonNullType)!;
-            var props = nonNullType
-                .GetProperties(BindingFlags.Instance | BindingFlags.Public)
-                .Where(e => e.GetCustomAttribute<JsonIgnoreAttribute>() == null)
-                .OrderBy(e => e.Name)
-                .ToArray();
-
-            var maskByteCount = (props.Length + 7) / 8;
-            var maskBytes = ReadBytes(queue, maskByteCount);
-
-            for (var i = 0; i < props.Length; i++)
-            {
-                var byteIndex = i / 8;
-                var bitIndex = i % 8;
-
-                var isDefault = (maskBytes[byteIndex] & (1 << bitIndex)) != 0;
-                if (!isDefault)
-                {
-                    props[i].SetValue(obj, DeserializeValue(props[i].PropertyType, queue));
-                }
-                else
-                {
-                    // Bit is 1: Value is default -> Do nothing
-                    // (obj was created with 'new', so it already has defaults)
-                }
-            }
-            return obj;
-        }
-
         return Type.GetTypeCode(nonNullType) switch
         {
             TypeCode.Int32 => BitConverter.ToInt32(ReadBytes(queue, 4)),
@@ -194,9 +146,31 @@ public static class BinaryDeserializer
             TypeCode.Byte => queue.Dequeue(),
             TypeCode.SByte => (sbyte)queue.Dequeue(),
             TypeCode.String => DeserializeString(queue),
-
-            _ => throw new InvalidOperationException($"Unsupported type: {nonNullType.FullName}")
+            _ => DeserializeObject(nonNullType, queue)
         };
+    }
+
+    private static object DeserializeObject(Type type, Queue<byte> queue)
+    {
+        var obj = Activator.CreateInstance(type)!;
+        var props = GetProps(type);
+
+        var maskByteCount = (props.Count + 7) / 8;
+        var maskBytes = ReadBytes(queue, maskByteCount);
+
+        for (var i = 0; i < props.Count; i++)
+        {
+            var byteIndex = i / 8;
+            var bitIndex = i % 8;
+
+            var isDefault = (maskBytes[byteIndex] & (1 << bitIndex)) != 0;
+            if (!isDefault)
+            {
+                SetValue(props[i], obj, DeserializeValue(props[i].Info.PropertyType, queue));
+            }
+        }
+
+        return obj;
     }
 
     private static byte[] ReadBytes(Queue<byte> queue, int count)
@@ -217,4 +191,39 @@ public static class BinaryDeserializer
         var bytes = ReadBytes(queue, length);
         return System.Text.Encoding.UTF8.GetString(bytes);
     }
+
+
+    private static object GetValue(Prop prop, object instance)
+        => GetterCache.GetOrAdd(prop.Info, CompileGetter)(instance);
+    private static Func<object, object> CompileGetter(PropertyInfo prop)
+    {
+        var instanceParam = Expression.Parameter(typeof(object), "obj");
+        var instanceCast = Expression.Convert(instanceParam, prop.DeclaringType!);
+        var propertyAccess = Expression.Property(instanceCast, prop);
+        var boxResult = Expression.Convert(propertyAccess, typeof(object));
+        return Expression.Lambda<Func<object, object>>(boxResult, instanceParam).Compile();
+    }
+
+    private static void SetValue(Prop prop, object instance, object value)
+        => SetterCache.GetOrAdd(prop.Info, CompileSetter)(instance, value);
+    private static Action<object, object> CompileSetter(PropertyInfo prop)
+    {
+        var instanceParam = Expression.Parameter(typeof(object), "obj");
+        var valueParam = Expression.Parameter(typeof(object), "value");
+        var instanceCast = Expression.Convert(instanceParam, prop.DeclaringType!);
+        var valueCast = Expression.Convert(valueParam, prop.PropertyType);
+        var assign = Expression.Assign(Expression.Property(instanceCast, prop), valueCast);
+        return Expression.Lambda<Action<object, object>>(assign, instanceParam, valueParam).Compile();
+    }
+
+    private static List<Prop> GetProps(Type type)
+        => PropCache.GetOrAdd(
+            type,
+            t => t
+                .GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                .Where(e => e.GetCustomAttribute<JsonIgnoreAttribute>() == null)
+                .OrderBy(e => e.Name)
+                .Select(e => new Prop(e, e.Name))
+                .ToList()
+        );
 }
