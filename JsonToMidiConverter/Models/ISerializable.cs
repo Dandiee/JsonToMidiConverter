@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using JsonToMidiConverter.Models.Song;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -8,7 +9,7 @@ namespace JsonToMidiConverter.Models;
 
 public static class DaniSerializer
 {
-    private record Prop(PropertyInfo Info, string Name);
+    private record Prop(PropertyInfo Info, bool IsBoolean);
 
     private static readonly ConcurrentDictionary<Type, List<Prop>> PropCache = new();
     private static readonly ConcurrentDictionary<PropertyInfo, Func<object, object>> GetterCache = new();
@@ -16,9 +17,9 @@ public static class DaniSerializer
 
     private static bool GetIsDefault(object? value, Type type)
     {
-        if (value is string) return true;
         if (value is IList list && list.Count == 0) return true;
         if (value is string str && string.IsNullOrEmpty(str)) return true;
+
         var defaultValue = type.IsValueType ? Activator.CreateInstance(type) : null;
         return Equals(defaultValue, value);
     }
@@ -26,6 +27,7 @@ public static class DaniSerializer
     public static IEnumerable<byte> Serialize(object obj)
     {
         var props = GetProps(obj.GetType())
+            .Where(prop => !prop.IsBoolean)
             .Select(prop =>
             {
                 var value = GetValue(prop, obj);
@@ -36,6 +38,8 @@ public static class DaniSerializer
                     IsDefault = GetIsDefault(value, prop.Info.PropertyType)
                 };
             }).ToList();
+
+        foreach (var b in PackBooleans(obj)) yield return b;
 
         var presenceByteCount = (props.Count + 7) / 8;
         var presenceBytes = new byte[presenceByteCount];
@@ -58,7 +62,7 @@ public static class DaniSerializer
         }
     }
 
-    private static  IEnumerable<byte> Serialize(object value, Type type)
+    private static IEnumerable<byte> Serialize(object value, Type type)
     {
         var isList = type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>);
         if (isList && value is IList list)
@@ -90,9 +94,7 @@ public static class DaniSerializer
             ushort us => BitConverter.GetBytes(us),
             ulong ul => BitConverter.GetBytes(ul),
             long l => BitConverter.GetBytes(l),
-            double d => BitConverter.GetBytes(d),
             float f => BitConverter.GetBytes(f),
-            bool bo => BitConverter.GetBytes(bo),
             byte b => [b],
             sbyte sb => [(byte)sb],
             string str => SerializeString(str),
@@ -108,6 +110,41 @@ public static class DaniSerializer
         foreach (var b in BitConverter.GetBytes(strBytes.Length)) yield return b;
         foreach (var b in strBytes) yield return b;
     }
+
+
+
+    public static byte[] PackBooleans(object obj)
+    {
+        var props = GetProps(obj.GetType()).Where(e => e.IsBoolean).ToList();
+
+        var byteCount = (props.Count + 7) / 8;
+        var buffer = new byte[byteCount];
+
+        for (var i = 0; i < props.Count; i++)
+        {
+            var isTrue = (bool)GetValue(props[i], obj);
+            if (isTrue)
+            {
+                var byteIndex = i / 8;
+                var bitIndex = i % 8;
+                buffer[byteIndex] |= (byte)(1 << bitIndex);
+            }
+        }
+
+        return buffer;
+    }
+
+    private static void UnpackBooleans(object instance, byte[] data, List<Prop> booleanProps)
+    {
+        for (int i = 0; i < booleanProps.Count; i++)
+        {
+            var byteIndex = i / 8;
+            var bitIndex = i % 8;
+            var isSet = (data[byteIndex] & (1 << bitIndex)) != 0;
+            SetValue(booleanProps[i], instance, isSet);
+        }
+    }
+
 
     public static T Deserialize<T>(byte[] data) where T : new()
         => (T)DeserializeValue(typeof(T), new Queue<byte>(data));
@@ -141,8 +178,6 @@ public static class DaniSerializer
             TypeCode.UInt64 => BitConverter.ToUInt64(ReadBytes(queue, 8)),
             TypeCode.Int64 => BitConverter.ToInt64(ReadBytes(queue, 8)),
             TypeCode.Single => BitConverter.ToSingle(ReadBytes(queue, 4)),
-            TypeCode.Double => BitConverter.ToDouble(ReadBytes(queue, 8)),
-            TypeCode.Boolean => BitConverter.ToBoolean(ReadBytes(queue, 1)),
             TypeCode.Byte => queue.Dequeue(),
             TypeCode.SByte => (sbyte)queue.Dequeue(),
             TypeCode.String => DeserializeString(queue),
@@ -153,12 +188,24 @@ public static class DaniSerializer
     private static object DeserializeObject(Type type, Queue<byte> queue)
     {
         var obj = Activator.CreateInstance(type)!;
-        var props = GetProps(type);
+        var allProps = GetProps(type);
 
-        var maskByteCount = (props.Count + 7) / 8;
+        var boolProps = allProps.Where(p => p.IsBoolean).ToList();
+        var nonBoolProps = allProps.Where(p => !p.IsBoolean).ToList();
+
+        if (boolProps.Count > 0)
+        {
+            var boolByteCount = (boolProps.Count + 7) / 8;
+            var boolBytes = ReadBytes(queue, boolByteCount);
+
+            UnpackBooleans(obj, boolBytes, boolProps);
+        }
+
+
+        var maskByteCount = (nonBoolProps.Count + 7) / 8;
         var maskBytes = ReadBytes(queue, maskByteCount);
 
-        for (var i = 0; i < props.Count; i++)
+        for (var i = 0; i < nonBoolProps.Count; i++)
         {
             var byteIndex = i / 8;
             var bitIndex = i % 8;
@@ -166,7 +213,7 @@ public static class DaniSerializer
             var isDefault = (maskBytes[byteIndex] & (1 << bitIndex)) != 0;
             if (!isDefault)
             {
-                SetValue(props[i], obj, DeserializeValue(props[i].Info.PropertyType, queue));
+                SetValue(nonBoolProps[i], obj, DeserializeValue(nonBoolProps[i].Info.PropertyType, queue));
             }
         }
 
@@ -216,14 +263,24 @@ public static class DaniSerializer
         return Expression.Lambda<Action<object, object>>(assign, instanceParam, valueParam).Compile();
     }
 
+    private static readonly HashSet<Type> TypesToExclude = 
+        [typeof(MeasureTempo), typeof(BrushStroke), typeof(Text), typeof(Marker), typeof(Bend)];
+
     private static List<Prop> GetProps(Type type)
         => PropCache.GetOrAdd(
             type,
             t => t
                 .GetProperties(BindingFlags.Instance | BindingFlags.Public)
                 .Where(e => e.GetCustomAttribute<JsonIgnoreAttribute>() == null)
+                //.Where(e => type != typeof(Beat) || !e.PropertyType.IsEnum)
+                //.Where(e => type != typeof(Beat) || e.PropertyType != typeof(bool))
+                //.Where(e => type != typeof(Beat) || e.PropertyType != typeof(byte))
+                //.Where(e => type != typeof(Beat) || !e.PropertyType.IsValueType)
+                //.Where(e => type != typeof(Beat) || e.Name != "Type")
+                //.Where(e => e.PropertyType != typeof(List<Nota>))
+                //.Where(e => e.PropertyType != typeof(List<Beat>))
                 .OrderBy(e => e.Name)
-                .Select(e => new Prop(e, e.Name))
+                .Select(e => new Prop(e, e.PropertyType == typeof(bool)))
                 .ToList()
         );
 }

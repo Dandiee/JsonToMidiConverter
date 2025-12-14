@@ -5,6 +5,8 @@ namespace JsonToMidiConverter.Models.Song.Enums;
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum VibratoWithTremoloBar : byte
 {
+    Unset,
+
     Wide,
     Slight
 }

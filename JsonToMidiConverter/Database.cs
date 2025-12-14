@@ -44,7 +44,7 @@ public static class Database
         int counter = 0;
 
         //foreach (var metaFile in Directory.GetFiles(MetaPath))
-        await Parallel.ForEachAsync(Directory.GetFiles(MetaPath), async (metaFile, _) =>
+        await Parallel.ForEachAsync(Directory.GetFiles(MetaPath)/*, new ParallelOptions{ MaxDegreeOfParallelism = 1 }*/, async (metaFile, _) =>
         {
             var id = int.Parse(Path.GetFileNameWithoutExtension(metaFile));
             await using var metaFileStream = File.OpenRead(metaFile);

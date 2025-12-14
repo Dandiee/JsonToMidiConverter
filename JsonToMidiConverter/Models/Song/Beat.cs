@@ -25,7 +25,7 @@ public partial class Beat
     public Velocity Velocity { get; set; }
     public GraceNote GraceNote { get; set; }
     public GradualVelocity GradualVelocity { get; set; }
-    public VibratoWithTremoloBar? VibratoWithTremoloBar { get; set; }
+    public VibratoWithTremoloBar VibratoWithTremoloBar { get; set; }
 
     
     public byte VibratoBar { get; set; }
@@ -36,6 +36,7 @@ public partial class Beat
     public byte UpArpeggio { get; set; }
     public byte UpStroke { get; set; }
     public byte DownStroke { get; set; }
+
 
     public bool BeamStart { get; set; }
     public bool BeamStop { get; set; }
