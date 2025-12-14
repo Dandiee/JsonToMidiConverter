@@ -1,22 +1,19 @@
 ﻿
 
 using JsonToMidiConverter.Models.Song;
-using System.Text.Json.Serialization;
 
 namespace JsonToMidiConverter.Context
 {
-    public class MusicalElement<T> where T : MusicalElement<T>
+    public interface IMusicalElement<T> where T : IMusicalElement<T>
     {
-        [JsonIgnore] public Part Part { get; set; }
-        [JsonIgnore] public int Index { get; set; }
-        [JsonIgnore] public T? Next { get; set; }
-        [JsonIgnore] public T? Previous { get; set; }
-        [JsonIgnore] public bool IsLast { get; set; }
-        [JsonIgnore] public bool IsFirst { get; set; }
+        public Part Part { get; set; }
+        public int Index { get; set; }
+        public T? Next { get; set; }
+        public T? Previous { get; set; }
 
-        [JsonIgnore] public Time Start { get; set; }
-        [JsonIgnore] public Time End { get; set; }
-        [JsonIgnore] public virtual Time Duration { get; set; }
+        public Time Start { get; set; }
+        public Time End { get; set; }
+        //public abstract Time Duration { get; set; }
 
         public IEnumerable<T> Forward()
         {

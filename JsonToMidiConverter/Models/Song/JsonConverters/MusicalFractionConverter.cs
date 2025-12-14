@@ -33,7 +33,11 @@ public class MusicalFractionConverter : JsonConverter<MusicalFraction>
             throw new JsonException("Expected end of array.");
         }
 
-        return new MusicalFraction(numerator, denominator);
+        return new MusicalFraction
+        {
+            Numerator = numerator, 
+            Denominator = denominator
+        };
     }
 
     public override void Write(Utf8JsonWriter writer, MusicalFraction value, JsonSerializerOptions options)

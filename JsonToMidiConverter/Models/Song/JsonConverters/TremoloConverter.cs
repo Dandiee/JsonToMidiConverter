@@ -9,7 +9,11 @@ public class TremoloConverter : JsonConverter<MusicalFraction?>
     {
         if (reader.TokenType == JsonTokenType.True || reader.TokenType == JsonTokenType.False)
         {
-            return reader.GetBoolean() ? new MusicalFraction(1, 16) : null;
+            return reader.GetBoolean() ? new MusicalFraction
+            {
+                Numerator = 1,
+                Denominator = 16
+            } : null;
         }
         else if (reader.TokenType == JsonTokenType.StartArray)
         {

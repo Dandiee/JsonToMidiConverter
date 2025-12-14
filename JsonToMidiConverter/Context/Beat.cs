@@ -1,16 +1,21 @@
 ﻿using JsonToMidiConverter.Context;
-using System.Diagnostics;
-using System.Text.Json.Serialization;
 using JsonToMidiConverter.Models.Song.Enums;
+using Melanchall.DryWetMidi.MusicTheory;
+using System.Diagnostics;
 
 namespace JsonToMidiConverter.Models.Song;
 
 [DebuggerDisplay("B{Index} V{Voice.Index} M{Measure.Index} P{Part.Index} - {Duration.Span}")]
-public sealed partial class Beat : MusicalElement<Beat>
+public sealed class Beat : BeatRaw, IMusicalElement<Beat>
 {
+    public Beat(BeatRaw raw)
+    {
+        this.Bootstrap(raw);
+        Notes = raw.NotesRaw.Select(e => new Nota(e)).ToList();
+    }
+
     private Time? _duration;
-    [JsonIgnore]
-    public override Time Duration
+    public Time Duration
     {
         get
         {
@@ -30,14 +35,15 @@ public sealed partial class Beat : MusicalElement<Beat>
             _duration = value;
         }
     }
-    [JsonIgnore] public Voice Voice { get; private set; }
-    [JsonIgnore] public Measure Measure => Voice.Measure;
-    [JsonIgnore] public Song Song => Part.Song;
-    [JsonIgnore] public bool LastInMeasure { get; private set; }
-    [JsonIgnore] public List<string> Modifications { get; private set; } = [];
-    [JsonIgnore] public List<Beat>? BeamGroup { get; set; }
-    [JsonIgnore] public Velocity CalculatedVelocity { get; set; }
-    [JsonIgnore] public List<Beat>? GradualVelocityGroup { get; set; }
+    public Voice Voice { get; private set; }
+    public Measure Measure => Voice.Measure;
+    public Song Song => Part.Song;
+    public bool LastInMeasure { get; private set; }
+    public List<string> Modifications { get; private set; } = [];
+    public List<Beat>? BeamGroup { get; set; }
+    public Velocity CalculatedVelocity { get; set; }
+    public List<Beat>? GradualVelocityGroup { get; set; }
+    public List<Nota>? Notes { get; set; }
 
 
     public void SetNavigation(Voice voice, int index)
@@ -95,4 +101,10 @@ public sealed partial class Beat : MusicalElement<Beat>
     }
 
     public override string ToString() => $"B{Index} {Voice}";
+    public Part Part { get; set; }
+    public int Index { get; set; }
+    public Beat? Next { get; set; }
+    public Beat? Previous { get; set; }
+    public Time Start { get; set; }
+    public Time End { get; set; }
 }

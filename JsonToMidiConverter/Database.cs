@@ -1,9 +1,12 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using JsonToMidiConverter.Models;
+﻿using JsonToMidiConverter.Models;
+using JsonToMidiConverter.Models.Song;
+using Parquet.Serialization;
+using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using JsonToMidiConverter.Models.Song;
+using Parquet;
+using static Microsoft.IO.RecyclableMemoryStreamManager;
 
 namespace JsonToMidiConverter;
 
@@ -36,46 +39,28 @@ public static class Database
         SongsById = Songs.ToDictionary(e => e.SongId);
     }
 
-    public static void TestAll()
+    public static async Task TestAll()
     {
-        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var songs = new List<SongRaw>();
 
         var c = 0;
-        foreach (var file in Directory.GetFiles(DataPath))
+        foreach (var file in Directory.GetFiles(MetaPath).Take(1000))
         {
-            using var originalFileStream = File.OpenRead(file);
-            using var decompressionStream = new GZipStream(originalFileStream, CompressionMode.Decompress);
+            var id = int.Parse(Path.GetFileNameWithoutExtension(file));
+            var songRaw = GetMidiData(id);
+            songs.Add(songRaw);
 
-            try
-            {
-                var result = JsonSerializer.Deserialize<Part>(decompressionStream, JsonOptions);
-                //Console.WriteLine($"{c++}: {file} Ok... {result.Measures.Count}");
-
-                var shits = result.Measures;
-
-                foreach (var shit in shits)
-                {
-                    //if (shit.TripletFeel != null && set.Add(shit.TripletFeel))
-                    //{
-                    //    Console.WriteLine(shit.TripletFeel);
-                    //}
-                }
-
-            }
-            catch (Exception e)
-            {
-                DumpFile(file);
-                
-                Console.WriteLine("Fuckedup");
-                if (e.Message.Contains(
-                        "The JSON value could not be converted to System.String. Path: $.measures[0].voices[0].beats[0].text.text | LineNumber: 0 | BytePositionInLine: 263.'"))
-                {
-                    continue;
-                }
-
-                throw e;
-            }
+            Console.WriteLine($"Processed: {id}");
         }
+
+
+        ParquetSerializer.SerializeAsync(songs, "giga.db", new ParquetSerializerOptions()
+        {
+            CompressionLevel = CompressionLevel.SmallestSize,
+            CompressionMethod = CompressionMethod.Zstd
+        });
+
+        var dtos = await ParquetSerializer.DeserializeAsync<SongRaw>("giga.db");
 
         Console.WriteLine("All done");
     }
@@ -92,20 +77,21 @@ public static class Database
     {
         var ids = Enumerable.Range(100000, 100000);
 
-        await Parallel.ForEachAsync(ids,  async (i, b) =>
+        await Parallel.ForEachAsync(ids, async (i, b) =>
         {
             await Task.Delay(300, b);
             await RefreshSong(i);
         });
     }
 
-    public static Song GetMidiData(int songId)
+    public static SongRaw GetMidiData(int songId)
     {
-        var record = SongsById[songId];
+        //var record = SongsById[songId];
 
-        var files = Enumerable
-            .Range(0, record.Parts)
-            .Select(i => Path.Combine(DataPath, $"{record.SongId}_{record.RevisionId}_{i}.gz"))
+        var meta = GetMetaData(songId);
+
+        var files = Directory
+            .GetFiles(DataPath, $"{meta.SongId}_{meta.RevisionId}_*")
             .ToList();
 
         var streams = files
@@ -120,9 +106,9 @@ public static class Database
 
         streams.ForEach(s => s.Dispose());
 
-        var content = $"{{\"parts\":[{string.Join(", ", textContents)}], \"songId\": {record.SongId}}}";
+        var content = $"{{\"parts\":[{string.Join(", ", textContents)}], \"songId\": {meta.SongId}, \"revisionId\": {meta.RevisionId}}}";
 
-        return JsonSerializer.Deserialize<Song>(content, JsonOptions);
+        return JsonSerializer.Deserialize<SongRaw>(content, JsonOptions);
     }
 
     private static Stream DecompressGzip(string compressedFilePath)

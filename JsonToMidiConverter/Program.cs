@@ -8,7 +8,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 
-//Database.TestAll();
+await Database.TestAll();
 
 
 //await Database.RefreshSong(27);
@@ -30,16 +30,16 @@ while (false)
     await Database.RefreshSong(best.SongId);
 
     Console.WriteLine("Processing midi...");
-    var bestMidi = Database.GetMidiData(best.SongId);
-    var bestSong = Database.Get(best.SongId);
-    Dumper.DumpWithoutReference(bestMidi, bestSong, true);
+    var song = new Song(Database.GetMidiData(best.SongId));
+    var record = Database.Get(best.SongId);
+    Dumper.DumpWithoutReference(song, record, true);
     var output = new MidiFile { TimeDivision = Converter.Tpqn };
-    Time.Map = bestMidi.Parts[0].GetTempo(output);
+    Time.Map = song.Parts[0].GetTempo(output);
     output.ReplaceTempoMap(Time.Map);
-    bestMidi.Build(output, bestSong);
+    song.Build(output, record);
 
 
-    Converter.Convert(bestMidi, bestSong);
+    Converter.Convert(song, record);
     Console.WriteLine("EZ GG WP");
 }
 
@@ -58,7 +58,7 @@ foreach (var midiPath in midis)
         //continue;
     }
 
-    var song = Database.GetMidiData(record.SongId);
+    var song = new Song(Database.GetMidiData(record.SongId));
 
     var mid = new MidiFile { TimeDivision = Converter.Tpqn };
     Time.Map = song.Parts[0].GetTempo(mid);

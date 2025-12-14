@@ -6,13 +6,21 @@ using Melanchall.DryWetMidi.Interaction;
 namespace JsonToMidiConverter.Models.Song;
 
 [DebuggerDisplay("M{Index} P{Part.Index}")]
-public sealed partial class Measure : MusicalElement<Measure>
+public sealed class Measure : MeasureRaw, IMusicalElement<Measure>
 {
-    [JsonIgnore]public Song Song => Part.Song;
-    [JsonIgnore] public int OriginalIndex { get; set; }
-    [JsonIgnore] public Time Signature { get; set; }
-    [JsonIgnore] public int RepeatIndex { get; set; }
-    [JsonIgnore] public int Bpm { get; set; }
+    public Measure(MeasureRaw raw)
+    {
+        this.Bootstrap(raw);
+        Voices = raw.VoicesRaw.Select(e => new Voice(e)).ToList();
+    }
+
+    public List<Voice> Voices { get; set; } = [];
+
+    public Song Song => Part.Song;
+    public int OriginalIndex { get; set; }
+    public Time Signature { get; set; }
+    public int RepeatIndex { get; set; }
+    public int Bpm { get; set; }
 
     public void SetNavigation(Part part, int index)
     {
@@ -44,4 +52,12 @@ public sealed partial class Measure : MusicalElement<Measure>
 
 
     public override string ToString() => $"M{Index} {Part}";
+
+    public Part Part { get; set; }
+    public int Index { get; set; }
+    public Measure? Next { get; set; }
+    public Measure? Previous { get; set; }
+    public Time Start { get; set; }
+    public Time End { get; set; }
+    public Time Duration { get; set; }
 }

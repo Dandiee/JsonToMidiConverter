@@ -309,7 +309,7 @@ public static class Dumper
     {
         if (!overwrite && File.Exists(GetFileName("JsonMini", record))) return;
 
-        var song = Database.GetMidiData(record.SongId);
+        var song = new Song(Database.GetMidiData(record.SongId));
         var sb = new StringBuilder();
         foreach (var part in song.Parts)
         {

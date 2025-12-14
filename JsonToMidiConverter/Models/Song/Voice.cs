@@ -1,18 +1,21 @@
 ﻿using System.Diagnostics;
+using System.Text.Json.Serialization;
 
 namespace JsonToMidiConverter.Models.Song;
 
 [DebuggerDisplay("V{Index} M{Measure.Index} P{Part.Index}")]
-public sealed partial class Voice
+public class VoiceRaw
 {
     public bool Rest { get; set; }
-    public List<Beat> Beats { get; set; } = [];
+    
+    [JsonPropertyName("beats")]
+    public List<BeatRaw> BeatsRaw { get; set; } = [];
     public bool HasSameRhythm { get; set; }
 
-    public Voice Clone() => new()
+    public VoiceRaw Clone() => new()
     {
         Rest = Rest,
-        Beats = Beats.Select(b => b.Clone()).ToList(),
+        BeatsRaw = BeatsRaw.Select(b => b.Clone()).ToList(),
         HasSameRhythm = HasSameRhythm
     };
 }

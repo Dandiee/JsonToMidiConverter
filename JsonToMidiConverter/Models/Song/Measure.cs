@@ -8,10 +8,11 @@ namespace JsonToMidiConverter.Models.Song;
 
 
 [DebuggerDisplay("M{Index} P{Part.Index}")]
-public sealed partial class Measure
+public class MeasureRaw
 {
-    public List<Voice> Voices { get; set; } = [];
-    
+    [JsonPropertyName("voices")]
+    public List<VoiceRaw> VoicesRaw { get; set; } = [];
+
     [JsonPropertyName("signature")]
 
     [JsonConverter(typeof(MusicalFractionConverter))]
@@ -29,9 +30,9 @@ public sealed partial class Measure
     public TripletFeel? TripletFeel { get; set; }
     public MeasureTempo? Tempo { get; set; }
 
-    public Measure Clone() => new()
+    public MeasureRaw Clone() => new()
     {
-        Voices = Voices.Select(v => v.Clone()).ToList(),
+        VoicesRaw = VoicesRaw.Select(v => v.Clone()).ToList(),
         SignatureArray = SignatureArray?.Copy(),
         Marker = Marker?.Clone(),
         Rest = Rest,
@@ -41,7 +42,7 @@ public sealed partial class Measure
         TripletFeel = TripletFeel,
         Tempo = Tempo?.Clone(),
 
-        Signature = Signature,
-        OriginalIndex = OriginalIndex,
+        //Signature = Signature,
+        //OriginalIndex = OriginalIndex,
     };
 }

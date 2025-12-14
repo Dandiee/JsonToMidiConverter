@@ -1,16 +1,19 @@
 ﻿using System.Diagnostics;
+using System.Text.Json.Serialization;
 
 namespace JsonToMidiConverter.Models.Song;
 
 [DebuggerDisplay("P{Index}")]
-public sealed partial class Part
+public class PartRaw
 {
     public string Name { get; set; } = string.Empty;
     public float Balance { get; set; }
     public float Volume { get; set; }
-    public List<Measure> Measures { get; set; } = [];
+
+    [JsonPropertyName("measures")]
+    public List<MeasureRaw> MeasuresRaw { get; set; } = [];
     public sbyte Frets { get; set; }
-    public sbyte[] Tuning { get; set; } = [];
+    public List<sbyte> Tuning { get; set; } = [];
     public byte Strings { get; set; }
     public ushort InstrumentId { get; set; }
     public string Instrument { get; set; } = string.Empty;

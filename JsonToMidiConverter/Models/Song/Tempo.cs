@@ -1,6 +1,6 @@
 ﻿namespace JsonToMidiConverter.Models.Song;
 
-public sealed class Tempó : MeasureTempo
+public sealed class Tempo : MeasureTempo
 {
     public ushort Measure { get; set; }
     public float Position { get; set; }

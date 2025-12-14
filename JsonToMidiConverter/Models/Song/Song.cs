@@ -1,9 +1,12 @@
-﻿namespace JsonToMidiConverter.Models.Song;
+﻿using System.Text.Json.Serialization;
 
-public sealed partial class Song
+namespace JsonToMidiConverter.Models.Song;
+
+public class SongRaw
 {
     public int SongId { get; set; }
     public int RevisionId { get; set; }
-    public List<Part> Parts { get; set; } = [];
-
+    
+    [JsonPropertyName("parts")]
+    public List<PartRaw> PartsRaw { get; set; } = [];
 }

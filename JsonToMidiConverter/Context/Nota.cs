@@ -7,22 +7,27 @@ using Melanchall.DryWetMidi.Common;
 namespace JsonToMidiConverter.Models.Song;
 
 [DebuggerDisplay("N{Index} B{Beat.Index} V{Voice.Index} M{Measure.Index} P{Part.Index}")]
-public sealed partial class Nota : MusicalElement<Nota>
+public sealed class Nota : NoteRaw, IMusicalElement<Nota>
 {
-    [JsonIgnore] public Beat Beat { get; private set; }
-    [JsonIgnore] public Voice Voice => Beat.Voice;
-    [JsonIgnore] public Measure Measure => Voice.Measure;
-    [JsonIgnore] public Song Song => Part.Song;
-    [JsonIgnore] public int Channel { get; private set; }
-    [JsonIgnore] public SevenBitNumber NoteNumber { get; set; }
-    [JsonIgnore] public bool WillBeTied { get; private set; }
-    [JsonIgnore] public List<Context.Slide> Slides { get; private set; } = [];
-    [JsonIgnore] public List<TimedNoteEvent> MidiNoteEvents { get; set; } = [];
-    [JsonIgnore] public TieContext? TieDetails { get; private set; }
-    [JsonIgnore] public bool LastInBeat { get; private set; }
-    [JsonIgnore] public Time? TremoloDuration { get; private set; }
-    [JsonIgnore] public int PureNoteNumber { get; private set; }
-    [JsonIgnore] public bool IsHpTarget { get; private set; }
+    public Nota(NoteRaw raw)
+    {
+        this.Bootstrap(raw);
+    }
+
+    public Beat Beat { get; private set; }
+    public Voice Voice => Beat.Voice;
+    public Measure Measure => Voice.Measure;
+    public Song Song => Part.Song;
+    public int Channel { get; private set; }
+    public SevenBitNumber NoteNumber { get; set; }
+    public bool WillBeTied { get; private set; }
+    public List<Slide> Slides { get; private set; } = [];
+    public List<TimedNoteEvent> MidiNoteEvents { get; set; } = [];
+    public TieContext? TieDetails { get; private set; }
+    public bool LastInBeat { get; private set; }
+    public Time? TremoloDuration { get; private set; }
+    public int PureNoteNumber { get; private set; }
+    public bool IsHpTarget { get; private set; }
 
     public void SetNavigation(Beat beat, int index)
     {
@@ -120,7 +125,7 @@ public sealed partial class Nota : MusicalElement<Nota>
                 : tieEnd.Beat.End;
         }
 
-        foreach (var nextBeat in tieEnd.Beat.Forward().Skip(1))
+        foreach (var nextBeat in ((IMusicalElement<Beat>)tieEnd.Beat).Forward().Skip(1))
         {
             if (nextBeat.Notes.Any(e => e.StringNumber == StringNumber))
             {
@@ -308,9 +313,13 @@ public sealed partial class Nota : MusicalElement<Nota>
     public override string ToString() => $"N{Index} {Beat}";
 
 
-
-
-
+    public Part Part { get; set; }
+    public int Index { get; set; }
+    public Nota? Next { get; set; }
+    public Nota? Previous { get; set; }
+    public Time Start { get; set; }
+    public Time End { get; set; }
+    public Time Duration { get; set; }
 }
 
 public sealed class TieContext

@@ -6,7 +6,7 @@ using JsonToMidiConverter.Models.Song.JsonConverters;
 namespace JsonToMidiConverter.Models.Song;
 
 [DebuggerDisplay("N{Index} B{Beat.Index} M{Measure.Index} P{Part.Index} STR{StringNumber}/FRT{Fret} NN{NoteNumber}")]
-public sealed partial class Nota
+public class NoteRaw
 {
     public sbyte Fret { get; set; }
 
@@ -41,7 +41,7 @@ public sealed partial class Nota
     public HarmonicData? HarmonicData { get; set; }
     public bool Trill { get; set; }
 
-    public Nota Clone() => new()
+    public NoteRaw Clone() => new()
     {
         Fret = Fret,
         StringNumber = StringNumber,

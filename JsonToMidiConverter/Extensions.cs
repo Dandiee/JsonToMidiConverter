@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Reflection;
 using JsonToMidiConverter.Models;
 using JsonToMidiConverter.Models.Song;
 using JsonToMidiConverter.Models.Song.Enums;
@@ -54,6 +55,16 @@ public static class Extensions
 
     public static TimedEvent ToTimed(this MidiEvent midiEvent, Time time) =>
         new TimedEvent(midiEvent, time.Tick);
+
+    public static void Bootstrap<T>(this T model, T raw)
+    {
+        var props = typeof(T).GetProperties(BindingFlags.Instance | BindingFlags.Public);
+        foreach (var prop in props)
+        {
+            var sourceValue = prop.GetValue(raw);
+            prop.SetValue(model, sourceValue);
+        }
+    }
 
     public static IReadOnlyList<TimedNoteEvent> GetEvents(this MidiFile midi, int partIndex)
     {
@@ -268,7 +279,7 @@ public static class Extensions
             return DrumMapping.Mapping.TryGetValue(note.Fret, out var noteNumber) ? noteNumber.NoteNumber : note.Fret; // default to Acoustic Bass Drum
         }
 
-        var open = note.Part.Tuning.Length == 0 ? (int)note.StringNumber : note.Part.Tuning[(int)note.StringNumber];
+        var open = note.Part.Tuning.Count == 0 ? (int)note.StringNumber : note.Part.Tuning[(int)note.StringNumber];
         if (note.Harmonic == null || !withHarmonic) return open + note.Fret;
         var harmonicOffset = GetHarmonicOffset(note.HarmonicFret);
         if (note.Harmonic == Harmonic.Natural) return open + harmonicOffset;

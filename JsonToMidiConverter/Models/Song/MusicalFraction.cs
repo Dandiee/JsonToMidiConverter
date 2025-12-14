@@ -1,6 +1,13 @@
 ﻿namespace JsonToMidiConverter.Models.Song;
 
-public record MusicalFraction(byte Numerator, byte Denominator)
+public sealed class MusicalFraction
 {
-    public MusicalFraction Copy() => new(Numerator, Denominator);
+    public byte Numerator { get; set; }
+    public byte Denominator { get; set; }
+
+    public MusicalFraction Copy() => new()
+    {
+        Numerator = Numerator, 
+        Denominator = Denominator
+    };
 }

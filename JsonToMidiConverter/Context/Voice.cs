@@ -6,13 +6,20 @@ using System.Text.Json.Serialization;
 namespace JsonToMidiConverter.Models.Song;
 
 [DebuggerDisplay("V{Index} M{Measure.Index} P{Part.Index}")]
-public sealed partial class Voice
+public sealed class Voice : VoiceRaw
 {
-    [JsonIgnore] public Measure Measure { get; private set; }
-    [JsonIgnore] public Part Part => Measure.Part;
-    [JsonIgnore] public Song Song => Part.Song;
-    [JsonIgnore] public int Index { get; private set; }
-    [JsonIgnore] public List<List<Beat>> BeamGroups { get; private set; } = [];
+    public Voice(VoiceRaw raw)
+    {
+        this.Bootstrap(raw);
+        Beats = raw.BeatsRaw.Select(e => new Beat(e)).ToList();
+    }
+
+    public List<Beat> Beats { get; set; }
+    public Measure Measure { get; private set; }
+    public Part Part => Measure.Part;
+    public Song Song => Part.Song;
+    public int Index { get; private set; }
+    public List<List<Beat>> BeamGroups { get; private set; } = [];
 
     public void SetNavigation(Measure measure, int index)
     {

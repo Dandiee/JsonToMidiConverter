@@ -6,9 +6,10 @@ using JsonToMidiConverter.Models.Song.JsonConverters;
 namespace JsonToMidiConverter.Models.Song;
 
 [DebuggerDisplay("B{Index} M{Measure.Index} P{Part.Index}")]
-public partial class Beat
+public class BeatRaw
 {
-    public List<Nota> Notes { get; set; } = [];
+    [JsonPropertyName("notes")]
+    public List<NoteRaw> NotesRaw { get; set; } = [];
     public Velocity? Velocity { get; set; }
     public float Type { get; set; }
     public bool PalmMute { get; set; }
@@ -64,9 +65,9 @@ public partial class Beat
 
     public bool DoubleDotted { get; set; }
 
-    public Beat Clone() => new()
+    public BeatRaw Clone() => new()
     {
-        Notes = Notes.Select(e => e.Clone()).ToList(),
+        NotesRaw = NotesRaw.Select(e => e.Clone()).ToList(),
         Velocity = Velocity,
         Type = Type,
         PalmMute = PalmMute,

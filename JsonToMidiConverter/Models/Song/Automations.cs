@@ -2,5 +2,5 @@
 
 public sealed class Automations
 {
-    public List<Tempó> Tempo { get; set; } = [];
+    public List<Tempo> Tempo { get; set; } = [];
 }

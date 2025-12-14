@@ -1,22 +1,30 @@
-﻿using Melanchall.DryWetMidi.Core;
+﻿using JsonToMidiConverter.Context;
+using JsonToMidiConverter.Models.Song.Enums;
+using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using System.Diagnostics;
+using System.IO;
 using System.Text.Json.Serialization;
-using JsonToMidiConverter.Models.Song.Enums;
 
 namespace JsonToMidiConverter.Models.Song;
 
 [DebuggerDisplay("P{Index} {Song.Name} {Instrument} {Name}")]
-public sealed partial class Part
+public sealed class Part : PartRaw
 {
-    [JsonIgnore] public int Index { get; private set; }
-    [JsonIgnore] public Song Song { get; private set; }
-    [JsonIgnore] public bool IsPianoLike { get; private set; }
-    [JsonIgnore] public TempoMap TempoMap { get; private set; }
-    [JsonIgnore] public string FullName { get; private set; }
-    [JsonIgnore] public List<Nota> Notes { get; set; } = [];
-    [JsonIgnore] public List<TimedEvent> TimedEvents { get; set; } = [];
+    public Part(PartRaw raw)
+    {
+        this.Bootstrap(raw);
+        Measures = raw.MeasuresRaw.Select(e => new Measure(e)).ToList();
+    }
 
+    public int Index { get; private set; }
+    public Song Song { get; private set; }
+    public bool IsPianoLike { get; private set; }
+    public TempoMap TempoMap { get; private set; }
+    public string FullName { get; private set; }
+    public List<Nota> Notes { get; set; } = [];
+    public List<TimedEvent> TimedEvents { get; set; } = [];
+    public List<Measure> Measures { get; set; } = [];
 
     public void Build(Song song, int index)
     {
@@ -42,7 +50,7 @@ public sealed partial class Part
 
         ApplyTripletFeel();
         ProcessGraceClusters();
-        
+
 
         Measures.ForEach(m => m.Build());
 
@@ -353,17 +361,23 @@ public sealed partial class Part
             }
             else
             {
-                voice.Beats.Add(new Beat
+                voice.Beats.Add(new Beat(new BeatRaw
                 {
-                    DurationArray = new MusicalFraction((byte)error.Span.Numerator, (byte)error.Span.Denominator),
+                    DurationArray = new MusicalFraction
+                    {
+                        Numerator = (byte)error.Span.Numerator,
+                        Denominator = (byte)error.Span.Denominator
+                    },
                     Rest = true,
+                })
+                {
                     Modifications = { "Manually created" }
                 });
             }
         }
         else
         {
-            foreach (var beat in voice.Beats[^1].Backward())
+            foreach (var beat in ((IMusicalElement<Beat>)voice.Beats[^1]).Backward())
             {
                 var beatDuration = beat.Duration;
                 if (beatDuration.Tick < Math.Abs(error.Tick))
@@ -417,12 +431,7 @@ public sealed partial class Part
 
                     var parts = part1.Concat(part2).ToList();
 
-                    measures.AddRange(parts.Select(repeat =>
-                    {
-                        var copy = repeat.Clone();
-                        copy.RepeatIndex = i + 1;
-                        return copy;
-                    }));
+                    measures.AddRange(parts.Select(repeat => new Measure(repeat.Clone())));
                 }
 
                 repeats.Clear();
@@ -459,7 +468,7 @@ public sealed partial class Part
 
             var time = new BarBeatTicksTimeSpan(i, 0, 0);
             tempoMapManager.SetTimeSignature(time, new TimeSignature(lastSignature.Numerator, lastSignature.Denominator));
-            tempoMapManager.SetTempo(time, Tempo.FromBeatsPerMinute(lastBpm));
+            tempoMapManager.SetTempo(time, Melanchall.DryWetMidi.Interaction.Tempo.FromBeatsPerMinute(lastBpm));
         }
 
         return tempoMapManager.TempoMap;
