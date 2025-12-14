@@ -3,7 +3,6 @@
 public sealed class TrackAutomations
 {
     public TrackSoundAutomation[] TrackSoundAutomations { get; set; } = [];
-
 }
 
 public sealed class TrackSoundAutomation

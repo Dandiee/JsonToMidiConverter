@@ -22,11 +22,11 @@ public sealed partial class Measure
     public bool Rest { get; set; }
     public bool RepeatStart { get; set; }
     public byte Repeat { get; set; }
-    public bool DoubleBarline { get; set; }
+    public bool DoubleBarLine { get; set; }
     public List<byte> AlternateEnding { get; set; } = [];
 
     [JsonConverter(typeof(TripletFeelConverter))]
-    public TripletFeel? TripletFeel { get; set; }
+    public TripletFeel TripletFeel { get; set; }
     public MeasureTempo? Tempo { get; set; }
 
     public Measure Clone() => new()
@@ -37,7 +37,7 @@ public sealed partial class Measure
         Rest = Rest,
         RepeatStart = RepeatStart,
         Repeat = Repeat,
-        DoubleBarline = DoubleBarline,
+        DoubleBarLine = DoubleBarLine,
         TripletFeel = TripletFeel,
         Tempo = Tempo?.Clone(),
 

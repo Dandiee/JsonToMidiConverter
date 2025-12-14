@@ -80,12 +80,12 @@ public sealed partial class Part
             {
                 foreach (var beat in voice.Beats)
                 {
-                    if (beat.Velocity.HasValue)
+                    if (beat.Velocity != Velocity.Unset)
                     {
-                        currentVelocity = beat.Velocity.Value;
+                        currentVelocity = beat.Velocity;
                     }
 
-                    if (!beat.GradualVelocity.HasValue)
+                    if (beat.GradualVelocity == GradualVelocity.Unset)
                     {
                         if (gradualVelocitySpan.Count == 0 || gradualVelocitySpan[0].GradualVelocity == beat.GradualVelocity)
                         {
@@ -117,7 +117,7 @@ public sealed partial class Part
     private void ProcessGradualVelocity(ref List<Beat> span)
     {
         var start = span[0].CalculatedVelocity;
-        var end = span[^1].Velocity ?? Velocity.F;
+        var end = span[^1].Velocity == Velocity.Unset ? Velocity.F : span[^1].Velocity;
 
         var startIndex = Velocities.IndexOf(start);
         var endIndex = Velocities.IndexOf(end);
@@ -165,11 +165,11 @@ public sealed partial class Part
 
         foreach (var measure in Measures)
         {
-            if (measure.TripletFeel.HasValue)
+            if (measure.TripletFeel != TripletFeel.Unset)
             {
                 division = measure.TripletFeel == TripletFeel.Off
                     ? null
-                    : SupportedSwings[measure.TripletFeel.Value];
+                    : SupportedSwings[measure.TripletFeel];
             }
 
             if (division == null) continue;
@@ -180,7 +180,7 @@ public sealed partial class Part
                 var cursor = new Time();
                 foreach (var beat in voice.Beats)
                 {
-                    if (beat.GraceNote.HasValue) continue;
+                    if (beat.GraceNote != GraceNote.Unset) continue;
 
                     var start = cursor;
                     var end = start + beat.Duration;
@@ -322,7 +322,7 @@ public sealed partial class Part
 
             foreach (var voice in measure.Voices)
             {
-                var sum = voice.Beats.Where(e => !e.GraceNote.HasValue).Sum(b => b.Duration.Tick);
+                var sum = voice.Beats.Where(e => e.GraceNote == GraceNote.Unset).Sum(b => b.Duration.Tick);
                 var error = sum - duration.Tick;
 
                 if (Math.Abs(error) > 20)
@@ -340,7 +340,7 @@ public sealed partial class Part
         var targetMeasure = measure ?? voice.Measure;
 
         var expectedDuration = targetMeasure.Signature;
-        var actualDuration = voice.Beats.Where(e => !e.GraceNote.HasValue).Sum(e => e.Duration.Tick);
+        var actualDuration = voice.Beats.Where(e => e.GraceNote == GraceNote.Unset).Sum(e => e.Duration.Tick);
         var error = expectedDuration - actualDuration;
 
         if (error.Tick == 0) return;

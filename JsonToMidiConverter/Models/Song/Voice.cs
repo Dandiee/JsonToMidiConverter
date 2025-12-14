@@ -5,8 +5,9 @@ namespace JsonToMidiConverter.Models.Song;
 [DebuggerDisplay("V{Index} M{Measure.Index} P{Part.Index}")]
 public sealed partial class Voice
 {
-    public bool Rest { get; set; }
     public List<Beat> Beats { get; set; } = [];
+
+    public bool Rest { get; set; }
     public bool HasSameRhythm { get; set; }
 
     public Voice Clone() => new()

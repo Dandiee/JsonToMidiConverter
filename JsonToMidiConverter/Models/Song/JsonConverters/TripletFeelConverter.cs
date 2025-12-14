@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace JsonToMidiConverter.Models.Song.JsonConverters;
 
-public class TripletFeelConverter : JsonConverter<TripletFeel?>
+public class TripletFeelConverter : JsonConverter<TripletFeel>
 {
     public static readonly IReadOnlyDictionary<string, TripletFeel> Mapping = new Dictionary<string, TripletFeel>(StringComparer.OrdinalIgnoreCase)
     {
@@ -20,7 +20,7 @@ public class TripletFeelConverter : JsonConverter<TripletFeel?>
         ["scottish16th"] = TripletFeel.ScottishSixteens,
     };
 
-    public override TripletFeel? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    public override TripletFeel Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         if (reader.TokenType == JsonTokenType.String)
         {
@@ -28,9 +28,9 @@ public class TripletFeelConverter : JsonConverter<TripletFeel?>
             return Mapping[stringValue];
         }
 
-        return null;
+        return TripletFeel.Unset;
     }
 
-    public override void Write(Utf8JsonWriter writer, TripletFeel? value, JsonSerializerOptions options)
+    public override void Write(Utf8JsonWriter writer, TripletFeel value, JsonSerializerOptions options)
         => JsonSerializer.Serialize(writer, value, options);
 }

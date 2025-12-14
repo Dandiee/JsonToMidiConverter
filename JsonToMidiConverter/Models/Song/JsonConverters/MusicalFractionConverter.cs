@@ -24,7 +24,9 @@ public class MusicalFractionConverter : JsonConverter<MusicalFraction>
         if (reader.TokenType != JsonTokenType.Number && reader.TokenType != JsonTokenType.Null) throw new JsonException("Expected denominator.");
         var denominator = reader.TokenType == JsonTokenType.Null
             ? (byte)0
-            : reader.GetByte();
+            : reader.GetDouble();
+
+
 
         // 4. Consume the End of Array ']'
         reader.Read();
@@ -33,7 +35,7 @@ public class MusicalFractionConverter : JsonConverter<MusicalFraction>
             throw new JsonException("Expected end of array.");
         }
 
-        return new MusicalFraction(numerator, denominator);
+        return new MusicalFraction(numerator, (byte)Math.Min(255, denominator));
     }
 
     public override void Write(Utf8JsonWriter writer, MusicalFraction value, JsonSerializerOptions options)

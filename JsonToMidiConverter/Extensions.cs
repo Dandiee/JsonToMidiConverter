@@ -126,7 +126,7 @@ public static class Extensions
 
     public static IEnumerable<Slide> ToSlides(this RawSlide slide)
     {
-        if (slide == RawSlide.Unknown) yield break;
+        if (slide == RawSlide.Unknown || slide == RawSlide.Unset) yield break;
 
         var rest = slide.ToString().ToLowerInvariant();
 
@@ -268,8 +268,8 @@ public static class Extensions
             return DrumMapping.Mapping.TryGetValue(note.Fret, out var noteNumber) ? noteNumber.NoteNumber : note.Fret; // default to Acoustic Bass Drum
         }
 
-        var open = note.Part.Tuning.Length == 0 ? (int)note.StringNumber : note.Part.Tuning[(int)note.StringNumber];
-        if (note.Harmonic == null || !withHarmonic) return open + note.Fret;
+        var open = note.Part.Tuning.Count == 0 ? (int)note.StringNumber : note.Part.Tuning[(int)note.StringNumber];
+        if (note.Harmonic == Harmonic.Unset || !withHarmonic) return open + note.Fret;
         var harmonicOffset = GetHarmonicOffset(note.HarmonicFret);
         if (note.Harmonic == Harmonic.Natural) return open + harmonicOffset;
         return open + harmonicOffset + note.Fret;

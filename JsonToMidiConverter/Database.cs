@@ -36,6 +36,32 @@ public static class Database
         SongsById = Songs.ToDictionary(e => e.SongId);
     }
 
+    public static async Task DeserializeRawJsons()
+    {
+        int counter = 0;
+
+        //foreach (var metaFile in Directory.GetFiles(MetaPath))
+        await Parallel.ForEachAsync(Directory.GetFiles(MetaPath), async (metaFile, _) =>
+        {
+            var id = int.Parse(Path.GetFileNameWithoutExtension(metaFile));
+            await using var metaFileStream = File.OpenRead(metaFile);
+            var meta = JsonSerializer.Deserialize<SongMetaDataModel>(metaFileStream, JsonOptions);
+
+            foreach (var partFile in Directory.GetFiles(DataPath, $"{id}_{meta.RevisionId}_*"))
+            {
+                await using var originalFileStream = File.OpenRead(partFile);
+                await using var decompressionStream = new GZipStream(originalFileStream, CompressionMode.Decompress);
+                var part = JsonSerializer.Deserialize<Part>(decompressionStream, JsonOptions);
+            }
+
+            Interlocked.Increment(ref counter);
+            if (counter % 100 == 0)
+            {
+                Console.WriteLine($"Processed {counter} files...");
+            }
+        });
+    }
+
     public static void TestAll()
     {
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -65,7 +91,7 @@ public static class Database
             catch (Exception e)
             {
                 DumpFile(file);
-                
+
                 Console.WriteLine("Fuckedup");
                 if (e.Message.Contains(
                         "The JSON value could not be converted to System.String. Path: $.measures[0].voices[0].beats[0].text.text | LineNumber: 0 | BytePositionInLine: 263.'"))
@@ -92,7 +118,7 @@ public static class Database
     {
         var ids = Enumerable.Range(100000, 100000);
 
-        await Parallel.ForEachAsync(ids,  async (i, b) =>
+        await Parallel.ForEachAsync(ids, async (i, b) =>
         {
             await Task.Delay(300, b);
             await RefreshSong(i);
@@ -232,7 +258,7 @@ public static class Database
             Title = e.Title,
             ArtistId = e.ArtistId,
             RevisionId = e.RevisionId,
-            Parts = e.Tracks?.Length ?? 0,
+            Parts = e.Tracks?.Count ?? 0,
             Views = e.Views
         };
 
@@ -283,7 +309,7 @@ public static class Database
         Console.WriteLine($"Meta found: {meta.Artist} {meta.Title}");
 
         await File.WriteAllTextAsync(Path.Combine(MetaPath, $"{songId}.json"), metaText);
-        for (var i = 0; i < meta!.Tracks.Length; i++)
+        for (var i = 0; i < meta.Tracks.Count; i++)
         {
             var dataUrl = $"https://dqsljvtekg760.cloudfront.net/{meta.SongId}/{meta.RevisionId}/{meta.Image}/{i}.json";
             var dataResponse = await client.GetAsync(dataUrl);

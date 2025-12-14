@@ -46,7 +46,7 @@ public sealed partial class Nota : MusicalElement<Nota>
 
     public void Build()
     {
-        Slides = RawSlide?.ToSlides().ToList() ?? [];
+        Slides = RawSlide.ToSlides().ToList() ?? [];
         NoteNumber = (this.GetNoteNumber() + Part.Capo).To7();
         PureNoteNumber = this.GetNoteNumber(false) + Part.Capo;
         Channel = this.GetNoteChannel();

@@ -8,38 +8,35 @@ namespace JsonToMidiConverter.Models.Song;
 [DebuggerDisplay("N{Index} B{Beat.Index} M{Measure.Index} P{Part.Index} STR{StringNumber}/FRT{Fret} NN{NoteNumber}")]
 public sealed partial class Nota
 {
+    [JsonConverter(typeof(AccentuatedConverter))] public float Accentuated { get; set; }
+    [JsonPropertyName("string")] public float StringNumber { get; set; }
+    public float HarmonicFret { get; set; }
     public sbyte Fret { get; set; }
 
-    [JsonPropertyName("string")]
-    public float StringNumber { get; set; }
 
-    [JsonPropertyName("slide")]
-    public RawSlide? RawSlide { get; set; }
 
-    [JsonConverter(typeof(VibratoConverter))]
-    public bool Vibrato { get; set; }
+    [JsonPropertyName("slide")] public RawSlide RawSlide { get; set; }
+    public Harmonic Harmonic { get; set; }
+    public Velocity Velocity { get; set; }
+
+    
+
+    [JsonConverter(typeof(TremoloConverter))] public MusicalFraction? Tremolo { get; set; }
+    public HarmonicData? HarmonicData { get; set; }
+    public Bend? Bend { get; set; }
+
+
+
+    [JsonConverter(typeof(VibratoConverter))] public bool Vibrato { get; set; }
+    [JsonConverter(typeof(VibratoConverter))] public bool WideVibrato { get; set; }
+    public bool Grace { get; set; }
+    public bool Trill { get; set; }
     public bool Hp { get; set; }
     public bool Tie { get; set; }
     public bool Rest { get; set; }
     public bool Staccato { get; set; }
-
-    [JsonConverter(typeof(AccentuatedConverter))]
-    public float Accentuated { get; set; }
-    public bool Ghost { get; set; }
-    public Harmonic? Harmonic { get; set; }
-    public float HarmonicFret { get; set; }
-    public Bend? Bend { get; set; }
     public bool Dead { get; set; }
-
-    [JsonConverter(typeof(TremoloConverter))]
-    public MusicalFraction? Tremolo { get; set; }
-
-    [JsonConverter(typeof(VibratoConverter))]
-    public bool WideVibrato { get; set; }
-    public Velocity? Velocity { get; set; }
-    public bool Grace { get; set; }
-    public HarmonicData? HarmonicData { get; set; }
-    public bool Trill { get; set; }
+    public bool Ghost { get; set; }
 
     public Nota Clone() => new()
     {

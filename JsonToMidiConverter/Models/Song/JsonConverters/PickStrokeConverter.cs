@@ -4,13 +4,13 @@ using JsonToMidiConverter.Models.Song.Enums;
 
 namespace JsonToMidiConverter.Models.Song.JsonConverters;
 
-public class PickStrokeConverter : JsonConverter<PickStroke?>
+public class PickStrokeConverter : JsonConverter<PickStroke>
 {
-    public override PickStroke? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    public override PickStroke Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         if (reader.TokenType == JsonTokenType.True || reader.TokenType == JsonTokenType.False)
         {
-            return reader.GetBoolean() ? PickStroke.Down : null;
+            return reader.GetBoolean() ? PickStroke.Down : PickStroke.Unset;
         }
         else if (reader.TokenType == JsonTokenType.String)
         {
@@ -22,9 +22,9 @@ public class PickStrokeConverter : JsonConverter<PickStroke?>
             }
         }
 
-        return null;
+        return PickStroke.Unset;
     }
 
-    public override void Write(Utf8JsonWriter writer, PickStroke? value, JsonSerializerOptions options)
+    public override void Write(Utf8JsonWriter writer, PickStroke value, JsonSerializerOptions options)
         => JsonSerializer.Serialize(writer, value, options);
 }

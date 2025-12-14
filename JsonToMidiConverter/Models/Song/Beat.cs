@@ -9,50 +9,47 @@ namespace JsonToMidiConverter.Models.Song;
 public partial class Beat
 {
     public List<Nota> Notes { get; set; } = [];
-    public Velocity? Velocity { get; set; }
+
     public float Type { get; set; }
-    public bool PalmMute { get; set; }
+
+    [JsonConverter(typeof(MarkerConverter))] public Marker? Chord { get; set; }
+    [JsonConverter(typeof(TremoloBarConverter))] public Bend? TremoloBar { get; set; }
+    [JsonPropertyName("duration"), JsonConverter(typeof(MusicalFractionConverter))] public MusicalFraction DurationArray { get; set; }
+    public MeasureTempo? Tempo { get; set; }
+    public BrushStroke? BrushStroke { get; set; }
+    public BrushStroke? Arpeggio { get; set; }
+    public Text? Text { get; set; }
+
+
+    [JsonConverter(typeof(PickStrokeConverter))] public PickStroke PickStroke { get; set; }
+    public Velocity Velocity { get; set; }
+    public GraceNote GraceNote { get; set; }
+    public GradualVelocity GradualVelocity { get; set; }
+    public VibratoWithTremoloBar? VibratoWithTremoloBar { get; set; }
+
     
-    [JsonPropertyName("duration")]
-    [JsonConverter(typeof(MusicalFractionConverter))]
-    public MusicalFraction DurationArray { get; set; }
+    public byte VibratoBar { get; set; }
+    public byte Dots { get; set; }
+    public byte DownArpeggio { get; set; }
+    public byte Tuplet { get; set; }
+    public byte WideVibratoBar { get; set; }
+    public byte UpArpeggio { get; set; }
+    public byte UpStroke { get; set; }
+    public byte DownStroke { get; set; }
 
     public bool BeamStart { get; set; }
     public bool BeamStop { get; set; }
     public bool Vibrato { get; set; }
-    public Text? Text { get; set; }
+    public bool PalmMute { get; set; }
     public bool LetRing { get; set; }
-    public byte Dots { get; set; }
     public bool Rest { get; set; }
     public bool Tapping { get; set; }
-    public byte Tuplet { get; set; }
     public bool TupletStart { get; set; }
     public bool TupletStop { get; set; }
-    public GraceNote? GraceNote { get; set; }
-    public byte UpStroke { get; set; }
-    public byte DownStroke { get; set; }
-
-    [JsonConverter(typeof(MarkerConverter))]
-    public Marker? Chord { get; set; }
     public bool Slapping { get; set; }
     public bool Popping { get; set; }
-    public GradualVelocity? GradualVelocity { get; set; }
-    public VibratoWithTremoloBar? VibratoWithTremoloBar { get; set; }
-    public byte? VibratoBar { get; set; }
-
-
-    [JsonConverter(typeof(PickStrokeConverter))]
-    public PickStroke? PickStroke { get; set; }
-
-    [JsonConverter(typeof(TremoloBarConverter))]
-    public Bend? TremoloBar { get; set; }
     public bool WideVibrato { get; set; }
-    public BrushStroke? BrushStroke { get; set; }
-    public byte DownArpeggio { get; set; }
     public bool HasRasgueado { get; set; }
-    public BrushStroke? Arpeggio { get; set; }
-    public byte UpArpeggio { get; set; }
-    public MeasureTempo? Tempo { get; set; }
     public bool Dotted { get; set; }
     public bool FadeIn { get; set; }
     public bool Harmonic { get; set; }
@@ -60,8 +57,6 @@ public partial class Beat
     public bool ArtificialHarmonic { get; set; }
     public bool PinchHarmonic { get; set; }
     public bool TapHarmonic { get; set; }
-    public byte? WideVibratoBar { get; set; }
-
     public bool DoubleDotted { get; set; }
 
     public Beat Clone() => new()

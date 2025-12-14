@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Text.Json.Serialization;
 using JsonToMidiConverter.Context;
+using JsonToMidiConverter.Models.Song.Enums;
 using Melanchall.DryWetMidi.Interaction;
 
 namespace JsonToMidiConverter.Models.Song;
@@ -35,7 +36,7 @@ public sealed partial class Measure : MusicalElement<Measure>
     {
         Start = Previous?.End ?? new Time();
         Duration = Part.Anacrusis && Index == 0 
-            ? new Time(Voices[0].Beats.Where(e => !e.GraceNote.HasValue).Sum(e => e.Duration.Tick))
+            ? new Time(Voices[0].Beats.Where(e => e.GraceNote == GraceNote.Unset).Sum(e => e.Duration.Tick))
             : Signature;
         End = Start + Duration;
         Bpm = (int)Math.Round(Part.TempoMap.GetTempoAtTime(Start.Span).BeatsPerMinute);

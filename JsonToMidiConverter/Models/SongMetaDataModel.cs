@@ -16,19 +16,19 @@ public class SongMetaDataModel
     public bool HasPlayer { get; set; }
     public bool HasTracks { get; set; }
     public bool HasChords { get; set; }
-    public Track[] Tracks { get; set; }
+    public List<Track> Tracks { get; set; } = [];
     public int DefaultTrack { get; set; }
     public int PopularTrack { get; set; }
     public bool IsPublished { get; set; }
     public bool IsBlank { get; set; }
     public bool IsPopular { get; set; }
     public bool IsJunk { get; set; }
-    public Video[] Videos { get; set; }
+    public List<Video> Videos { get; set; }
     public int PopularTrackGuitar { get; set; }
     public int PopularTrackBass { get; set; }
     public int PopularTrackDrum { get; set; }
     public int PrevRevisionId { get; set; }
-    public string[] Tags { get; set; }
+    public List<string> Tags { get; set; }
     public int Views { get; set; }
     public string Image { get; set; }
     public bool Lyrics { get; set; }
@@ -97,7 +97,7 @@ public class Track
     public string Instrument { get; set; }
     public int Views { get; set; }
     public string Name { get; set; }
-    public byte[] Tuning { get; set; }
+    public List<byte> Tuning { get; set; }
     public string Hash { get; set; }
     public byte Difficulty { get; set; }
     public bool IsVocalTrack { get; set; }
