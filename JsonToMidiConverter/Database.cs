@@ -57,8 +57,8 @@ public static class Database
         var bag = new ConcurrentBag<int>();
 
         //foreach (var metaFile in Directory.GetFiles(MetaPath))
-        await Parallel.ForEachAsync(Directory.GetFiles(MetaPath), 
-            new ParallelOptions{ MaxDegreeOfParallelism = Environment.ProcessorCount }, async (metaFile, _) =>
+        await Parallel.ForEachAsync(Directory.GetFiles(MetaPath),
+            new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, async (metaFile, _) =>
         {
             var id = int.Parse(Path.GetFileNameWithoutExtension(metaFile));
 
@@ -92,7 +92,7 @@ public static class Database
                 bag.Add(id);
                 Console.WriteLine(e);
             }
-            
+
         });
 
         Console.WriteLine($"Fucekdup Ids: {string.Join(",", bag)}");
@@ -113,16 +113,19 @@ public static class Database
         using var reader = new BinaryReader(stream);
         var analyzer = new FlagCorrelationAnalyzer(
 
-            "Slapping",
-            "Popping",
-            "Tapping",
-            "Harmonic",
-            "SemiHarmonic",
-            "ArtificialHarmonic",
-            "PinchHarmonic",
-            "TapHarmonic"
+
+            "Unset",
+            "Decrescendo",
+            "Crescendo",
+            "FadeIn"
         );
         var c = 0;
+
+        var anomalyCount = 0;
+
+        var max = int.MinValue;
+
+
         try
         {
             while (true)
@@ -133,21 +136,18 @@ public static class Database
 
                 var flags = new[]
                 {
-                    beat.Slapping,
-                    beat.Popping,
-                    beat.Tapping,
-                    beat.Harmonic,
-                    beat.SemiHarmonic,
-                    beat.ArtificialHarmonic,
-                    beat.PinchHarmonic,
-                    beat.TapHarmonic,
+                    beat.GradualVelocity == GradualVelocity.Unset,
+                    beat.GradualVelocity == GradualVelocity.Decrescendo,
+                    beat.GradualVelocity == GradualVelocity.Crescendo,
+                    beat.FadeIn
                 };
 
+                //max = Math.Max(beat.DownArpeggio, max);
+                //max = Math.Max(beat.UpArpeggio, max);
+                //max = Math.Max(beat.UpStroke, max);
+                //max = Math.Max(beat.DownStroke, max);
+
                 analyzer.Ingest(flags);
-
-
-                //Debug.Assert(beat.VibratoBar == 0 || (beat.VibratoBar > 0 && !beat.Vibrato && !beat.WideVibrato));
-                //Debug.Assert(beat.WideVibratoBar == 0 || (beat.VibratoBar > 0 && !beat.Vibrato && !beat.WideVibrato));
 
                 if (++c % 10000 == 0)
                 {
@@ -213,7 +213,7 @@ public static class Database
                     DumpFile(partFile);
                     throw ex;
                 }
-                
+
             }
 
             Interlocked.Increment(ref counter);
@@ -228,7 +228,7 @@ public static class Database
 
     }
 
-    public static void TestAll() 
+    public static void TestAll()
     {
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
