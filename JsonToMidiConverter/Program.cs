@@ -8,6 +8,8 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 
+await Database.ProcessBeats();
+
 //Database.TestAll();
 
 await Database.DeserializeRawJsons();

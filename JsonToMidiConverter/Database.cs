@@ -25,6 +25,7 @@ public static class Database
     public static readonly string DumpPath = Path.Combine(RootPath, "Dump");
     public static readonly string BinPath = Path.Combine(RootPath, "Bin");
     public static readonly string ZstdPath = Path.Combine(RootPath, "zstd");
+    public static readonly string SummaryPath = Path.Combine(RootPath, "Summary");
 
     public static readonly HashSet<char> WeirdoCharacters = new[] { '/', '?', '_' }.ToHashSet();
 
@@ -106,13 +107,73 @@ public static class Database
         fs.Write(compressedSpan);
     }
 
+    public static async Task ProcessBeats()
+    {
+        using var stream = File.OpenRead(Path.Combine(SummaryPath, "allbetas.dani"));
+        using var reader = new BinaryReader(stream);
+        var analyzer = new FlagCorrelationAnalyzer(
+
+            "Slapping",
+            "Popping",
+            "Tapping",
+            "Harmonic",
+            "SemiHarmonic",
+            "ArtificialHarmonic",
+            "PinchHarmonic",
+            "TapHarmonic"
+        );
+        var c = 0;
+        try
+        {
+            while (true)
+            {
+                var length = reader.ReadInt32();
+                var bytes = reader.ReadBytes(length);
+                var beat = DaniSerializer.Deserialize<Beat>(bytes);
+
+                var flags = new[]
+                {
+                    beat.Slapping,
+                    beat.Popping,
+                    beat.Tapping,
+                    beat.Harmonic,
+                    beat.SemiHarmonic,
+                    beat.ArtificialHarmonic,
+                    beat.PinchHarmonic,
+                    beat.TapHarmonic,
+                };
+
+                analyzer.Ingest(flags);
+
+
+                //Debug.Assert(beat.VibratoBar == 0 || (beat.VibratoBar > 0 && !beat.Vibrato && !beat.WideVibrato));
+                //Debug.Assert(beat.WideVibratoBar == 0 || (beat.VibratoBar > 0 && !beat.Vibrato && !beat.WideVibrato));
+
+                if (++c % 10000 == 0)
+                {
+                    Console.WriteLine($"Processed {c} beats...");
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            string report = analyzer.GenerateReport();
+            Console.WriteLine(report);
+        }
+
+
+    }
+
     public static async Task DeserializeRawJsons()
     {
         int counter = 0;
         var totalMax = int.MinValue;
 
-        //foreach (var metaFile in Directory.GetFiles(MetaPath))
-        await Parallel.ForEachAsync(Directory.GetFiles(MetaPath), async (metaFile, _) =>
+
+        using var fileStream = File.OpenWrite(Path.Combine(SummaryPath, "allbetas.dani"));
+
+        foreach (var metaFile in Directory.GetFiles(MetaPath))
+        //await Parallel.ForEachAsync(Directory.GetFiles(MetaPath).Take(10000), async (metaFile, _) =>
         {
             var id = int.Parse(Path.GetFileNameWithoutExtension(metaFile));
             //await using var metaFileStream = File.OpenRead(metaFile);
@@ -126,22 +187,25 @@ public static class Database
                     await using var decompressionStream = new GZipStream(originalFileStream, CompressionMode.Decompress);
                     var part = JsonSerializer.Deserialize<Part>(decompressionStream, JsonOptions);
 
-                    var beats = part.Measures.SelectMany(e => e.Voices).SelectMany(e => e.Beats).ToList();
+                    var thisBeats = part.Measures
+                        .SelectMany(e => e.Voices)
+                        .SelectMany(e => e.Beats)
+                        .ToList();
 
-                    //foreach (var beat in beats)
-                    //{
-                    //    if (beat.VibratoWithTremoloBar != VibratoWithTremoloBar.Unset)
-                    //    {
-                    //        Console.WriteLine($"{beat.VibratoWithTremoloBar.ToString()} {beat.Vibrato} {beat.WideVibrato} {beat.TremoloBar == null}");
-                    //    }
-                    //}
-
-                    var maxBeat = beats.MaxBy(e => e.DownArpeggio);
-                    if (maxBeat.DownArpeggio > totalMax)
+                    foreach (var beat in thisBeats)
                     {
-                        totalMax = maxBeat.DownArpeggio;
-                        Console.WriteLine(maxBeat.DownArpeggio);
+                        var bytes = DaniSerializer.Serialize(beat).ToArray();
+
+                        fileStream.Write(DaniSerializer.SerializeObject(bytes.Length).ToArray(), 0, 4);
+                        fileStream.Write(bytes, 0, bytes.Length);
                     }
+
+                    //var maxBeat = beats.MaxBy(e => e.DownArpeggio);
+                    //if (maxBeat.DownArpeggio > totalMax)
+                    //{
+                    //    totalMax = maxBeat.DownArpeggio;
+                    //    Console.WriteLine(maxBeat.DownArpeggio);
+                    //}
 
                 }
                 catch (Exception ex)
@@ -157,10 +221,14 @@ public static class Database
             {
                 Console.WriteLine($"Processed {counter} files...");
             }
-        });
+        }//);
+
+        //var json = JsonSerializer.Serialize(beats, JsonOptions);
+        //await File.WriteAllTextAsync(Path.Combine(SummaryPath, "allbeats.json"), json);
+
     }
 
-    public static void TestAll()
+    public static void TestAll() 
     {
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 

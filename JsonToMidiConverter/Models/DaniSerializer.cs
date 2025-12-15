@@ -85,7 +85,7 @@ public static class DaniSerializer
         }
     }
 
-    private static IEnumerable<byte> SerializeObject(object value)
+    public static IEnumerable<byte> SerializeObject(object value)
     {
         var bytes = value switch
         {
