@@ -263,22 +263,12 @@ public static class DaniSerializer
         return Expression.Lambda<Action<object, object>>(assign, instanceParam, valueParam).Compile();
     }
 
-    private static readonly HashSet<Type> TypesToExclude = 
-        [typeof(MeasureTempo), typeof(BrushStroke), typeof(Text), typeof(Marker), typeof(Bend)];
-
     private static List<Prop> GetProps(Type type)
         => PropCache.GetOrAdd(
             type,
             t => t
                 .GetProperties(BindingFlags.Instance | BindingFlags.Public)
                 .Where(e => e.GetCustomAttribute<JsonIgnoreAttribute>() == null)
-                //.Where(e => type != typeof(Beat) || !e.PropertyType.IsEnum)
-                //.Where(e => type != typeof(Beat) || e.PropertyType != typeof(bool))
-                //.Where(e => type != typeof(Beat) || e.PropertyType != typeof(byte))
-                //.Where(e => type != typeof(Beat) || !e.PropertyType.IsValueType)
-                //.Where(e => type != typeof(Beat) || e.Name != "Type")
-                //.Where(e => e.PropertyType != typeof(List<Nota>))
-                //.Where(e => e.PropertyType != typeof(List<Beat>))
                 .OrderBy(e => e.Name)
                 .Select(e => new Prop(e, e.PropertyType == typeof(bool)))
                 .ToList()

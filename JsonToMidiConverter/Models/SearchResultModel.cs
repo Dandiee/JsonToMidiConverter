@@ -13,7 +13,7 @@ public class SearchResultModel
     public string Title { get; set; }
     public bool HasChords { get; set; }
     public bool HasPlayer { get; set; }
-    public Track[] Tracks { get; set; }
+    public List<Track> Tracks { get; set; }
     public int DefaultTrack { get; set; }
     public int PopularTrack { get; set; }
     public bool IsJunk { get; set; }

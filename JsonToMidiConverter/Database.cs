@@ -1,10 +1,17 @@
-﻿using JsonToMidiConverter.Models;
+﻿using System.Collections.Concurrent;
+using JsonToMidiConverter.Models;
 using JsonToMidiConverter.Models.Song;
 using Parquet.Meta;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
+using System.Runtime.Intrinsics.X86;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ICSharpCode.SharpZipLib.BZip2;
+using JsonToMidiConverter.Models.Song.Enums;
+using SharpCompress.Compressors.LZMA;
+using ZstdSharp;
 
 namespace JsonToMidiConverter;
 
@@ -17,6 +24,7 @@ public static class Database
     public static readonly string DataPath = Path.Combine(RootPath, "Data");
     public static readonly string DumpPath = Path.Combine(RootPath, "Dump");
     public static readonly string BinPath = Path.Combine(RootPath, "Bin");
+    public static readonly string ZstdPath = Path.Combine(RootPath, "zstd");
 
     public static readonly HashSet<char> WeirdoCharacters = new[] { '/', '?', '_' }.ToHashSet();
 
@@ -39,57 +47,109 @@ public static class Database
     }
 
 
+
+
     public static async Task DeserEndToEnd()
     {
         int counter = 0;
 
+        var bag = new ConcurrentBag<int>();
+
         //foreach (var metaFile in Directory.GetFiles(MetaPath))
-        await Parallel.ForEachAsync(Directory.GetFiles(MetaPath)/*, new ParallelOptions{ MaxDegreeOfParallelism = 1 }*/, async (metaFile, _) =>
+        await Parallel.ForEachAsync(Directory.GetFiles(MetaPath), 
+            new ParallelOptions{ MaxDegreeOfParallelism = Environment.ProcessorCount }, async (metaFile, _) =>
         {
             var id = int.Parse(Path.GetFileNameWithoutExtension(metaFile));
-            await using var metaFileStream = File.OpenRead(metaFile);
-            var meta = JsonSerializer.Deserialize<SongMetaDataModel>(metaFileStream, JsonOptions);
-            var song = new Song { SongId = id, RevisionId = meta.RevisionId };
 
-            foreach (var partFile in Directory.GetFiles(DataPath, $"{id}_{meta.RevisionId}_*"))
+            try
             {
-                await using var originalFileStream = File.OpenRead(partFile);
-                await using var decompressionStream = new GZipStream(originalFileStream, CompressionMode.Decompress);
-                song.Parts.Add(JsonSerializer.Deserialize<Part>(decompressionStream, JsonOptions)!);
+                await using var metaFileStream = File.OpenRead(metaFile);
+                var meta = JsonSerializer.Deserialize<SongMetaDataModel>(metaFileStream, JsonOptions);
+                var song = new Song { SongId = id, RevisionId = meta.RevisionId };
+
+                foreach (var partFile in Directory.GetFiles(DataPath, $"{id}_{meta.RevisionId}_*"))
+                {
+                    await using var originalFileStream = File.OpenRead(partFile);
+                    await using var decompressionStream = new GZipStream(originalFileStream, CompressionMode.Decompress);
+                    song.Parts.Add(JsonSerializer.Deserialize<Part>(decompressionStream, JsonOptions)!);
+                }
+
+                var bytes = DaniSerializer.Serialize(song).ToArray();
+                //CompressToFile(bytes, Path.Combine(ZstdPath, $"{id}.dani"));
+
+                //var returnBytes = await File.ReadAllBytesAsync(location, _);
+                //var returnSong = DaniSerializer.Deserialize<Song>(returnBytes);
+
+                Interlocked.Increment(ref counter);
+                if (counter % 100 == 0)
+                {
+                    Console.WriteLine($"Processed {counter} files...");
+                }
             }
-
-
-            var location = Path.Combine(BinPath, $"{id}.bin");
-            var bytes = DaniSerializer.Serialize(song).ToArray();
-
-            await File.WriteAllBytesAsync(location, bytes, _);
-            var returnBytes = await File.ReadAllBytesAsync(location, _);
-            var returnSong = DaniSerializer.Deserialize<Song>(returnBytes);
-
-            Interlocked.Increment(ref counter);
-            if (counter % 100 == 0)
+            catch (Exception e)
             {
-                Console.WriteLine($"Processed {counter} files...");
+                bag.Add(id);
+                Console.WriteLine(e);
             }
+            
         });
+
+        Console.WriteLine($"Fucekdup Ids: {string.Join(",", bag)}");
+    }
+
+    public static void CompressToFile(byte[] data, string filePath)
+    {
+        using var compressor = new Compressor(22);
+        ReadOnlySpan<byte> source = data;
+        var compressedSpan = compressor.Wrap(source);
+        using var fs = File.Create(filePath);
+        fs.Write(compressedSpan);
     }
 
     public static async Task DeserializeRawJsons()
     {
         int counter = 0;
+        var totalMax = int.MinValue;
 
         //foreach (var metaFile in Directory.GetFiles(MetaPath))
         await Parallel.ForEachAsync(Directory.GetFiles(MetaPath), async (metaFile, _) =>
         {
             var id = int.Parse(Path.GetFileNameWithoutExtension(metaFile));
-            await using var metaFileStream = File.OpenRead(metaFile);
-            var meta = JsonSerializer.Deserialize<SongMetaDataModel>(metaFileStream, JsonOptions);
+            //await using var metaFileStream = File.OpenRead(metaFile);
+            //var meta = JsonSerializer.Deserialize<SongMetaDataModel>(metaFileStream, JsonOptions);
 
-            foreach (var partFile in Directory.GetFiles(DataPath, $"{id}_{meta.RevisionId}_*"))
+            foreach (var partFile in Directory.GetFiles(DataPath, $"{id}_*"))
             {
-                await using var originalFileStream = File.OpenRead(partFile);
-                await using var decompressionStream = new GZipStream(originalFileStream, CompressionMode.Decompress);
-                var part = JsonSerializer.Deserialize<Part>(decompressionStream, JsonOptions);
+                try
+                {
+                    await using var originalFileStream = File.OpenRead(partFile);
+                    await using var decompressionStream = new GZipStream(originalFileStream, CompressionMode.Decompress);
+                    var part = JsonSerializer.Deserialize<Part>(decompressionStream, JsonOptions);
+
+                    var beats = part.Measures.SelectMany(e => e.Voices).SelectMany(e => e.Beats).ToList();
+
+                    //foreach (var beat in beats)
+                    //{
+                    //    if (beat.VibratoWithTremoloBar != VibratoWithTremoloBar.Unset)
+                    //    {
+                    //        Console.WriteLine($"{beat.VibratoWithTremoloBar.ToString()} {beat.Vibrato} {beat.WideVibrato} {beat.TremoloBar == null}");
+                    //    }
+                    //}
+
+                    var maxBeat = beats.MaxBy(e => e.DownArpeggio);
+                    if (maxBeat.DownArpeggio > totalMax)
+                    {
+                        totalMax = maxBeat.DownArpeggio;
+                        Console.WriteLine(maxBeat.DownArpeggio);
+                    }
+
+                }
+                catch (Exception ex)
+                {
+                    DumpFile(partFile);
+                    throw ex;
+                }
+                
             }
 
             Interlocked.Increment(ref counter);

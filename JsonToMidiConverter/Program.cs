@@ -10,9 +10,9 @@ using System.Text.Json;
 
 //Database.TestAll();
 
-// await Database.DeserializeRawJsons();
+await Database.DeserializeRawJsons();
 
-await Database.DeserEndToEnd();
+//await Database.DeserEndToEnd();
 
 //await Database.RefreshSong(27);
 
