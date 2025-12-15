@@ -125,7 +125,7 @@ public static class Database
 
         var max = int.MinValue;
 
-
+        var rests = 0;
         try
         {
             while (true)
@@ -136,11 +136,16 @@ public static class Database
 
                 var flags = new[]
                 {
-                    beat.GradualVelocity == GradualVelocity.Unset,
-                    beat.GradualVelocity == GradualVelocity.Decrescendo,
-                    beat.GradualVelocity == GradualVelocity.Crescendo,
-                    beat.FadeIn
+                    beat.GradualVelocity == Dynamic.Unset,
+                    beat.GradualVelocity == Dynamic.Decrescendo,
+                    beat.GradualVelocity == Dynamic.Crescendo,
+                    //beat.FadeIn
                 };
+
+                if (beat.Rest)
+                {
+                    rests++;
+                }
 
                 //max = Math.Max(beat.DownArpeggio, max);
                 //max = Math.Max(beat.UpArpeggio, max);
@@ -157,6 +162,7 @@ public static class Database
         }
         catch (Exception e)
         {
+            Console.WriteLine($"RESTS: {rests}");
             string report = analyzer.GenerateReport();
             Console.WriteLine(report);
         }

@@ -85,7 +85,7 @@ public sealed partial class Part
                         currentVelocity = beat.Velocity;
                     }
 
-                    if (beat.GradualVelocity == GradualVelocity.Unset)
+                    if (beat.GradualVelocity == Dynamic.Unset)
                     {
                         if (gradualVelocitySpan.Count == 0 || gradualVelocitySpan[0].GradualVelocity == beat.GradualVelocity)
                         {

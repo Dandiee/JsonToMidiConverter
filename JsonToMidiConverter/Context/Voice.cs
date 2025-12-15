@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json.Serialization;
+using JsonToMidiConverter.Models.Song.Enums;
 
 namespace JsonToMidiConverter.Models.Song;
 
@@ -31,18 +32,14 @@ public sealed partial class Voice
 
         foreach (var beat in Beats)
         {
-            Debug.Assert(beat is { BeamStart: true, BeamStop: false } || 
-                         beat is { BeamStart: false, BeamStop: true } || 
-                         beat is { BeamStart: false, BeamStop: false });
-
             beat.Build();
-            if (beat.BeamStart)
+            if (beat.BeamSpan == Spanner.Start)
             {
                 currentBeamGroup = [beat];
                 beat.BeamGroup = currentBeamGroup;
 
             }
-            else if (beat.BeamStop)
+            else if (beat.BeamSpan == Spanner.Stop)
             {
                 currentBeamGroup.Add(beat);
                 BeamGroups.Add(currentBeamGroup);

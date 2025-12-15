@@ -203,7 +203,7 @@ public static class Extensions
         }
 
         if (input.IsHpTarget) index -= 1;
-        if (input.Beat.Tapping) index -= 1;
+        if (input.Beat.Technique == Technique.Tap) index -= 1;
         if (input.Harmonic == Harmonic.Tapped) index--;
 
         if (!isPrimary) index -= 1;

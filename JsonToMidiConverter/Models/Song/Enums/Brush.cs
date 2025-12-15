@@ -2,7 +2,7 @@
 
 namespace JsonToMidiConverter.Models.Song.Enums;
 
-public enum BrushType : byte
+public enum Brush : byte
 {
     None = 0,
 
