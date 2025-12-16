@@ -69,7 +69,7 @@ internal static class Converter
                     cursor += step;
                 }
 
-                if (note.Bend != null || note.Beat.TremoloBar != null)
+                if (note.Bend != null || note.Beat.Tremolo != null)
                 {
                     var bends = note.GenerateBends((int)note.Duration.Tick);
                     foreach (var bend in bends)

@@ -50,7 +50,7 @@ public static class PitchBendGenerator
         if (tickResolution < 1) tickResolution = 1;
 
         var bendPoints = ParsePoints(input.Bend, baseDuration, tickResolution);
-        var tremoloPoints = ParsePoints(input.Beat.TremoloBar, baseDuration, tickResolution); // Tremolo uses same parsing logic
+        var tremoloPoints = ParsePoints(input.Beat.Tremolo, baseDuration, tickResolution); // Tremolo uses same parsing logic
 
         int currentTick = 0;
 

@@ -4,7 +4,7 @@ namespace JsonToMidiConverter.Models.Song;
 
 public class BrushStroke
 {
-    public PickStroke Direction { get; set; }
+    public Direction Direction { get; set; }
     public int Duration { get; set; }
     public float Shift { get; set; }
 

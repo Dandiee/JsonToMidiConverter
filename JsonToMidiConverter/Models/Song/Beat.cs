@@ -8,40 +8,142 @@ namespace JsonToMidiConverter.Models.Song;
 [DebuggerDisplay("B{Index} M{Measure.Index} P{Part.Index}")]
 public partial class Beat
 {
-    public List<Nota> Notes { get; set; } = [];
+    [JsonIgnore] public List<Nota> Notes { get; set; } = [];
 
     public float Type { get; set; }
 
-    [JsonIgnore][JsonConverter(typeof(MarkerConverter))] public Marker? Chord { get; set; }
+    [JsonPropertyName("calculatedTremolo")]
+    public Bend? Tremolo { get; set; }
+
+    [JsonPropertyName("calculatedVibrato")]
+    public Vibrato Vibrato { get; set; } = Vibrato.None;
+    [JsonConverter(typeof(MarkerConverter))] public Marker? Chord { get; set; }
 
     [JsonPropertyName("duration"), JsonConverter(typeof(MusicalFractionConverter))] public MusicalFraction DurationArray { get; set; }
-    [JsonIgnore] public MeasureTempo? Tempo { get; set; }
-    public BrushStroke? BrushStroke { get; set; }
-    public BrushStroke? Arpeggio { get; set; }
-    [JsonIgnore] public Text? Text { get; set; }
-    [JsonIgnore][JsonConverter(typeof(TremoloBarConverter))] public Bend? TremoloBar { get; set; }
+    public MeasureTempo? Tempo { get; set; }
 
-    // these are untouched
-    [JsonConverter(typeof(PickStrokeConverter))] public PickStroke PickStroke { get; set; }
+    [JsonConverter(typeof(PickStrokeConverter))]
+    public Direction PickDirection { get; set; } = Direction.None;
+    public ChordStroke? Stroke { get; set; }
+    public Text? Text { get; set; }
     public Velocity Velocity { get; set; }
     public GraceNote GraceNote { get; set; }
     public Dynamic GradualVelocity { get; set; }
     public bool PalmMute { get; set; }
     public bool LetRing { get; set; }
     public bool Rest { get; set; }
-    public bool HasRasgueado { get; set; }
     public byte Dots { get; set; }
 
-    // these are calculated
-    [JsonIgnore] public Harmonic Harmonic { get; set; } = Harmonic.Unset;
-    [JsonIgnore] public Technique Technique { get; set; } = Technique.None;
-    [JsonIgnore] public Vibrato Vibrato { get; set; } = Vibrato.None;
-    [JsonIgnore] public Spanner BeamSpan { get; set; }
-    [JsonIgnore] public Spanner TupletSpan { get; set; } = Spanner.None;
-    [JsonIgnore] public byte TupletDenominator { get; set; }
-    [JsonIgnore] public Brush Brush { get; set; } = Brush.None;
-    [JsonIgnore] public byte BrushDuration { get; set; }
+    [JsonPropertyName("calculatedHarmonic")] public Harmonic Harmonic { get; set; } = Harmonic.Unset;
+    public Technique Technique { get; set; } = Technique.None;
+    public Spanner BeamSpan { get; set; }
+    public Spanner TupletSpan { get; set; } = Spanner.None;
+    public byte TupletDenominator { get; set; }
 
+
+
+
+
+    [JsonInclude, JsonPropertyName("brushStroke")]
+    private BrushStroke? LegacyBrushStroke
+    {
+        set
+        {
+            if (value == null) return;
+
+            if (value.Direction != Direction.None)
+            {
+                PickDirection = value.Direction;
+            }
+
+            var s = EnsureStroke();
+            s.Duration = value.Duration;
+            s.StartTimeOffset = value.Shift;
+        }
+    }
+
+    [JsonInclude, JsonPropertyName("arpeggio")]
+    private BrushStroke? LegacyArpeggio
+    {
+        set
+        {
+            if (value == null) return;
+
+            if (value.Direction != Direction.None)
+            {
+                PickDirection = value.Direction;
+            }
+
+            var s = EnsureStroke();
+            s.Technique = StrokeTechnique.Arpeggio;
+            s.Duration = value.Duration;
+            s.StartTimeOffset = value.Shift;
+        }
+    }
+
+    [JsonInclude, JsonPropertyName("hasRasgueado")]
+    private bool LegacyHasRasgueado { set { if (value) EnsureStroke().Technique = StrokeTechnique.Rasgueado; } }
+
+    [JsonInclude, JsonPropertyName("upStroke")]
+    private byte LegacyUpStroke { set { if (value > 0) ConfigureLegacy(Direction.Up, StrokeTechnique.None, value); } }
+
+    [JsonInclude, JsonPropertyName("downStroke")]
+    private byte LegacyDownStroke { set { if (value > 0) ConfigureLegacy(Direction.Down, StrokeTechnique.None, value); } }
+
+    [JsonInclude, JsonPropertyName("upArpeggio")]
+    private byte LegacyUpArpeggio { set { if (value > 0) ConfigureLegacy(Direction.Up, StrokeTechnique.Arpeggio, value); } }
+
+    [JsonInclude, JsonPropertyName("downArpeggio")]
+    private byte LegacyDownArpeggio { set { if (value > 0) ConfigureLegacy(Direction.Down, StrokeTechnique.Arpeggio, value); } }
+
+
+    private ChordStroke EnsureStroke()
+    {
+        if (Stroke == null) Stroke = new ChordStroke();
+        return Stroke;
+    }
+
+    private void ConfigureLegacy(Direction dir, StrokeTechnique tech, int duration)
+    {
+        PickDirection = dir;
+        var s = EnsureStroke();
+        s.Technique = tech;
+        s.Duration = duration;
+    }
+
+    // Inputs for Vibrato and Tremolo
+    [JsonInclude, JsonPropertyName("tremoloBar"), JsonConverter(typeof(TremoloBarConverter))]
+    private Bend? LegacyTremoloBarObject { set => Tremolo = value; }
+
+    [JsonInclude, JsonPropertyName("vibratoBar")]
+    private byte LegacyVibratoBar { set { if (value > 0) EnsureWhammy().Style = TremoloStyle.Slight; } }
+
+    [JsonInclude, JsonPropertyName("wideVibratoBar")]
+    private byte LegacyWideVibratoBar { set { if (value > 0) EnsureWhammy().Style = TremoloStyle.Wide; } }
+
+    [JsonInclude, JsonPropertyName("vibratoWithTremoloBar")]
+    private VibratoWithTremoloBar LegacyVibratoWithTremoloBar
+    {
+        set
+        {
+            if (value == VibratoWithTremoloBar.Slight)
+                EnsureWhammy().Style = TremoloStyle.Slight;
+            else if (value == VibratoWithTremoloBar.Wide)
+                EnsureWhammy().Style = TremoloStyle.Wide;
+        }
+    }
+
+    [JsonInclude, JsonPropertyName("vibrato")]
+    private bool LegacyVibrato { set { if (value) Vibrato = Vibrato.FingerStandard; } }
+
+    [JsonInclude, JsonPropertyName("wideVibrato")]
+    private bool LegacyWideVibrato { set { if (value) Vibrato = Vibrato.FingerWide; } }
+
+    private Bend EnsureWhammy()
+    {
+        if (Tremolo == null) Tremolo = new Bend();
+        return Tremolo;
+    }
 
 
     [JsonInclude, JsonPropertyName("dotted")]
@@ -92,50 +194,7 @@ public partial class Beat
     [JsonInclude, JsonPropertyName("tupletStop")]
     private bool LegacyTupletStop { set { if (value) TupletSpan = Spanner.Stop; } }
 
-    [JsonInclude, JsonPropertyName("upStroke")]
-    private byte LegacyUpStroke { set { if (value > 0) SetBrush(Brush.StrokeUp, value); } }
-
-    [JsonInclude, JsonPropertyName("downStroke")]
-    private byte LegacyDownStroke { set { if (value > 0) SetBrush(Brush.StrokeDown, value); } }
-
-    [JsonInclude, JsonPropertyName("upArpeggio")]
-    private byte LegacyUpArpeggio { set { if (value > 0) SetBrush(Brush.ArpeggioUp, value); } }
-
-    [JsonInclude, JsonPropertyName("downArpeggio")]
-    private byte LegacyDownArpeggio { set { if (value > 0) SetBrush(Brush.ArpeggioDown, value); } }
-
-    [JsonInclude, JsonPropertyName("vibratoBar")]
-    private byte LegacyVibratoBar { set { if (value > 0) Vibrato |= Vibrato.BarSlight; } }
-
-    [JsonInclude, JsonPropertyName("wideVibratoBar")]
-    private byte LegacyWideVibratoBar { set { if (value > 0) Vibrato |= Vibrato.BarWide; } }
-
-    [JsonInclude, JsonPropertyName("vibrato")]
-    private bool LegacyVibrato { set { if (value) Vibrato |= Vibrato.FingerStandard; } }
-
-    [JsonInclude, JsonPropertyName("wideVibrato")]
-    private bool LegacyWideVibrato { set { if (value) Vibrato |= Vibrato.FingerWide; } }
-
-    [JsonInclude, JsonPropertyName("vibratoWithTremoloBar")]
-    private VibratoWithTremoloBar LegacyVibratoWithTremoloBar
-    {
-        set
-        {
-            Vibrato |= value switch
-            {
-                VibratoWithTremoloBar.Slight => Vibrato.BarSlight,
-                VibratoWithTremoloBar.Wide => Vibrato.BarWide,
-                _ => Vibrato.None
-            };
-        }
-    }
-
-
-    private void SetBrush(Brush type, byte duration)
-    {
-        Brush = type;
-        BrushDuration = duration;
-    }
+  
 
     public Beat Clone() => new()
     {
@@ -151,17 +210,11 @@ public partial class Beat
         GraceNote = GraceNote,
         Chord = Chord?.Clone(),
         GradualVelocity = GradualVelocity,
-        PickStroke = PickStroke,
-        TremoloBar = TremoloBar?.Clone(),
-        BrushStroke = BrushStroke?.Clone(),
-        HasRasgueado = HasRasgueado,
-        Arpeggio = Arpeggio?.Clone(),
+        PickDirection = PickDirection,
         Tempo = Tempo?.Clone(),
         Harmonic = Harmonic,
         Vibrato = Vibrato,
         BeamSpan = BeamSpan,
-        Brush = Brush,
-        BrushDuration = BrushDuration,
         Technique = Technique,
         TupletDenominator = TupletDenominator,
         TupletSpan = TupletSpan,

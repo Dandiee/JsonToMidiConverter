@@ -1,12 +1,22 @@
 ﻿namespace JsonToMidiConverter.Models.Song;
 
-public sealed class Point
+public class BasePoint
 {
-    public float Position { get; set; }
-    public float Tone { get; set; }
+    public byte Position { get; set; }
+    public short Tone { get; set; }
+
+    public virtual BasePoint Clone() => new()
+    {
+        Position = Position,
+        Tone = Tone,
+    };
+}
+
+public sealed class Point : BasePoint
+{
     public byte Vibrato { get; set; }
 
-    public Point Clone() => new()
+    public override Point Clone() => new()
     {
         Position = Position,
         Tone = Tone,

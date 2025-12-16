@@ -249,7 +249,7 @@ public static class Dumper
                         .SkipWhile(e => e.On.Channel != note.Channel || e.On.NoteNumber != emittedNote)
                         .First();
 
-                    if (note.Bend != null && note.Beat.TremoloBar != null)
+                    if (note.Bend != null && note.Beat.Tremolo != null)
                     {
                         //OpenForDebug(note, record);
                     }
@@ -259,13 +259,13 @@ public static class Dumper
                         //var pitchBends = note.GeneratePitchBends();
                     }
 
-                    if (note.Beat.TremoloBar != null)
+                    if (note.Beat.Tremolo != null)
                     {
                         //Bends.Add(new (noteEvent, note));
                         var pitchBends = note.GenerateBends((int)note.Duration.Tick);
                     }
 
-                    if (note.Bend == null && note.Beat.TremoloBar == null && note.Slides.Count > 0 && emittedNotes.Count > 1 && note.TieDetails == null && noteEvent.PitchBends.Count > 2)
+                    if (note.Bend == null && note.Beat.Tremolo == null && note.Slides.Count > 0 && emittedNotes.Count > 1 && note.TieDetails == null && noteEvent.PitchBends.Count > 2)
                     {
                         OpenForDebug(note, record);
                     }

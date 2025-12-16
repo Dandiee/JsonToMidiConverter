@@ -47,6 +47,29 @@ public record PitchBending(long Time, ushort Value);
 
 public static class Extensions
 {
+    public static readonly float[] HarmonicFretPalette =
+    [
+        0f, 12f, // Most common defaults
+        
+        // Integers
+        1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f, 10f,
+        11f, 13f, 14f, 15f, 16f, 17f, 18f, 19f, 20f,
+        21f, 22f, 23f, 24f, 26f, 28f, 29f, 35f, 40f, -1f,
+
+        // Decimals (The Physics Nodes)
+        2.4f, 2.7f,
+        3.2f,
+        4.4f, 4.7f,
+        5.2f, 5.7f, 5.8f,
+        6.2f,
+        8.2f, 8.4f,
+        9.6f,
+        11.8f,
+        14.7f,
+        19.6f,
+        21.7f
+    ];
+
     public static SevenBitNumber To7(this int i) => (SevenBitNumber)i;
     public static FourBitNumber To4(this int i) => (FourBitNumber)i;
 

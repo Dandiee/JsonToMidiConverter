@@ -15,12 +15,15 @@ public class TremoloBarConverter : JsonConverter<Bend?>
         if (reader.TokenType == JsonTokenType.True || reader.TokenType == JsonTokenType.False)
         {
             bool value = reader.GetBoolean();
-
             if (value)
             {
-                return new Bend { LegacyFlag = reader.GetBoolean() };
+                return Bend.CreateDip();
             }
-            return null;
+        }
+
+        if (reader.TokenType == JsonTokenType.Number)
+        {
+            return reader.GetSingle() != 0 ? Bend.CreateDip() : null;
         }
 
         return null;

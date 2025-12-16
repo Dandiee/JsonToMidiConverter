@@ -1,16 +1,9 @@
-﻿using System.Collections.Concurrent;
-using JsonToMidiConverter.Models;
+﻿using JsonToMidiConverter.Models;
 using JsonToMidiConverter.Models.Song;
-using Parquet.Meta;
-using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
+using System.Collections.Concurrent;
 using System.IO.Compression;
-using System.Runtime.Intrinsics.X86;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using ICSharpCode.SharpZipLib.BZip2;
-using JsonToMidiConverter.Models.Song.Enums;
-using SharpCompress.Compressors.LZMA;
 using ZstdSharp;
 
 namespace JsonToMidiConverter;
@@ -37,7 +30,7 @@ public static class Database
         PropertyNameCaseInsensitive = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
         WriteIndented = true,
-        //UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
         NumberHandling = JsonNumberHandling.AllowReadingFromString,
     };
 
@@ -57,8 +50,7 @@ public static class Database
         var bag = new ConcurrentBag<int>();
 
         //foreach (var metaFile in Directory.GetFiles(MetaPath))
-        await Parallel.ForEachAsync(Directory.GetFiles(MetaPath),
-            new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, async (metaFile, _) =>
+        await Parallel.ForEachAsync(Directory.GetFiles(MetaPath), new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, async (metaFile, _) =>
         {
             var id = int.Parse(Path.GetFileNameWithoutExtension(metaFile));
 
@@ -75,12 +67,7 @@ public static class Database
                     song.Parts.Add(JsonSerializer.Deserialize<Part>(decompressionStream, JsonOptions)!);
                 }
 
-                var bytes = DaniSerializer.Serialize(song).ToArray();
-                //CompressToFile(bytes, Path.Combine(ZstdPath, $"{id}.dani"));
-
-                //var returnBytes = await File.ReadAllBytesAsync(location, _);
-                //var returnSong = DaniSerializer.Deserialize<Song>(returnBytes);
-
+                //var bytes = DaniSerializer.Serialize(song).ToArray();
                 Interlocked.Increment(ref counter);
                 if (counter % 100 == 0)
                 {
@@ -109,125 +96,139 @@ public static class Database
 
     public static async Task ProcessBeats()
     {
-        using var stream = File.OpenRead(Path.Combine(SummaryPath, "allbetas.dani"));
-        using var reader = new BinaryReader(stream);
+        var files = Directory.GetFiles(SummaryPath, "Beats_Partial_*.dani");
+
         var analyzer = new FlagCorrelationAnalyzer(
-
-
-            "Unset",
-            "Decrescendo",
-            "Crescendo",
-            "FadeIn"
+            "Brush == Brush.ArpeggioDown",
+            "Brush == Brush.ArpeggioUp",
+            "Brush == Brush.StrokeDown",
+            "Brush == Brush.StrokeUp",
+            "Brush == Brush.None",
+            "PickDirection == PickDirection.Down",
+            "PickDirection == PickDirection.Up",
+            "PickDirection == PickDirection.Unset",
+            "BrushDuration > 0",
+            "BrushStroke != null",
+            "Arpeggio != null"
         );
-        var c = 0;
 
-        var anomalyCount = 0;
+        var counter = 0;
 
-        var max = int.MinValue;
+        var points = new HashSet<Point>();
 
-        var rests = 0;
-        try
+        await Parallel.ForEachAsync(files, async (file, ct) =>
         {
-            while (true)
+            await using var stream = File.OpenRead(Path.Combine(SummaryPath, file));
+            using var reader = new BinaryReader(stream);
+
+            while (stream.Position < stream.Length)
             {
                 var length = reader.ReadInt32();
                 var bytes = reader.ReadBytes(length);
                 var beat = DaniSerializer.Deserialize<Beat>(bytes);
 
-                var flags = new[]
+                //analyzer.Ingest([
+                //    beat.Brush == Brush.ArpeggioDown,
+                //    beat.Brush == Brush.ArpeggioUp,
+                //    beat.Brush == Brush.StrokeDown,
+                //    beat.Brush == Brush.StrokeUp,
+                //    beat.Brush == Brush.None,
+                //    beat.PickDirection == PickStroke.Down,
+                //    beat.PickDirection == PickStroke.Up,
+                //    beat.PickDirection == PickStroke.Unset,
+                //    beat.BrushDuration > 0,
+                //    beat.BrushStroke != null,
+                //    beat.Arpeggio != null
+                //]);
+
+             
+
+                Interlocked.Increment(ref counter);
+                if (counter % 100 == 0)
                 {
-                    beat.GradualVelocity == Dynamic.Unset,
-                    beat.GradualVelocity == Dynamic.Decrescendo,
-                    beat.GradualVelocity == Dynamic.Crescendo,
-                    //beat.FadeIn
-                };
-
-                if (beat.Rest)
-                {
-                    rests++;
-                }
-
-                //max = Math.Max(beat.DownArpeggio, max);
-                //max = Math.Max(beat.UpArpeggio, max);
-                //max = Math.Max(beat.UpStroke, max);
-                //max = Math.Max(beat.DownStroke, max);
-
-                analyzer.Ingest(flags);
-
-                if (++c % 10000 == 0)
-                {
-                    Console.WriteLine($"Processed {c} beats...");
+                    Console.WriteLine($"Processed {counter} files...");
                 }
             }
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine($"RESTS: {rests}");
-            string report = analyzer.GenerateReport();
-            Console.WriteLine(report);
-        }
+            
+        });
 
+        var positions = points.Select(e => e.Position).Distinct().ToList();
+        var tones = points.Select(e => e.Tone).Distinct().ToList();
+        var vibrato = points.Select(e => e.Vibrato).Distinct().ToList();
+
+        Console.WriteLine(analyzer.GenerateReport());
+    }
+
+    public static void Idk()
+    {
+        var data = JsonSerializer.Deserialize<List<Bend>>(File.ReadAllText("D:\\randomszar2.json"));
+        var tones = string.Join(",", data.Select(e => e.Tone).ToHashSet());
+
+        //var cc = data.Count(e => e.LegacyFlag);
+        //Console.WriteLine(cc);
+        //var points = data.SelectMany(e => e.Points).ToList();
+        //var vibratos = string.Join(",", points.Select(e => e.Vibrato).ToHashSet());
+        //var positions = string.Join(",", points.Select(e => e.Position).ToHashSet());
+        //var pointtones = string.Join(",", points.Select(e => e.Tone).ToHashSet());
 
     }
 
     public static async Task DeserializeRawJsons()
     {
         int counter = 0;
-        var totalMax = int.MinValue;
+        var allFiles = Directory
+            .GetFiles(MetaPath)
+            .Select(e => int.Parse(Path.GetFileNameWithoutExtension(e)))
+            .ToList();
 
-
-        using var fileStream = File.OpenWrite(Path.Combine(SummaryPath, "allbetas.dani"));
-
-        foreach (var metaFile in Directory.GetFiles(MetaPath))
-        //await Parallel.ForEachAsync(Directory.GetFiles(MetaPath).Take(10000), async (metaFile, _) =>
+        var chunks = allFiles.Chunk(allFiles.Count / Environment.ProcessorCount).Select((chunk, index) => new
         {
-            var id = int.Parse(Path.GetFileNameWithoutExtension(metaFile));
+            Chunk = chunk,
+            Index = index
+        });
+
+        //foreach (var metaFile in Directory.GetFiles(MetaPath))
+        await Parallel.ForEachAsync(chunks, async (chunk, _) =>
+        {
+            await using var fileStream = File.OpenWrite(Path.Combine(SummaryPath, $"Beats_Partial_{chunk.Index}.dani"));
+
             //await using var metaFileStream = File.OpenRead(metaFile);
             //var meta = JsonSerializer.Deserialize<SongMetaDataModel>(metaFileStream, JsonOptions);
 
-            foreach (var partFile in Directory.GetFiles(DataPath, $"{id}_*"))
+            foreach (var id in chunk.Chunk)
             {
-                try
+                foreach (var partFile in Directory.GetFiles(DataPath, $"{id}_*"))
                 {
-                    await using var originalFileStream = File.OpenRead(partFile);
-                    await using var decompressionStream = new GZipStream(originalFileStream, CompressionMode.Decompress);
-                    var part = JsonSerializer.Deserialize<Part>(decompressionStream, JsonOptions);
-
-                    var thisBeats = part.Measures
-                        .SelectMany(e => e.Voices)
-                        .SelectMany(e => e.Beats)
-                        .ToList();
-
-                    foreach (var beat in thisBeats)
+                    try
                     {
-                        var bytes = DaniSerializer.Serialize(beat).ToArray();
+                        await using var originalFileStream = File.OpenRead(partFile);
+                        await using var decompressionStream = new GZipStream(originalFileStream, CompressionMode.Decompress);
+                        var part = JsonSerializer.Deserialize<Part>(decompressionStream, JsonOptions);
 
-                        fileStream.Write(DaniSerializer.SerializeObject(bytes.Length).ToArray(), 0, 4);
-                        fileStream.Write(bytes, 0, bytes.Length);
+                        var thisBeats = part.Measures
+                            .SelectMany(e => e.Voices)
+                            .SelectMany(e => e.Beats)
+                            .ToList();
+
+                        foreach (var beat in thisBeats)
+                        {
+                           
+                        }
                     }
-
-                    //var maxBeat = beats.MaxBy(e => e.DownArpeggio);
-                    //if (maxBeat.DownArpeggio > totalMax)
-                    //{
-                    //    totalMax = maxBeat.DownArpeggio;
-                    //    Console.WriteLine(maxBeat.DownArpeggio);
-                    //}
-
+                    catch (Exception ex)
+                    {
+                        DumpFile(partFile);
+                        throw ex;
+                    }
                 }
-                catch (Exception ex)
+
+                Interlocked.Increment(ref counter);
+                if (counter % 100 == 0)
                 {
-                    DumpFile(partFile);
-                    throw ex;
+                    Console.WriteLine($"Processed {counter} files...");
                 }
-
             }
-
-            Interlocked.Increment(ref counter);
-            if (counter % 100 == 0)
-            {
-                Console.WriteLine($"Processed {counter} files...");
-            }
-        }//);
+        });
 
         //var json = JsonSerializer.Serialize(beats, JsonOptions);
         //await File.WriteAllTextAsync(Path.Combine(SummaryPath, "allbeats.json"), json);

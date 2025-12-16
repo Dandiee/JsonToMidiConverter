@@ -8,11 +8,15 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 
+//await Database.DeserializeRawJsons();
+
+//Database.Idk();
+
 await Database.ProcessBeats();
 
 //Database.TestAll();
 
-await Database.DeserializeRawJsons();
+//await Database.DeserializeRawJsons();
 
 //await Database.DeserEndToEnd();
 
@@ -99,7 +103,7 @@ var q = Dumper.Bends.Select(e => new
 {
     NoteDuration = e.Note.Duration.Tick,
     OutputPitchBends = e.Event.PitchBends,
-    InputData = e.Note.Beat.TremoloBar
+    InputData = e.Note.Beat.Tremolo
 });
 
 var data = JsonSerializer.Serialize(q);
