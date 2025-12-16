@@ -116,6 +116,11 @@ public static class Database
 
         var points = new HashSet<Point>();
 
+        var glopes = new HashSet<string>();
+        var OctaveClefs = new HashSet<string>();
+
+        files = [@"c:\src\data\Summary\Beats_Partial_14.dani"];
+        var i = 0;
         await Parallel.ForEachAsync(files, async (file, ct) =>
         {
             await using var stream = File.OpenRead(Path.Combine(SummaryPath, file));
@@ -124,7 +129,20 @@ public static class Database
             while (stream.Position < stream.Length)
             {
                 var length = reader.ReadInt32();
+
+                if (length > 10000)
+                {
+
+                }
+
                 var bytes = reader.ReadBytes(length);
+                i++;
+                if (i == 7027554)
+                {
+
+                }
+
+                
                 var beat = DaniSerializer.Deserialize<Beat>(bytes);
 
                 //analyzer.Ingest([
@@ -141,7 +159,9 @@ public static class Database
                 //    beat.Arpeggio != null
                 //]);
 
-             
+
+                //glopes.Add(beat.Golpe);
+                //OctaveClefs.Add(beat.OctaveClef);
 
                 Interlocked.Increment(ref counter);
                 if (counter % 100 == 0)
@@ -188,7 +208,7 @@ public static class Database
         });
 
         //foreach (var metaFile in Directory.GetFiles(MetaPath))
-        await Parallel.ForEachAsync(chunks, async (chunk, _) =>
+        await Parallel.ForEachAsync(chunks, new ParallelOptions(){ MaxDegreeOfParallelism = Environment.ProcessorCount}, async (chunk, _) =>
         {
             await using var fileStream = File.OpenWrite(Path.Combine(SummaryPath, $"Beats_Partial_{chunk.Index}.dani"));
 
@@ -197,6 +217,11 @@ public static class Database
 
             foreach (var id in chunk.Chunk)
             {
+                if (id == 10017)
+                {
+
+                }
+
                 foreach (var partFile in Directory.GetFiles(DataPath, $"{id}_*"))
                 {
                     try
@@ -212,7 +237,9 @@ public static class Database
 
                         foreach (var beat in thisBeats)
                         {
-                           
+                            var beatBytes = DaniSerializer.Serialize(beat, typeof(Beat)).ToArray();
+                            await fileStream.WriteAsync( DaniSerializer.Serialize(beatBytes.Length, typeof(int)).ToArray(), 0, 4, _);
+                            await fileStream.WriteAsync(beatBytes, _);
                         }
                     }
                     catch (Exception ex)

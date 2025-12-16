@@ -8,7 +8,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 
-//await Database.DeserializeRawJsons();
+await Database.DeserializeRawJsons();
 
 //Database.Idk();
 

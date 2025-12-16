@@ -2,7 +2,7 @@
 
 namespace JsonToMidiConverter.Models.Song;
 
-public sealed class Text
+public sealed class Text : ISerializable
 {
     [JsonPropertyName("text")]
     public string Content { get; set; } = string.Empty;

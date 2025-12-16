@@ -1,19 +1,23 @@
 ﻿using JsonToMidiConverter.Models.Song;
+using SharpCompress.Common;
 using System.Collections;
 using System.Collections.Concurrent;
+using System.Drawing;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.Json.Serialization;
 
 namespace JsonToMidiConverter.Models;
 
+public interface ISerializable{}
+
 public static class DaniSerializer
 {
     private record Prop(PropertyInfo Info, bool IsBoolean);
 
     private static readonly ConcurrentDictionary<Type, List<Prop>> PropCache = new();
-    private static readonly ConcurrentDictionary<PropertyInfo, Func<object, object>> GetterCache = new();
-    private static readonly ConcurrentDictionary<PropertyInfo, Action<object, object>> SetterCache = new();
+    private static readonly ConcurrentDictionary<PropertyInfo, Func<ISerializable, object>> GetterCache = new();
+    private static readonly ConcurrentDictionary<PropertyInfo, Action<ISerializable, object>> SetterCache = new();
 
     private static bool GetIsDefault(object? value, Type type)
     {
@@ -24,9 +28,25 @@ public static class DaniSerializer
         return Equals(defaultValue, value);
     }
 
-    public static IEnumerable<byte> Serialize(object obj)
+    public static IEnumerable<byte> Serialize(ISerializable obj, Type type)
     {
-        var props = GetProps(obj.GetType())
+        if (obj.GetType() != type)
+        {
+            // This will trigger ONLY if you have a Point disguised as a BasePoint
+            var msg = $"CRITICAL MISMATCH FOUND!\n" +
+                      $"Expected (Declared): {type.FullName}\n" +
+                      $"Actual (Runtime): {obj.GetType().FullName}\n" +
+                      $"Object Data: {System.Text.Json.JsonSerializer.Serialize(obj)}";
+
+            Console.WriteLine("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+            Console.WriteLine(msg);
+            Console.WriteLine("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+
+            // Optional: Throw immediately so you see the stack trace and know which file it is
+            throw new Exception(msg);
+        }
+
+        var props = GetProps(type)
             .Where(prop => !prop.IsBoolean)
             .Select(prop =>
             {
@@ -39,7 +59,7 @@ public static class DaniSerializer
                 };
             }).ToList();
 
-        foreach (var b in PackBooleans(obj)) yield return b;
+        foreach (var b in PackBooleans(obj, type)) yield return b;
 
         var presenceByteCount = (props.Count + 7) / 8;
         var presenceBytes = new byte[presenceByteCount];
@@ -62,7 +82,7 @@ public static class DaniSerializer
         }
     }
 
-    private static IEnumerable<byte> Serialize(object value, Type type)
+    public static IEnumerable<byte> Serialize(object value, Type type)
     {
         var isList = type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>);
         if (isList && value is IList list)
@@ -77,12 +97,15 @@ public static class DaniSerializer
         }
         else if ((Nullable.GetUnderlyingType(type) ?? type).IsEnum)
         {
+            if (Enum.GetUnderlyingType(type) != typeof(byte)) throw new Exception("Faszoom: ez nem byte!");
+
             yield return (byte)value;
         }
-        else
+        else if (type.IsAssignableTo(typeof(ISerializable)))
         {
-            foreach (var b in SerializeObject(value)) yield return b;
+            foreach (var b in Serialize((ISerializable)value, type)) yield return b;
         }
+        else foreach (var b in SerializeObject(value)) yield return b;
     }
 
     public static IEnumerable<byte> SerializeObject(object value)
@@ -98,7 +121,7 @@ public static class DaniSerializer
             byte b => [b],
             sbyte sb => [(byte)sb],
             string str => SerializeString(str),
-            _ => Serialize(value)
+            _ => throw new Exception()
         };
 
         foreach (var b in bytes) yield return b;
@@ -113,9 +136,9 @@ public static class DaniSerializer
 
 
 
-    public static byte[] PackBooleans(object obj)
+    public static byte[] PackBooleans(ISerializable obj, Type type)
     {
-        var props = GetProps(obj.GetType()).Where(e => e.IsBoolean).ToList();
+        var props = GetProps(type).Where(e => e.IsBoolean).ToList();
 
         var byteCount = (props.Count + 7) / 8;
         var buffer = new byte[byteCount];
@@ -134,7 +157,7 @@ public static class DaniSerializer
         return buffer;
     }
 
-    private static void UnpackBooleans(object instance, byte[] data, List<Prop> booleanProps)
+    private static void UnpackBooleans(ISerializable instance, byte[] data, List<Prop> booleanProps)
     {
         for (int i = 0; i < booleanProps.Count; i++)
         {
@@ -185,9 +208,9 @@ public static class DaniSerializer
         };
     }
 
-    private static object DeserializeObject(Type type, Queue<byte> queue)
+    private static ISerializable DeserializeObject(Type type, Queue<byte> queue)
     {
-        var obj = Activator.CreateInstance(type)!;
+        var obj = (ISerializable)Activator.CreateInstance(type)!;
         var allProps = GetProps(type);
 
         var boolProps = allProps.Where(p => p.IsBoolean).ToList();
@@ -240,9 +263,9 @@ public static class DaniSerializer
     }
 
 
-    private static object GetValue(Prop prop, object instance)
-        => GetterCache.GetOrAdd(prop.Info, CompileGetter)(instance);
-    private static Func<object, object> CompileGetter(PropertyInfo prop)
+    private static object GetValue(Prop prop, ISerializable instance) => GetterCache.GetOrAdd(prop.Info, CompileGetter)(instance);
+
+    private static Func<ISerializable, object> CompileGetter(PropertyInfo prop)
     {
         var instanceParam = Expression.Parameter(typeof(object), "obj");
         var instanceCast = Expression.Convert(instanceParam, prop.DeclaringType!);
@@ -251,9 +274,8 @@ public static class DaniSerializer
         return Expression.Lambda<Func<object, object>>(boxResult, instanceParam).Compile();
     }
 
-    private static void SetValue(Prop prop, object instance, object value)
-        => SetterCache.GetOrAdd(prop.Info, CompileSetter)(instance, value);
-    private static Action<object, object> CompileSetter(PropertyInfo prop)
+    private static void SetValue(Prop prop, ISerializable instance, object value) => SetterCache.GetOrAdd(prop.Info, CompileSetter)(instance, value);
+    private static Action<ISerializable, object> CompileSetter(PropertyInfo prop)
     {
         var instanceParam = Expression.Parameter(typeof(object), "obj");
         var valueParam = Expression.Parameter(typeof(object), "value");

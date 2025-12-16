@@ -3,12 +3,11 @@ using JsonToMidiConverter.Models.Song.Enums;
 
 namespace JsonToMidiConverter.Models.Song;
 
-public sealed class Bend
+public sealed class Bend : ISerializable
 {
-    [JsonPropertyName("style")]
     public TremoloStyle Style { get; set; } = TremoloStyle.CustomGraph;
 
-    public short Tone { get; set; }
+    public int Tone { get; set; }
 
     public List<BasePoint> Points { get; set; } = new();
 

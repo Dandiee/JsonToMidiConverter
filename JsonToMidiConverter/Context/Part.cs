@@ -355,7 +355,7 @@ public sealed partial class Part
             {
                 voice.Beats.Add(new Beat
                 {
-                    DurationArray = new MusicalFraction((byte)error.Span.Numerator, (byte)error.Span.Denominator),
+                    MusicalFraction = new MusicalFraction((byte)error.Span.Numerator, (byte)error.Span.Denominator),
                     Rest = true,
                     Modifications = { "Manually created" }
                 });

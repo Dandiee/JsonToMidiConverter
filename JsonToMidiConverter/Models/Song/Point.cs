@@ -1,9 +1,9 @@
 ﻿namespace JsonToMidiConverter.Models.Song;
 
-public class BasePoint
+public class BasePoint : ISerializable
 {
     public byte Position { get; set; }
-    public short Tone { get; set; }
+    public int Tone { get; set; }
 
     public virtual BasePoint Clone() => new()
     {

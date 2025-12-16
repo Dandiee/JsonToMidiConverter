@@ -11,7 +11,7 @@ public sealed class Tempó : MeasureTempo
     
 }
 
-public class MeasureTempo
+public class MeasureTempo : ISerializable
 {
     public int Type { get; set; }
     public int Bpm { get; set; }

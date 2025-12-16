@@ -1,6 +1,6 @@
 ﻿namespace JsonToMidiConverter.Models.Song;
 
-public class MusicalFraction
+public class MusicalFraction : ISerializable
 {
     public byte Numerator { get; set; }
     public byte Denominator { get; set; }

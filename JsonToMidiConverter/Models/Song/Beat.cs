@@ -1,12 +1,14 @@
 ﻿using JsonToMidiConverter.Models.Song.Enums;
 using JsonToMidiConverter.Models.Song.JsonConverters;
+using Melanchall.DryWetMidi.MusicTheory;
 using System.Diagnostics;
 using System.Text.Json.Serialization;
+using Octave = JsonToMidiConverter.Models.Song.Enums.Octave;
 
 namespace JsonToMidiConverter.Models.Song;
 
 [DebuggerDisplay("B{Index} M{Measure.Index} P{Part.Index}")]
-public partial class Beat
+public partial class Beat : ISerializable
 {
     [JsonIgnore] public List<Nota> Notes { get; set; } = [];
 
@@ -19,10 +21,12 @@ public partial class Beat
     public Vibrato Vibrato { get; set; } = Vibrato.None;
     [JsonConverter(typeof(MarkerConverter))] public Marker? Chord { get; set; }
 
-    [JsonPropertyName("duration"), JsonConverter(typeof(MusicalFractionConverter))] public MusicalFraction DurationArray { get; set; }
+    [JsonPropertyName("duration"), JsonConverter(typeof(MusicalFractionConverter))] 
+    public MusicalFraction MusicalFraction { get; set; }
+
     public MeasureTempo? Tempo { get; set; }
 
-    [JsonConverter(typeof(PickStrokeConverter))]
+    [JsonPropertyName("pickStroke"), JsonConverter(typeof(DirectionConverter))]
     public Direction PickDirection { get; set; } = Direction.None;
     public ChordStroke? Stroke { get; set; }
     public Text? Text { get; set; }
@@ -33,16 +37,30 @@ public partial class Beat
     public bool LetRing { get; set; }
     public bool Rest { get; set; }
     public byte Dots { get; set; }
+    
 
-    [JsonPropertyName("calculatedHarmonic")] public Harmonic Harmonic { get; set; } = Harmonic.Unset;
+    [JsonPropertyName("calculatedHarmonic")] 
+    public Harmonic Harmonic { get; set; } = Harmonic.Unset;
     public Technique Technique { get; set; } = Technique.None;
     public Spanner BeamSpan { get; set; }
     public Spanner TupletSpan { get; set; } = Spanner.None;
     public byte TupletDenominator { get; set; }
+    public Golpe Golpe { get; set; } = Golpe.None;
+    public Octave Octave { get; set; } = Octave.None;
 
 
 
 
+    [JsonInclude, JsonPropertyName("octaveClef")]
+    private string LegacyOctaveClef
+    {
+        set => Octave = value switch
+        {
+            "8va" => Octave.Higher,
+            "8vb" => Octave.Lower,
+            _ => Octave.None
+        };
+    }
 
     [JsonInclude, JsonPropertyName("brushStroke")]
     private BrushStroke? LegacyBrushStroke
@@ -202,7 +220,7 @@ public partial class Beat
         Velocity = Velocity,
         Type = Type,
         PalmMute = PalmMute,
-        DurationArray = DurationArray.Copy(),
+        MusicalFraction = MusicalFraction.Copy(),
         Text = Text?.Clone(),
         LetRing = LetRing,
         Dots = Dots,

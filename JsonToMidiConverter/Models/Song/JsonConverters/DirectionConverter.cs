@@ -4,27 +4,27 @@ using JsonToMidiConverter.Models.Song.Enums;
 
 namespace JsonToMidiConverter.Models.Song.JsonConverters;
 
-public class PickStrokeConverter : JsonConverter<PickStroke>
+public class DirectionConverter : JsonConverter<Direction>
 {
-    public override PickStroke Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    public override Direction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         if (reader.TokenType == JsonTokenType.True || reader.TokenType == JsonTokenType.False)
         {
-            return reader.GetBoolean() ? PickStroke.Down : PickStroke.Unset;
+            return reader.GetBoolean() ? Direction.Down : Direction.None;
         }
         else if (reader.TokenType == JsonTokenType.String)
         {
             var stringValue = reader.GetString();
 
-            if (Enum.TryParse<PickStroke>(stringValue, ignoreCase: true, out var result))
+            if (Enum.TryParse<Direction>(stringValue, ignoreCase: true, out var result))
             {
                 return result;
             }
         }
 
-        return PickStroke.Unset;
+        return Direction.None;
     }
 
-    public override void Write(Utf8JsonWriter writer, PickStroke value, JsonSerializerOptions options)
+    public override void Write(Utf8JsonWriter writer, Direction value, JsonSerializerOptions options)
         => JsonSerializer.Serialize(writer, value, options);
 }

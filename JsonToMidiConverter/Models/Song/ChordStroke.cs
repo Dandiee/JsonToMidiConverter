@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace JsonToMidiConverter.Models.Song;
 
-public sealed class ChordStroke
+public sealed class ChordStroke : ISerializable
 {
     public StrokeTechnique Technique { get; set; } = StrokeTechnique.None;
     public int Duration { get; set; }

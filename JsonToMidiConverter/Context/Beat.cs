@@ -16,7 +16,7 @@ public sealed partial class Beat : MusicalElement<Beat>
         {
             if (!_duration.HasValue)
             {
-                _duration = new Time(DurationArray.Numerator, DurationArray.Denominator);
+                _duration = new Time(MusicalFraction.Numerator, MusicalFraction.Denominator);
             }
 
             return _duration.Value;
