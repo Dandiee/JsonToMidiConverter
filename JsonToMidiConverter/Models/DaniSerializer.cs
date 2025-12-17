@@ -1,92 +1,42 @@
-﻿using JsonToMidiConverter.Models.Song;
-using SharpCompress.Common;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Concurrent;
-using System.Drawing;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 
 namespace JsonToMidiConverter.Models;
 
-public interface ISerializable{}
+public interface ISerializable;
 
 public static class DaniSerializer
 {
-    private record Prop(PropertyInfo Info, bool IsBoolean);
+    private record Prop(
+        PropertyInfo Info,
+        bool IsBoolean,
+        int? BitSize);
 
     private static readonly ConcurrentDictionary<Type, List<Prop>> PropCache = new();
     private static readonly ConcurrentDictionary<PropertyInfo, Func<ISerializable, object>> GetterCache = new();
     private static readonly ConcurrentDictionary<PropertyInfo, Action<ISerializable, object>> SetterCache = new();
 
-    private static bool GetIsDefault(object? value, Type type)
-    {
-        if (value is IList list && list.Count == 0) return true;
-        if (value is string str && string.IsNullOrEmpty(str)) return true;
-
-        var defaultValue = type.IsValueType ? Activator.CreateInstance(type) : null;
-        return Equals(defaultValue, value);
-    }
-
     public static IEnumerable<byte> Serialize(ISerializable obj, Type type)
     {
-        if (obj.GetType() != type)
+        foreach (var b in Pack(obj)) yield return b;
+
+        foreach (var prop in GetProps(type).Where(e => !e.BitSize.HasValue))
         {
-            // This will trigger ONLY if you have a Point disguised as a BasePoint
-            var msg = $"CRITICAL MISMATCH FOUND!\n" +
-                      $"Expected (Declared): {type.FullName}\n" +
-                      $"Actual (Runtime): {obj.GetType().FullName}\n" +
-                      $"Object Data: {System.Text.Json.JsonSerializer.Serialize(obj)}";
-
-            Console.WriteLine("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-            Console.WriteLine(msg);
-            Console.WriteLine("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-
-            // Optional: Throw immediately so you see the stack trace and know which file it is
-            throw new Exception(msg);
-        }
-
-        var props = GetProps(type)
-            .Where(prop => !prop.IsBoolean)
-            .Select(prop =>
-            {
-                var value = GetValue(prop, obj);
-                return new
-                {
-                    Type = prop.Info.PropertyType,
-                    Value = value,
-                    IsDefault = GetIsDefault(value, prop.Info.PropertyType)
-                };
-            }).ToList();
-
-        foreach (var b in PackBooleans(obj, type)) yield return b;
-
-        var presenceByteCount = (props.Count + 7) / 8;
-        var presenceBytes = new byte[presenceByteCount];
-        for (var i = 0; i < props.Count; i++)
-        {
-            if (props[i].IsDefault)
-            {
-                var byteIndex = i / 8;
-                var bitIndex = i % 8;
-
-                presenceBytes[byteIndex] |= (byte)(1 << bitIndex);
-            }
-        }
-
-        foreach (var b in presenceBytes) yield return b;
-
-        foreach (var prop in props.Where(e => !e.IsDefault))
-        {
-            foreach (var b in Serialize(prop.Value, prop.Type)) yield return b;
+            foreach (var b in Serialize(GetValue(prop, obj), prop.Info.PropertyType)) yield return b;
         }
     }
 
-    public static IEnumerable<byte> Serialize(object value, Type type)
+    public static IEnumerable<byte> Serialize(object? value, Type type)
     {
         var isList = type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>);
         if (isList && value is IList list)
         {
+            if (value == null) throw new Exception("LÜFASZ: this list cannot be null but empty!");
+
             foreach (var b in BitConverter.GetBytes(list.Count)) yield return b;
             var itemType = type.GetGenericArguments()[0];
 
@@ -95,172 +45,207 @@ public static class DaniSerializer
                 foreach (var b in Serialize(item, itemType)) yield return b;
             }
         }
-        else if ((Nullable.GetUnderlyingType(type) ?? type).IsEnum)
+        else if (type == typeof(string))
         {
-            if (Enum.GetUnderlyingType(type) != typeof(byte)) throw new Exception("Faszoom: ez nem byte!");
-
-            yield return (byte)value;
+            if (value == null) yield return 0; // null marker
+            else
+            {
+                yield return 1; // presence marker
+                var strBytes = System.Text.Encoding.UTF8.GetBytes((string)value);
+                foreach (var b in BitConverter.GetBytes(strBytes.Length)) yield return b;
+                foreach (var b in strBytes) yield return b;
+            }
         }
         else if (type.IsAssignableTo(typeof(ISerializable)))
         {
-            foreach (var b in Serialize((ISerializable)value, type)) yield return b;
-        }
-        else foreach (var b in SerializeObject(value)) yield return b;
-    }
-
-    public static IEnumerable<byte> SerializeObject(object value)
-    {
-        var bytes = value switch
-        {
-            int i => BitConverter.GetBytes(i),
-            short s => BitConverter.GetBytes(s),
-            ushort us => BitConverter.GetBytes(us),
-            ulong ul => BitConverter.GetBytes(ul),
-            long l => BitConverter.GetBytes(l),
-            float f => BitConverter.GetBytes(f),
-            byte b => [b],
-            sbyte sb => [(byte)sb],
-            string str => SerializeString(str),
-            _ => throw new Exception()
-        };
-
-        foreach (var b in bytes) yield return b;
-    }
-
-    private static IEnumerable<byte> SerializeString(string str)
-    {
-        var strBytes = System.Text.Encoding.UTF8.GetBytes(str);
-        foreach (var b in BitConverter.GetBytes(strBytes.Length)) yield return b;
-        foreach (var b in strBytes) yield return b;
-    }
-
-
-
-    public static byte[] PackBooleans(ISerializable obj, Type type)
-    {
-        var props = GetProps(type).Where(e => e.IsBoolean).ToList();
-
-        var byteCount = (props.Count + 7) / 8;
-        var buffer = new byte[byteCount];
-
-        for (var i = 0; i < props.Count; i++)
-        {
-            var isTrue = (bool)GetValue(props[i], obj);
-            if (isTrue)
+            if (value == null) yield return 0;
+            else
             {
-                var byteIndex = i / 8;
-                var bitIndex = i % 8;
-                buffer[byteIndex] |= (byte)(1 << bitIndex);
+                yield return 1; // presence marker
+                foreach (var b in Serialize((ISerializable)value!, type)) yield return b;
             }
         }
 
-        return buffer;
+        else throw new Exception("LOFASZ: ez a type nemjü");
     }
 
-    private static void UnpackBooleans(ISerializable instance, byte[] data, List<Prop> booleanProps)
+    public static IEnumerable<byte> Pack(ISerializable obj)
     {
-        for (int i = 0; i < booleanProps.Count; i++)
+        byte currentByte = 0;
+        var bitsInByte = 0;
+
+        // 1. Loop through all Packable properties
+        foreach (var prop in GetProps(obj.GetType()).Where(e => e.BitSize.HasValue))
         {
-            var byteIndex = i / 8;
-            var bitIndex = i % 8;
-            var isSet = (data[byteIndex] & (1 << bitIndex)) != 0;
-            SetValue(booleanProps[i], instance, isSet);
-        }
-    }
+            var value = GetValue(prop, obj);
 
+            ulong ulongValue;
 
-    public static T Deserialize<T>(byte[] data) where T : new()
-        => (T)DeserializeValue(typeof(T), new Queue<byte>(data));
+            // 1. Handle types explicitly to preserve bit patterns
+            if (prop.IsBoolean) ulongValue = (bool)value ? 1u : 0u;
+            else if (value is float f) ulongValue = (ulong)BitConverter.SingleToInt32Bits(f);
+            else if (value is double d) ulongValue = (ulong)BitConverter.DoubleToInt64Bits(d);
+            else ulongValue = Convert.ToUInt64(value);
 
-    private static object DeserializeValue(Type type, Queue<byte> queue)
-    {
-        var nonNullType = Nullable.GetUnderlyingType(type) ?? type;
-        if (nonNullType.IsGenericType && nonNullType.GetGenericTypeDefinition() == typeof(List<>))
-        {
-            var count = BitConverter.ToInt32(ReadBytes(queue, 4));
-            var list = (IList)Activator.CreateInstance(nonNullType)!;
-            var itemType = nonNullType.GetGenericArguments()[0];
-
-            for (var i = 0; i < count; i++)
+            for (var i = 0; i < prop.BitSize!.Value; i++)
             {
-                list.Add(DeserializeValue(itemType, queue));
+                var bit = (byte)((ulongValue >> i) & 1);
+                currentByte |= (byte)(bit << bitsInByte);
+                bitsInByte++;
+
+                if (bitsInByte == 8) // If buffer is full, flush it and reset
+                {
+                    yield return currentByte;
+                    currentByte = 0;
+                    bitsInByte = 0;
+                }
             }
-            return list;
         }
 
-        if (nonNullType.IsEnum)
-        {
-            return Enum.ToObject(nonNullType, queue.Dequeue());
-        }
-
-        return Type.GetTypeCode(nonNullType) switch
-        {
-            TypeCode.Int32 => BitConverter.ToInt32(ReadBytes(queue, 4)),
-            TypeCode.Int16 => BitConverter.ToInt16(ReadBytes(queue, 2)),
-            TypeCode.UInt16 => BitConverter.ToUInt16(ReadBytes(queue, 2)),
-            TypeCode.UInt64 => BitConverter.ToUInt64(ReadBytes(queue, 8)),
-            TypeCode.Int64 => BitConverter.ToInt64(ReadBytes(queue, 8)),
-            TypeCode.Single => BitConverter.ToSingle(ReadBytes(queue, 4)),
-            TypeCode.Byte => queue.Dequeue(),
-            TypeCode.SByte => (sbyte)queue.Dequeue(),
-            TypeCode.String => DeserializeString(queue),
-            _ => DeserializeObject(nonNullType, queue)
-        };
+        // 3. IMPORTANT: Flush any partial byte remaining after ALL properties are done
+        if (bitsInByte > 0) yield return currentByte;
     }
 
-    private static ISerializable DeserializeObject(Type type, Queue<byte> queue)
+
+
+
+
+
+    private static void Unpack(IEnumerator<byte> stream, Type type, ISerializable instance)
     {
-        var obj = (ISerializable)Activator.CreateInstance(type)!;
-        var allProps = GetProps(type);
+        var packableProps = GetProps(type).Where(e => e.BitSize.HasValue).ToList();
 
-        var boolProps = allProps.Where(p => p.IsBoolean).ToList();
-        var nonBoolProps = allProps.Where(p => !p.IsBoolean).ToList();
+        var totalBits = packableProps.Sum(p => p.BitSize!.Value);
+        var totalBytes = (int)Math.Ceiling(totalBits / 8.0);
+        var packedBuffer = ReadBytes(stream, totalBytes);
 
-        if (boolProps.Count > 0)
+        var currentBitIndex = 0;
+        foreach (var prop in packableProps)
         {
-            var boolByteCount = (boolProps.Count + 7) / 8;
-            var boolBytes = ReadBytes(queue, boolByteCount);
+            ulong extractedValue = 0;
+            var bitsToRead = prop.BitSize!.Value;
 
-            UnpackBooleans(obj, boolBytes, boolProps);
-        }
-
-
-        var maskByteCount = (nonBoolProps.Count + 7) / 8;
-        var maskBytes = ReadBytes(queue, maskByteCount);
-
-        for (var i = 0; i < nonBoolProps.Count; i++)
-        {
-            var byteIndex = i / 8;
-            var bitIndex = i % 8;
-
-            var isDefault = (maskBytes[byteIndex] & (1 << bitIndex)) != 0;
-            if (!isDefault)
+            for (var i = 0; i < bitsToRead; i++)
             {
-                SetValue(nonBoolProps[i], obj, DeserializeValue(nonBoolProps[i].Info.PropertyType, queue));
+                // Locate the exact address
+                var byteIndex = currentBitIndex / 8;
+                var bitIndexInByte = currentBitIndex % 8;
+
+                // Read the bit
+                var bit = (ulong)((packedBuffer[byteIndex] >> bitIndexInByte) & 1);
+                
+                // Write the bit
+                extractedValue |= (bit << i);
+
+                currentBitIndex++;
             }
+
+            // Ulong to target prop
+            object finalValue;
+            var t = prop.Info.PropertyType;
+
+            if (prop.IsBoolean) finalValue = extractedValue == 1;
+            else if (t == typeof(float)) finalValue = BitConverter.Int32BitsToSingle((int)extractedValue);
+            else if (t == typeof(double)) finalValue = BitConverter.Int64BitsToDouble((long)extractedValue);
+            else if (t.IsEnum) finalValue = Enum.ToObject(t, extractedValue);
+            else finalValue = Convert.ChangeType(extractedValue, t);
+
+            SetValue(prop, instance, finalValue);
+        }
+    }
+
+
+    public static T Deserialize<T>(IEnumerator<byte> stream) 
+        where T : ISerializable, new()
+    {
+        var obj = new T();
+        var type = typeof(T);
+
+        return (T)Deserialize(type, stream, obj);
+    }
+
+    public static object Deserialize(Type type, IEnumerator<byte> stream, ISerializable obj)
+    {
+        Unpack(stream, type, obj);
+
+        var complexProps = GetProps(type).Where(e => !e.BitSize.HasValue).ToList();
+
+        foreach (var prop in complexProps)
+        {
+            var value = ReadComplexValue(stream, prop.Info.PropertyType);
+            SetValue(prop, obj, value!);
         }
 
         return obj;
     }
 
-    private static byte[] ReadBytes(Queue<byte> queue, int count)
+    private static object? ReadComplexValue(IEnumerator<byte> stream, Type type)
     {
-        var bytes = new byte[count];
+        // List
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>))
+        {
+            var count = BitConverter.ToInt32(ReadBytes(stream, 4), 0);
+            var list = (IList)Activator.CreateInstance(type)!;
+            var itemType = type.GetGenericArguments()[0];
+
+            for (var i = 0; i < count; i++)
+            {
+                list.Add(ReadComplexValue(stream, itemType));
+            }
+
+            return list;
+        }
+
+        // String
+        if (type == typeof(string))
+        {
+            var isNull = ReadByte(stream) == 0;
+            if (isNull) return null;
+
+            var length = BitConverter.ToInt32(ReadBytes(stream, 4), 0);
+            return System.Text.Encoding.UTF8.GetString(ReadBytes(stream, length));
+        }
+
+        // Serializable
+        if (type.IsAssignableTo(typeof(ISerializable)))
+        {
+            var isNull = ReadByte(stream) == 0;
+            if (isNull) return null;
+
+            return Deserialize(type, stream, (ISerializable)Activator.CreateInstance(type)!);
+        }
+
+        throw new Exception($"LOFASZ: Unknown type {type.Name}");
+    }
+
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static byte ReadByte(IEnumerator<byte> stream)
+    {
+        stream.MoveNext();
+        return stream.Current;
+    }
+
+    private static byte[] ReadBytes(IEnumerator<byte> stream, int count)
+    {
+        var lenBytes = new byte[count];
         for (var i = 0; i < count; i++)
         {
-            if (queue.Count == 0) throw new EndOfStreamException();
-
-            bytes[i] = queue.Dequeue();
+            lenBytes[i] = ReadByte(stream);
         }
-        return bytes;
+
+        return lenBytes;
     }
 
-    private static string DeserializeString(Queue<byte> queue)
-    {
-        var length = BitConverter.ToInt32(ReadBytes(queue, 4));
-        var bytes = ReadBytes(queue, length);
-        return System.Text.Encoding.UTF8.GetString(bytes);
-    }
+
+
+
+
+
+
+
+
+
 
 
     private static object GetValue(Prop prop, ISerializable instance) => GetterCache.GetOrAdd(prop.Info, CompileGetter)(instance);
@@ -285,6 +270,31 @@ public static class DaniSerializer
         return Expression.Lambda<Action<object, object>>(assign, instanceParam, valueParam).Compile();
     }
 
+    private static int? GetBitSize(Type t)
+    {
+        if (t == typeof(bool)) return 1;
+        if (t == typeof(byte) || t == typeof(sbyte)) return 8;
+        if (t == typeof(short) || t == typeof(ushort)) return 16;
+        if (t == typeof(int) || t == typeof(uint) || t == typeof(float)) return 32;
+        if (t == typeof(long) || t == typeof(ulong) || t == typeof(double)) return 64;
+        if (t == typeof(string) || t.IsAssignableTo(typeof(IList)) ||
+            t.IsAssignableTo(typeof(ISerializable))) return null;
+        if (t.IsEnum)
+        {
+            var maxVal = 0;
+            foreach (var val in Enum.GetValues(t))
+            {
+                maxVal = Math.Max(maxVal, Convert.ToByte(val));
+            }
+
+            return maxVal == 0
+                ? 1
+                : (int)Math.Ceiling(Math.Log2(maxVal + 1));
+        }
+
+        throw new Exception("LOFASZ: mi ez a type");
+    }
+
     private static List<Prop> GetProps(Type type)
         => PropCache.GetOrAdd(
             type,
@@ -292,7 +302,9 @@ public static class DaniSerializer
                 .GetProperties(BindingFlags.Instance | BindingFlags.Public)
                 .Where(e => e.GetCustomAttribute<JsonIgnoreAttribute>() == null)
                 .OrderBy(e => e.Name)
-                .Select(e => new Prop(e, e.PropertyType == typeof(bool)))
+                .Select(e => new Prop(e,
+                    IsBoolean: e.PropertyType == typeof(bool),
+                    BitSize: GetBitSize(e.PropertyType)))
                 .ToList()
         );
 }

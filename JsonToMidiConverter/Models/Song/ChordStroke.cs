@@ -6,6 +6,6 @@ namespace JsonToMidiConverter.Models.Song;
 public sealed class ChordStroke : ISerializable
 {
     public StrokeTechnique Technique { get; set; } = StrokeTechnique.None;
-    public int Duration { get; set; }
-    public float StartTimeOffset { get; set; }
+    public byte Duration { get; set; }
+    public byte StartTimeOffset { get; set; }
 }

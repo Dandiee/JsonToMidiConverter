@@ -75,8 +75,8 @@ public partial class Beat : ISerializable
             }
 
             var s = EnsureStroke();
-            s.Duration = value.Duration;
-            s.StartTimeOffset = value.Shift;
+            s.Duration = (byte)value.Duration;
+            s.StartTimeOffset = (byte)value.Shift;
         }
     }
 
@@ -94,8 +94,8 @@ public partial class Beat : ISerializable
 
             var s = EnsureStroke();
             s.Technique = StrokeTechnique.Arpeggio;
-            s.Duration = value.Duration;
-            s.StartTimeOffset = value.Shift;
+            s.Duration = (byte)value.Duration;
+            s.StartTimeOffset = (byte)value.Shift;
         }
     }
 
@@ -121,7 +121,7 @@ public partial class Beat : ISerializable
         return Stroke;
     }
 
-    private void ConfigureLegacy(Direction dir, StrokeTechnique tech, int duration)
+    private void ConfigureLegacy(Direction dir, StrokeTechnique tech, byte duration)
     {
         PickDirection = dir;
         var s = EnsureStroke();

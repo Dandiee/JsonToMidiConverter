@@ -1,18 +1,18 @@
 ﻿using CsvHelper;
 using JsonToMidiConverter;
-using JsonToMidiConverter.Models.Song;
 using JsonToMidiConverter.Test;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using System.Globalization;
-using System.Security.Cryptography;
 using System.Text.Json;
 
-await Database.DeserializeRawJsons();
+//await Database.DeserializeRawJsons();
 
 //Database.Idk();
 
 await Database.ProcessBeats();
+
+return;
 
 //Database.TestAll();
 

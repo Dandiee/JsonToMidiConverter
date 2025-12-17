@@ -3,7 +3,7 @@
 public class BasePoint : ISerializable
 {
     public byte Position { get; set; }
-    public int Tone { get; set; }
+    public short Tone { get; set; }
 
     public virtual BasePoint Clone() => new()
     {

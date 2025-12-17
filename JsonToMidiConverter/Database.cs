@@ -8,6 +8,65 @@ using ZstdSharp;
 
 namespace JsonToMidiConverter;
 
+public class Range
+{
+    public static readonly ConcurrentBag<Range> Instances = new();
+
+    public double Min = double.MaxValue;
+    public double Max = double.MinValue;
+
+    public string Name;
+    public int Count;
+    public HashSet<double> Set = new();
+    public bool IsInteger = true;
+
+    private Range()
+    {
+        Instances.Add(this);
+    }
+
+    public Range(string name) : this()
+    {
+        Name = name;
+    }
+
+    public Range(double min, double max, string name, int count, bool isInteger)
+     :this(name)
+    {
+        Min = min;
+        Max = max;
+        Count = count;
+        IsInteger = isInteger;
+    }
+
+
+    public void Update(double value)
+    {
+        Min = Math.Min(value, Min);
+        Max = Math.Max(value, Max);
+        Count++;
+        Set.Add(value);
+
+        if (IsInteger && value != Math.Floor(value))
+        {
+            IsInteger = false;
+        }
+
+    }
+
+    public void Report()
+    {
+        Console.WriteLine($"Name: {Name}; Min: {Min}; Max: {Max}; Int: {IsInteger}; Count: {Count}, Unique: {Set.Count}");
+    }
+
+    public static void ReportAll()
+    {
+        foreach (var instance in Instances)
+        {
+            instance.Report();
+        }
+    }
+}
 public static class Database
 {
     public static readonly string RootPath = @"c:\src\data\";
@@ -99,17 +158,9 @@ public static class Database
         var files = Directory.GetFiles(SummaryPath, "Beats_Partial_*.dani");
 
         var analyzer = new FlagCorrelationAnalyzer(
-            "Brush == Brush.ArpeggioDown",
-            "Brush == Brush.ArpeggioUp",
-            "Brush == Brush.StrokeDown",
-            "Brush == Brush.StrokeUp",
-            "Brush == Brush.None",
-            "PickDirection == PickDirection.Down",
-            "PickDirection == PickDirection.Up",
-            "PickDirection == PickDirection.Unset",
-            "BrushDuration > 0",
-            "BrushStroke != null",
-            "Arpeggio != null"
+            "Tremolo.Tone != 0",
+            "Tremolo.Points.Count > 0",
+            "Tremolo.Points.AnyNonNull"
         );
 
         var counter = 0;
@@ -119,7 +170,12 @@ public static class Database
         var glopes = new HashSet<string>();
         var OctaveClefs = new HashSet<string>();
 
-        files = [@"c:\src\data\Summary\Beats_Partial_14.dani"];
+        var tremoloTone = new Range("tremoloTone");
+        var tremoloPointTone = new Range("tremoloPointTone");
+        var chordStrokeDuration = new Range("chordStrokeDuration");
+        var chordStrokeStart = new Range("chordStrokeStart");
+
+        //files = [@"c:\src\data\Summary\Beats_Partial_14.dani"];
         var i = 0;
         await Parallel.ForEachAsync(files, async (file, ct) =>
         {
@@ -129,35 +185,32 @@ public static class Database
             while (stream.Position < stream.Length)
             {
                 var length = reader.ReadInt32();
-
-                if (length > 10000)
-                {
-
-                }
-
                 var bytes = reader.ReadBytes(length);
-                i++;
-                if (i == 7027554)
-                {
-
-                }
-
-                
                 var beat = DaniSerializer.Deserialize<Beat>(bytes);
 
-                //analyzer.Ingest([
-                //    beat.Brush == Brush.ArpeggioDown,
-                //    beat.Brush == Brush.ArpeggioUp,
-                //    beat.Brush == Brush.StrokeDown,
-                //    beat.Brush == Brush.StrokeUp,
-                //    beat.Brush == Brush.None,
-                //    beat.PickDirection == PickStroke.Down,
-                //    beat.PickDirection == PickStroke.Up,
-                //    beat.PickDirection == PickStroke.Unset,
-                //    beat.BrushDuration > 0,
-                //    beat.BrushStroke != null,
-                //    beat.Arpeggio != null
-                //]);
+                if (beat.Tremolo != null)
+                {
+                    tremoloTone.Update(beat.Tremolo.Tone);
+                    foreach (var point in beat.Tremolo.Points)
+                    {
+                        tremoloPointTone.Update(point.Tone);
+                    }
+                }
+
+                if (beat.Stroke != null)
+                {
+                    chordStrokeDuration.Update(beat.Stroke.Duration);
+                    chordStrokeStart.Update(beat.Stroke.StartTimeOffset);
+                }
+
+                if (beat.Tremolo != null)
+                {
+                    analyzer.Ingest([
+                        beat.Tremolo.Tone != 0,
+                        beat.Tremolo.Points.Count > 0,
+                        beat.Tremolo.Points.Any(r => r.Tone != 0)
+                    ]);
+                }
 
 
                 //glopes.Add(beat.Golpe);
@@ -172,9 +225,8 @@ public static class Database
             
         });
 
-        var positions = points.Select(e => e.Position).Distinct().ToList();
-        var tones = points.Select(e => e.Tone).Distinct().ToList();
-        var vibrato = points.Select(e => e.Vibrato).Distinct().ToList();
+        Range.ReportAll();
+
 
         Console.WriteLine(analyzer.GenerateReport());
     }
