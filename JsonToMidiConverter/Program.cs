@@ -6,11 +6,11 @@ using Melanchall.DryWetMidi.Interaction;
 using System.Globalization;
 using System.Text.Json;
 
-//await Database.DeserializeRawJsons();
+await Database.DeserializeRawJsons();
 
 //Database.Idk();
 
-await Database.ProcessBeats();
+//await Database.ProcessBeats();
 
 return;
 

@@ -2,6 +2,7 @@
 using JsonToMidiConverter.Models.Song;
 using System.Collections.Concurrent;
 using System.IO.Compression;
+using System.Reflection.Metadata;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using ZstdSharp;
@@ -248,12 +249,20 @@ public static class Database
     public static async Task DeserializeRawJsons()
     {
         int counter = 0;
-        var allFiles = Directory
-            .GetFiles(MetaPath)
-            .Select(e => int.Parse(Path.GetFileNameWithoutExtension(e)))
-            .ToList();
+        //var allFiles = Directory
+        //    .GetFiles(MetaPath)
+        //    .Select(e => int.Parse(Path.GetFileNameWithoutExtension(e)))
+        //    .Select(e => new
+        //    {
+        //        //Id = e,
+        //        Parts = Directory.GetFiles(DataPath, $"{e}_*")
+        //    })
+        //    .ToList();
 
-        var chunks = allFiles.Chunk(allFiles.Count / Environment.ProcessorCount).Select((chunk, index) => new
+
+        var allFiles = Directory.GetFiles(DataPath);
+
+        var chunks = allFiles.Chunk(allFiles.Length/ Environment.ProcessorCount).Select((chunk, index) => new
         {
             Chunk = chunk,
             Index = index
@@ -267,9 +276,9 @@ public static class Database
             //await using var metaFileStream = File.OpenRead(metaFile);
             //var meta = JsonSerializer.Deserialize<SongMetaDataModel>(metaFileStream, JsonOptions);
 
-            foreach (var id in chunk.Chunk)
+            foreach (var partFile in chunk.Chunk)
             {
-                foreach (var partFile in Directory.GetFiles(DataPath, $"{id}_*"))
+                //foreach (var partFile in item.Parts)
                 {
                     try
                     {
