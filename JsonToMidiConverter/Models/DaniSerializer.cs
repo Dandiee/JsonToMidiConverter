@@ -9,24 +9,176 @@ namespace JsonToMidiConverter.Models;
 
 public interface ISerializable;
 
+public class PropertyDefinition
+{
+    public static readonly IReadOnlyDictionary<Type, int> PackableTypes = new Dictionary<Type, int>
+    {
+        { typeof(bool),   1  },
+        { typeof(byte),   8  },
+        { typeof(sbyte),  8  },
+        { typeof(short),  16 },
+        { typeof(ushort), 16 },
+        { typeof(int),    32 },
+        { typeof(uint),   32 },
+        { typeof(long),   64 },
+        { typeof(ulong),  64 },
+        { typeof(float),  32 },
+        { typeof(double), 64 }
+    };
+
+    private static readonly ConcurrentDictionary<PropertyInfo, PropertyDefinition> DefinitionCache = new();
+    private static readonly ConcurrentDictionary<Type, int> EnumSizeCache = new();
+
+    private static readonly ConcurrentDictionary<PropertyInfo, Func<ISerializable, object?>> CompiledGetters = new();
+    private static readonly ConcurrentDictionary<PropertyInfo, Action<ISerializable, object?>> CompiledSetters = new();
+
+    private PropertyDefinition(PropertyInfo propertyInfo)
+    {
+        Info = propertyInfo;
+        Type = propertyInfo.PropertyType;
+
+        EnsureType(propertyInfo.PropertyType);
+
+        Getter = CompiledGetters.GetOrAdd(propertyInfo, CompileGetter);
+        Setter = CompiledSetters.GetOrAdd(propertyInfo, CompileSetter);
+
+        if (Type.IsEnum || PackableTypes.ContainsKey(propertyInfo.PropertyType))
+        {
+            IsPackable = true;
+            PackSize = GetPackSizeBits(Type);
+        }
+    }
+
+    private static void EnsureType(Type type)
+    {
+        if (Nullable.GetUnderlyingType(type) != null)
+            throw new Exception("LOFASZ: Can't be Nullable<T>");
+
+        if (type.IsInterface) throw new Exception("LOFASZ: Type must not be interface");
+        if (type.IsAbstract) throw new Exception("LOFASZ: Type must not be abstract");
+
+        if (type.IsAssignableTo(typeof(ISerializable)) || type == typeof(string))
+        {
+            return;
+        }
+
+        if (type.IsGenericType)
+        {
+            if (type.GetGenericTypeDefinition() == typeof(List<>))
+            {
+                var itemType = type.GetGenericArguments()[0];
+                EnsureType(itemType);
+                return;
+            }
+
+            throw new Exception("LOFASZ: Only List<T> is supported as generic type");
+        }
+
+        if (type.IsEnum && Enum.GetUnderlyingType(type) != typeof(byte))
+            throw new Exception($"LOFASZ: Enums must be backed by bytes");
+
+        if (!PackableTypes.ContainsKey(type))
+            throw new Exception($"LOFASZ: Not supported type!");
+    }
+
+    public static PropertyDefinition Get(PropertyInfo propertyInfo)
+        => DefinitionCache.GetOrAdd(propertyInfo, new PropertyDefinition(propertyInfo));
+
+    public PropertyInfo Info { get; }
+    public Type Type { get; }
+
+    public bool IsPackable { get; }
+    public int PackSize { get; }
+    public Func<ISerializable, object?> Getter { get; }
+    public Action<ISerializable, object?> Setter { get; }
+
+    private static Func<ISerializable, object?> CompileGetter(PropertyInfo prop)
+    {
+        var instanceParam = Expression.Parameter(typeof(ISerializable), "obj");
+        var instanceCast = Expression.Convert(instanceParam, prop.DeclaringType!);
+        var propertyAccess = Expression.Property(instanceCast, prop);
+        var boxResult = Expression.Convert(propertyAccess, typeof(object));
+        return Expression.Lambda<Func<ISerializable, object?>>(boxResult, instanceParam).Compile();
+    }
+
+    private static Action<ISerializable, object?> CompileSetter(PropertyInfo prop)
+    {
+        var instanceParam = Expression.Parameter(typeof(ISerializable), "obj");
+        var valueParam = Expression.Parameter(typeof(object), "value");
+        var instanceCast = Expression.Convert(instanceParam, prop.DeclaringType!);
+        var valueCast = Expression.Convert(valueParam, prop.PropertyType);
+        var assign = Expression.Assign(Expression.Property(instanceCast, prop), valueCast);
+        return Expression.Lambda<Action<ISerializable, object?>>(assign, instanceParam, valueParam).Compile();
+    }
+
+    private static int GetEnumPackSize(Type type)
+        => EnumSizeCache.GetOrAdd(type, t =>
+        {
+            var maxVal = 0;
+            foreach (var val in Enum.GetValues(t))
+            {
+                maxVal = Math.Max(maxVal, Convert.ToByte(val));
+            }
+
+            return maxVal == 0
+                ? 1
+                : (int)Math.Ceiling(Math.Log2(maxVal + 1));
+
+        });
+
+    private static int GetPackSizeBits(Type type) => type.IsEnum ? GetEnumPackSize(type) : PackableTypes[type];
+
+    public static int GetPackSizeBytes(Type type) => (GetPackSizeBits(type) + 7) / 8; 
+}
+
+public class ObjectDefinition
+{
+    private static readonly ConcurrentDictionary<Type, ObjectDefinition> Cache = new();
+
+    public IReadOnlyList<PropertyDefinition> PackTypes { get; set; }
+    public IReadOnlyList<PropertyDefinition> ComplexTypes { get; set; }
+    public int TotalPackSizeBit { get; }
+    public int TotalPackSizeByte { get; }
+
+    private ObjectDefinition(Type type)
+    {
+        var properties = type
+            .GetProperties(BindingFlags.Instance | BindingFlags.Public)
+            .Where(e => e.GetCustomAttribute<JsonIgnoreAttribute>() == null)
+            .OrderBy(e => e.Name)
+            .Select(PropertyDefinition.Get)
+            .ToList();
+
+        PackTypes = properties
+            .Where(e => e.IsPackable)
+            .ToList();
+
+        ComplexTypes = properties
+            .Where(e => !e.IsPackable)
+            .ToList();
+
+        TotalPackSizeBit = PackTypes.Sum(p => p.PackSize);
+        TotalPackSizeByte = (int)Math.Ceiling(TotalPackSizeBit / 8.0);
+    }
+
+
+
+    public static ObjectDefinition Get(Type type) => Cache.GetOrAdd(type, new ObjectDefinition(type));
+}
+
 public static class DaniSerializer
 {
-    private record Prop(
-        PropertyInfo Info,
-        bool IsBoolean,
-        int? BitSize);
 
-    private static readonly ConcurrentDictionary<Type, List<Prop>> PropCache = new();
-    private static readonly ConcurrentDictionary<PropertyInfo, Func<ISerializable, object>> GetterCache = new();
-    private static readonly ConcurrentDictionary<PropertyInfo, Action<ISerializable, object>> SetterCache = new();
 
     public static IEnumerable<byte> Serialize(ISerializable obj, Type type)
     {
-        foreach (var b in Pack(obj)) yield return b;
+        var def = ObjectDefinition.Get(type);
 
-        foreach (var prop in GetProps(type).Where(e => !e.BitSize.HasValue))
+        foreach (var b in Pack(obj, def)) yield return b;
+
+        foreach (var prop in def.ComplexTypes)
         {
-            foreach (var b in Serialize(GetValue(prop, obj), prop.Info.PropertyType)) yield return b;
+            foreach (var b in Serialize(prop.Getter(obj), prop.Type)) yield return b;
         }
     }
 
@@ -62,34 +214,32 @@ public static class DaniSerializer
             else
             {
                 yield return 1; // presence marker
-                foreach (var b in Serialize((ISerializable)value!, type)) yield return b;
+                foreach (var b in Serialize((ISerializable)value, type)) yield return b;
             }
         }
+        else // we are inside a List<T>
+        {
+            var bits = ToBits(value);
+            var bytes = BitConverter.GetBytes(bits);
+            var bytesCount =  PropertyDefinition.GetPackSizeBytes(type);
 
-        else throw new Exception("LOFASZ: ez a type nemjü");
+            for (var i = 0; i < bytesCount; i++) yield return bytes[i];
+        }
     }
 
-    public static IEnumerable<byte> Pack(ISerializable obj)
+    public static IEnumerable<byte> Pack(ISerializable obj, ObjectDefinition def)
     {
         byte currentByte = 0;
         var bitsInByte = 0;
 
-        // 1. Loop through all Packable properties
-        foreach (var prop in GetProps(obj.GetType()).Where(e => e.BitSize.HasValue))
+        foreach (var prop in def.PackTypes)
         {
-            var value = GetValue(prop, obj);
+            var value = prop.Getter(obj)!;
+            var bits = ToBits(value);
 
-            ulong ulongValue;
-
-            // 1. Handle types explicitly to preserve bit patterns
-            if (prop.IsBoolean) ulongValue = (bool)value ? 1u : 0u;
-            else if (value is float f) ulongValue = (ulong)BitConverter.SingleToInt32Bits(f);
-            else if (value is double d) ulongValue = (ulong)BitConverter.DoubleToInt64Bits(d);
-            else ulongValue = Convert.ToUInt64(value);
-
-            for (var i = 0; i < prop.BitSize!.Value; i++)
+            for (var i = 0; i < prop.PackSize; i++)
             {
-                var bit = (byte)((ulongValue >> i) & 1);
+                var bit = (byte)((bits >> i) & 1);
                 currentByte |= (byte)(bit << bitsInByte);
                 bitsInByte++;
 
@@ -106,26 +256,62 @@ public static class DaniSerializer
         if (bitsInByte > 0) yield return currentByte;
     }
 
-
-
-
-
-
-    private static void Unpack(IEnumerator<byte> stream, Type type, ISerializable instance)
+    private static ulong ToBits(object value) => value switch
     {
-        var packableProps = GetProps(type).Where(e => e.BitSize.HasValue).ToList();
+        bool v => v ? 1UL : 0UL,
 
-        var totalBits = packableProps.Sum(p => p.BitSize!.Value);
-        var totalBytes = (int)Math.Ceiling(totalBits / 8.0);
-        var packedBuffer = ReadBytes(stream, totalBytes);
+        byte v => v,
+        sbyte v => unchecked((ulong)v),
+
+        short v => unchecked((ulong)v),
+        ushort v => v,
+
+        int v => unchecked((ulong)v),
+        uint v => v,
+
+        long v => unchecked((ulong)v),
+        ulong v => v,
+
+        float v => (ulong)BitConverter.SingleToInt32Bits(v),
+        double v => BitConverter.DoubleToUInt64Bits(v),
+
+        _ => Convert.ToByte(value) // it cannot be anything else, but enum
+    };
+
+    static object FromBits(ulong bits, Type t)
+    {
+        if (t == typeof(bool)) return bits != 0;
+
+        if (t == typeof(byte)) return (byte)bits;
+        if (t == typeof(sbyte)) return unchecked((sbyte)bits);
+
+        if (t == typeof(short)) return unchecked((short)bits);
+        if (t == typeof(ushort)) return (ushort)bits;
+
+        if (t == typeof(int)) return unchecked((int)bits);
+        if (t == typeof(uint)) return (uint)bits;
+
+        if (t == typeof(long)) return unchecked((long)bits);
+        if (t == typeof(ulong)) return bits;
+
+        if (t == typeof(float)) return BitConverter.Int32BitsToSingle((int)bits);
+        if (t == typeof(double)) return BitConverter.Int64BitsToDouble((long)bits);
+
+        if (t.IsEnum) return Enum.ToObject(t, (byte)bits);
+
+        throw new InvalidOperationException();
+    }
+
+    private static void Unpack(IEnumerator<byte> stream, ISerializable instance, ObjectDefinition def)
+    {
+        var packedBuffer = ReadBytes(stream, def.TotalPackSizeByte);
 
         var currentBitIndex = 0;
-        foreach (var prop in packableProps)
+        foreach (var prop in def.PackTypes)
         {
             ulong extractedValue = 0;
-            var bitsToRead = prop.BitSize!.Value;
 
-            for (var i = 0; i < bitsToRead; i++)
+            for (var i = 0; i < prop.PackSize; i++)
             {
                 // Locate the exact address
                 var byteIndex = currentBitIndex / 8;
@@ -133,7 +319,7 @@ public static class DaniSerializer
 
                 // Read the bit
                 var bit = (ulong)((packedBuffer[byteIndex] >> bitIndexInByte) & 1);
-                
+
                 // Write the bit
                 extractedValue |= (bit << i);
 
@@ -141,21 +327,13 @@ public static class DaniSerializer
             }
 
             // Ulong to target prop
-            object finalValue;
-            var t = prop.Info.PropertyType;
-
-            if (prop.IsBoolean) finalValue = extractedValue == 1;
-            else if (t == typeof(float)) finalValue = BitConverter.Int32BitsToSingle((int)extractedValue);
-            else if (t == typeof(double)) finalValue = BitConverter.Int64BitsToDouble((long)extractedValue);
-            else if (t.IsEnum) finalValue = Enum.ToObject(t, extractedValue);
-            else finalValue = Convert.ChangeType(extractedValue, t);
-
-            SetValue(prop, instance, finalValue);
+            object value = FromBits(extractedValue, prop.Type);
+            prop.Setter(instance, value);
         }
     }
 
 
-    public static T Deserialize<T>(IEnumerator<byte> stream) 
+    public static T Deserialize<T>(IEnumerator<byte> stream)
         where T : ISerializable, new()
     {
         var obj = new T();
@@ -166,14 +344,14 @@ public static class DaniSerializer
 
     public static object Deserialize(Type type, IEnumerator<byte> stream, ISerializable obj)
     {
-        Unpack(stream, type, obj);
+        var def = ObjectDefinition.Get(type);
 
-        var complexProps = GetProps(type).Where(e => !e.BitSize.HasValue).ToList();
+        Unpack(stream, obj, def);
 
-        foreach (var prop in complexProps)
+        foreach (var prop in def.ComplexTypes)
         {
-            var value = ReadComplexValue(stream, prop.Info.PropertyType);
-            SetValue(prop, obj, value!);
+            var value = ReadComplexValue(stream, prop.Type);
+            prop.Setter(obj, value);
         }
 
         return obj;
@@ -215,7 +393,16 @@ public static class DaniSerializer
             return Deserialize(type, stream, (ISerializable)Activator.CreateInstance(type)!);
         }
 
-        throw new Exception($"LOFASZ: Unknown type {type.Name}");
+        // We are inside a list
+        var byteCount = PropertyDefinition.GetPackSizeBytes(type);
+        var raw = ReadBytes(stream, byteCount);
+        ulong bits = 0;
+        for (int i = 0; i < byteCount; i++)
+        {
+            bits |= (ulong)raw[i] << (8 * i);
+        }
+
+        return FromBits(bits, type);
     }
 
 
@@ -237,74 +424,4 @@ public static class DaniSerializer
         return lenBytes;
     }
 
-
-
-
-
-
-
-
-
-
-
-
-    private static object GetValue(Prop prop, ISerializable instance) => GetterCache.GetOrAdd(prop.Info, CompileGetter)(instance);
-
-    private static Func<ISerializable, object> CompileGetter(PropertyInfo prop)
-    {
-        var instanceParam = Expression.Parameter(typeof(object), "obj");
-        var instanceCast = Expression.Convert(instanceParam, prop.DeclaringType!);
-        var propertyAccess = Expression.Property(instanceCast, prop);
-        var boxResult = Expression.Convert(propertyAccess, typeof(object));
-        return Expression.Lambda<Func<object, object>>(boxResult, instanceParam).Compile();
-    }
-
-    private static void SetValue(Prop prop, ISerializable instance, object value) => SetterCache.GetOrAdd(prop.Info, CompileSetter)(instance, value);
-    private static Action<ISerializable, object> CompileSetter(PropertyInfo prop)
-    {
-        var instanceParam = Expression.Parameter(typeof(object), "obj");
-        var valueParam = Expression.Parameter(typeof(object), "value");
-        var instanceCast = Expression.Convert(instanceParam, prop.DeclaringType!);
-        var valueCast = Expression.Convert(valueParam, prop.PropertyType);
-        var assign = Expression.Assign(Expression.Property(instanceCast, prop), valueCast);
-        return Expression.Lambda<Action<object, object>>(assign, instanceParam, valueParam).Compile();
-    }
-
-    private static int? GetBitSize(Type t)
-    {
-        if (t == typeof(bool)) return 1;
-        if (t == typeof(byte) || t == typeof(sbyte)) return 8;
-        if (t == typeof(short) || t == typeof(ushort)) return 16;
-        if (t == typeof(int) || t == typeof(uint) || t == typeof(float)) return 32;
-        if (t == typeof(long) || t == typeof(ulong) || t == typeof(double)) return 64;
-        if (t == typeof(string) || t.IsAssignableTo(typeof(IList)) ||
-            t.IsAssignableTo(typeof(ISerializable))) return null;
-        if (t.IsEnum)
-        {
-            var maxVal = 0;
-            foreach (var val in Enum.GetValues(t))
-            {
-                maxVal = Math.Max(maxVal, Convert.ToByte(val));
-            }
-
-            return maxVal == 0
-                ? 1
-                : (int)Math.Ceiling(Math.Log2(maxVal + 1));
-        }
-
-        throw new Exception("LOFASZ: mi ez a type");
-    }
-
-    private static List<Prop> GetProps(Type type)
-        => PropCache.GetOrAdd(
-            type,
-            t => t
-                .GetProperties(BindingFlags.Instance | BindingFlags.Public)
-                .Where(e => e.GetCustomAttribute<JsonIgnoreAttribute>() == null)
-                .OrderBy(e => e.Name)
-                .Select(e => new Prop(e,
-                    IsBoolean: e.PropertyType == typeof(bool),
-                    BitSize: GetBitSize(e.PropertyType)))
-                .ToList()
-        );
 }
