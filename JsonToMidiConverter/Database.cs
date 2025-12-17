@@ -180,13 +180,13 @@ public static class Database
         await Parallel.ForEachAsync(files, async (file, ct) =>
         {
             await using var stream = File.OpenRead(Path.Combine(SummaryPath, file));
-            using var reader = new BinaryReader(stream);
+            //using var reader = new BinaryReader(stream);
 
             while (stream.Position < stream.Length)
             {
-                var length = reader.ReadInt32();
-                var bytes = reader.ReadBytes(length);
-                var beat = DaniSerializer.Deserialize<Beat>(bytes);
+                //var length = reader.ReadInt32();
+                //var bytes = reader.ReadBytes(length);
+                var beat = DaniSerializer.Deserialize<Beat>(stream);
 
                 if (beat.Tremolo != null)
                 {
@@ -269,11 +269,6 @@ public static class Database
 
             foreach (var id in chunk.Chunk)
             {
-                if (id == 10017)
-                {
-
-                }
-
                 foreach (var partFile in Directory.GetFiles(DataPath, $"{id}_*"))
                 {
                     try
@@ -289,9 +284,10 @@ public static class Database
 
                         foreach (var beat in thisBeats)
                         {
-                            var beatBytes = DaniSerializer.Serialize(beat, typeof(Beat)).ToArray();
-                            await fileStream.WriteAsync( DaniSerializer.Serialize(beatBytes.Length, typeof(int)).ToArray(), 0, 4, _);
-                            await fileStream.WriteAsync(beatBytes, _);
+                            // TODO: wrong order, first we suppose to know the size so we can write it, then the data
+                            DaniSerializer.Serialize(beat, fileStream);
+                            //await fileStream.WriteAsync( DaniSerializer.Serialize(beatBytes.Length, typeof(int)).ToArray(), 0, 4, _);
+                            //await fileStream.WriteAsync(beatBytes, _);
                         }
                     }
                     catch (Exception ex)
