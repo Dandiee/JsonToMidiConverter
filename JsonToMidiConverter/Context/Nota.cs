@@ -53,7 +53,7 @@ public sealed partial class Nota : MusicalElement<Nota>
 
         if (Tremolo != null)
         {
-            TremoloDuration = new Time(Tremolo.Numerator, Tremolo.Denominator);
+            TremoloDuration = new Time((long)Tremolo.Numerator, (long)Tremolo.Denominator);
 
         }
 

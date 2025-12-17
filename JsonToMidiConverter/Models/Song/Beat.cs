@@ -12,7 +12,7 @@ public partial class Beat : ISerializable
 {
     [JsonIgnore] public List<Nota> Notes { get; set; } = [];
 
-    public float Type { get; set; }
+    public double Type { get; set; }
 
     [JsonPropertyName("calculatedTremolo")]
     public Bend? Tremolo { get; set; }
@@ -36,7 +36,7 @@ public partial class Beat : ISerializable
     public bool PalmMute { get; set; }
     public bool LetRing { get; set; }
     public bool Rest { get; set; }
-    public byte Dots { get; set; }
+    public double Dots { get; set; }
     
 
     [JsonPropertyName("calculatedHarmonic")] 
@@ -44,7 +44,7 @@ public partial class Beat : ISerializable
     public Technique Technique { get; set; } = Technique.None;
     public Spanner BeamSpan { get; set; }
     public Spanner TupletSpan { get; set; } = Spanner.None;
-    public byte TupletDenominator { get; set; }
+    public double TupletDenominator { get; set; }
     public Golpe Golpe { get; set; } = Golpe.None;
     public Octave Octave { get; set; } = Octave.None;
 
@@ -75,8 +75,8 @@ public partial class Beat : ISerializable
             }
 
             var s = EnsureStroke();
-            s.Duration = (byte)value.Duration;
-            s.StartTimeOffset = (byte)value.Shift;
+            s.Duration = (double)value.Duration;
+            s.StartTimeOffset = (double)value.Shift;
         }
     }
 
@@ -94,8 +94,8 @@ public partial class Beat : ISerializable
 
             var s = EnsureStroke();
             s.Technique = StrokeTechnique.Arpeggio;
-            s.Duration = (byte)value.Duration;
-            s.StartTimeOffset = (byte)value.Shift;
+            s.Duration = (double)value.Duration;
+            s.StartTimeOffset = (double)value.Shift;
         }
     }
 
@@ -103,16 +103,16 @@ public partial class Beat : ISerializable
     private bool LegacyHasRasgueado { set { if (value) EnsureStroke().Technique = StrokeTechnique.Rasgueado; } }
 
     [JsonInclude, JsonPropertyName("upStroke")]
-    private byte LegacyUpStroke { set { if (value > 0) ConfigureLegacy(Direction.Up, StrokeTechnique.None, value); } }
+    private double LegacyUpStroke { set { if (value > 0) ConfigureLegacy(Direction.Up, StrokeTechnique.None, value); } }
 
     [JsonInclude, JsonPropertyName("downStroke")]
-    private byte LegacyDownStroke { set { if (value > 0) ConfigureLegacy(Direction.Down, StrokeTechnique.None, value); } }
+    private double LegacyDownStroke { set { if (value > 0) ConfigureLegacy(Direction.Down, StrokeTechnique.None, value); } }
 
     [JsonInclude, JsonPropertyName("upArpeggio")]
-    private byte LegacyUpArpeggio { set { if (value > 0) ConfigureLegacy(Direction.Up, StrokeTechnique.Arpeggio, value); } }
+    private double LegacyUpArpeggio { set { if (value > 0) ConfigureLegacy(Direction.Up, StrokeTechnique.Arpeggio, value); } }
 
     [JsonInclude, JsonPropertyName("downArpeggio")]
-    private byte LegacyDownArpeggio { set { if (value > 0) ConfigureLegacy(Direction.Down, StrokeTechnique.Arpeggio, value); } }
+    private double LegacyDownArpeggio { set { if (value > 0) ConfigureLegacy(Direction.Down, StrokeTechnique.Arpeggio, value); } }
 
 
     private ChordStroke EnsureStroke()
@@ -121,7 +121,7 @@ public partial class Beat : ISerializable
         return Stroke;
     }
 
-    private void ConfigureLegacy(Direction dir, StrokeTechnique tech, byte duration)
+    private void ConfigureLegacy(Direction dir, StrokeTechnique tech, double duration)
     {
         PickDirection = dir;
         var s = EnsureStroke();
@@ -134,10 +134,10 @@ public partial class Beat : ISerializable
     private Bend? LegacyTremoloBarObject { set => Tremolo = value; }
 
     [JsonInclude, JsonPropertyName("vibratoBar")]
-    private byte LegacyVibratoBar { set { if (value > 0) EnsureWhammy().Style = TremoloStyle.Slight; } }
+    private double LegacyVibratoBar { set { if (value > 0) EnsureWhammy().Style = TremoloStyle.Slight; } }
 
     [JsonInclude, JsonPropertyName("wideVibratoBar")]
-    private byte LegacyWideVibratoBar { set { if (value > 0) EnsureWhammy().Style = TremoloStyle.Wide; } }
+    private double LegacyWideVibratoBar { set { if (value > 0) EnsureWhammy().Style = TremoloStyle.Wide; } }
 
     [JsonInclude, JsonPropertyName("vibratoWithTremoloBar")]
     private VibratoWithTremoloBar LegacyVibratoWithTremoloBar
@@ -204,7 +204,7 @@ public partial class Beat : ISerializable
     private bool LegacyBeamStop { set { if (value) BeamSpan = Spanner.Stop; } }
 
     [JsonInclude, JsonPropertyName("tuplet")]
-    private byte LegacyTuplet { set { if (value > 1) TupletDenominator = value; } }
+    private double LegacyTuplet { set { if (value > 1) TupletDenominator = value; } }
 
     [JsonInclude, JsonPropertyName("tupletStart")]
     private bool LegacyTupletStart { set { if (value) TupletSpan = Spanner.Start; } }

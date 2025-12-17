@@ -3,7 +3,7 @@
 public sealed class Marker : ISerializable
 {
     public string Text { get; set; } = string.Empty;
-    public int Width { get; set; }
+    public double Width { get; set; }
 
     public Marker Clone() => new()
     {

@@ -2,8 +2,8 @@
 
 public class BasePoint : ISerializable
 {
-    public byte Position { get; set; }
-    public short Tone { get; set; }
+    public double Position { get; set; }
+    public double Tone { get; set; }
 
     public virtual BasePoint Clone() => new()
     {

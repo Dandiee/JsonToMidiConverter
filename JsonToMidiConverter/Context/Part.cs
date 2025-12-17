@@ -147,7 +147,7 @@ public sealed partial class Part
         {
             if (measure.SignatureArray != null)
             {
-                signature = new Time(measure.SignatureArray.Numerator, measure.SignatureArray.Denominator);
+                signature = new Time((long)measure.SignatureArray.Numerator, (long)measure.SignatureArray.Denominator);
             }
             measure.Signature = signature;
         }
@@ -458,7 +458,7 @@ public sealed partial class Part
             }
 
             var time = new BarBeatTicksTimeSpan(i, 0, 0);
-            tempoMapManager.SetTimeSignature(time, new TimeSignature(lastSignature.Numerator, lastSignature.Denominator));
+            tempoMapManager.SetTimeSignature(time, new TimeSignature((int)lastSignature.Numerator, (int)lastSignature.Denominator));
             tempoMapManager.SetTempo(time, Tempo.FromBeatsPerMinute(lastBpm));
         }
 
