@@ -3,6 +3,7 @@ using Api.Models.Converters;
 
 namespace Api.Models;
 
+[JsonConverter(typeof(DisplayTextConverter))]
 public sealed class DisplayText
 {
     public string Text { get; set; } = string.Empty;

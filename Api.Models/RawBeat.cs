@@ -1,15 +1,14 @@
 ﻿using Api.Models.Enums;
-using Api.Models.Song;
 
 namespace Api.Models;
 
-public sealed class Beat
+public sealed class RawBeat
 {
-    public List<Note> Notes { get; set; } = [];
+    public List<RawNote> Notes { get; set; } = [];
 
     public float Type { get; set; }
 
-    public Marker? Chord { get; set; }
+    public DisplayText? Chord { get; set; }
     public TremoloBar? TremoloBar { get; set; }
     public List<ushort> Duration { get; set; } = [];
     public MeasureTempo? Tempo { get; set; }

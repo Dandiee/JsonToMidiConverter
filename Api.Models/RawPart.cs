@@ -1,8 +1,6 @@
-﻿using Api.Models.Song;
+﻿namespace Api.Models;
 
-namespace Api.Models;
-
-public sealed class Part
+public sealed class RawPart
 {
     public string Name { get; set; } = string.Empty;
     public string Instrument { get; set; } = string.Empty;
@@ -19,7 +17,7 @@ public sealed class Part
     public int Capo { get; set; }
     public int Voices { get; set; }
 
-    public List<Measure> Measures { get; set; } = [];
+    public List<RawMeasure> Measures { get; set; } = [];
     public CapoPartial? CapoPartial { get; set; }
     public TrackAutomations? TrackAutomations { get; set; }
 

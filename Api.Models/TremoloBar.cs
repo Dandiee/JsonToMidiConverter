@@ -6,7 +6,7 @@ namespace Api.Models;
 [JsonConverter(typeof(TremoloBarConverter))]
 public sealed class TremoloBar
 {
-    public float Tone { get; set; }
+    public short Tone { get; set; }
     public List<Point> Points { get; set; } = [];
 
     public bool LegacyFlag { get; set; }

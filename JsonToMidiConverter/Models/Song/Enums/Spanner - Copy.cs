@@ -3,7 +3,7 @@
 namespace JsonToMidiConverter.Models.Song.Enums;
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
-public enum Direction : byte // here was dani
+public enum Direction : byte
 {
     None,
 

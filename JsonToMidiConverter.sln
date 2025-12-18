@@ -9,6 +9,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Api", "Api\Api.csproj", "{D
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Api.Models", "Api.Models\Api.Models.csproj", "{396B8060-C1DE-40F9-B404-72C1605571C1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Persistence", "Persistence\Persistence.csproj", "{309BB3BF-37F0-4325-A838-C5F7D36DF13A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Persistence.Models", "Persistence.Models\Persistence.Models.csproj", "{9BC7AB64-DE8F-4140-9B6D-20C7841F411E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +31,14 @@ Global
 		{396B8060-C1DE-40F9-B404-72C1605571C1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{396B8060-C1DE-40F9-B404-72C1605571C1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{396B8060-C1DE-40F9-B404-72C1605571C1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{309BB3BF-37F0-4325-A838-C5F7D36DF13A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{309BB3BF-37F0-4325-A838-C5F7D36DF13A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{309BB3BF-37F0-4325-A838-C5F7D36DF13A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{309BB3BF-37F0-4325-A838-C5F7D36DF13A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9BC7AB64-DE8F-4140-9B6D-20C7841F411E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9BC7AB64-DE8F-4140-9B6D-20C7841F411E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9BC7AB64-DE8F-4140-9B6D-20C7841F411E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9BC7AB64-DE8F-4140-9B6D-20C7841F411E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

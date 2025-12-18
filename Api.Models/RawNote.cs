@@ -1,13 +1,12 @@
 ﻿using System.Text.Json.Serialization;
 using Api.Models.Converters;
 using Api.Models.Enums;
-using Api.Models.Song;
 
 namespace Api.Models;
 
-public sealed class Note
+public sealed class RawNote
 {
-    [JsonConverter(typeof(AccentuatedConverter))] public float Accentuated { get; set; }
+    public Accent Accentuated { get; set; }
 
     [JsonPropertyName("string")] 
     public float StringNumber { get; set; }
@@ -16,7 +15,7 @@ public sealed class Note
 
 
 
-    public Slide Slide { get; set; }
+    public RawSlide RawSlide { get; set; }
     public Harmonic Harmonic { get; set; }
     public Velocity Velocity { get; set; }
 

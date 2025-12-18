@@ -1,9 +1,10 @@
-﻿using System.Text.Json.Serialization;
+﻿
+using System.Text.Json.Serialization;
 
 namespace Api.Models.Enums;
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
-public enum Slide : byte
+public enum RawSlide : byte
 {
     None,
 
