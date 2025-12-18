@@ -8,8 +8,8 @@ public sealed class Text : ISerializable
     [JsonPropertyName("text")]
     public string Content { get; set; } = string.Empty;
 
-    [JsonConverter(typeof(NullToDefaultConverter<double>))]
-    public double Width { get; set; } = 0;
+    [JsonConverter(typeof(NullToDefaultConverter<ushort>))]
+    public ushort Width { get; set; } // 0 - 2455
 
     
     public Text Clone() => new()

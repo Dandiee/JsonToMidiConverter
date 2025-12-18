@@ -18,7 +18,7 @@ public class Range
 
     public string Name;
     public int Count;
-    public HashSet<double> Set = new();
+    public ConcurrentDictionary<double, int> Set = new();
     public bool IsInteger = true;
 
     private Range()
@@ -32,7 +32,7 @@ public class Range
     }
 
     public Range(double min, double max, string name, int count, bool isInteger)
-     :this(name)
+     : this(name)
     {
         Min = min;
         Max = max;
@@ -46,7 +46,8 @@ public class Range
         Min = Math.Min(value, Min);
         Max = Math.Max(value, Max);
         Count++;
-        Set.Add(value);
+
+        Set.AddOrUpdate(value, 1, (key, value) => value + 1);
 
         if (IsInteger && value != Math.Floor(value))
         {
@@ -166,65 +167,35 @@ public static class Database
 
         var counter = 0;
 
-        var points = new HashSet<Point>();
-
-        var glopes = new HashSet<string>();
-        var OctaveClefs = new HashSet<string>();
-
-        var tremoloTone = new Range("tremoloTone");
-        var tremoloPointTone = new Range("tremoloPointTone");
-        var chordStrokeDuration = new Range("chordStrokeDuration");
-        var chordStrokeStart = new Range("chordStrokeStart");
-
-        //files = [@"c:\src\data\Summary\Beats_Partial_14.dani"];
         var i = 0;
-        await Parallel.ForEachAsync(files, async (file, ct) =>
+        var deser = new DaniSerializer();
+        await Parallel.ForEachAsync(files, new ParallelOptions(){MaxDegreeOfParallelism = Environment.ProcessorCount }, async (file, ct) =>
         {
+
             await using var stream = File.OpenRead(Path.Combine(SummaryPath, file));
             //using var reader = new BinaryReader(stream);
 
             while (stream.Position < stream.Length)
             {
-                //var length = reader.ReadInt32();
-                //var bytes = reader.ReadBytes(length);
-                var beat = DaniSerializer.Deserialize<Beat>(stream);
+                deser.Deserialize<Beat>(new MemoryStream());
 
-                if (beat.Tremolo != null)
-                {
-                    tremoloTone.Update(beat.Tremolo.Tone);
-                    foreach (var point in beat.Tremolo.Points)
-                    {
-                        tremoloPointTone.Update(point.Tone);
-                    }
-                }
-
-                if (beat.Stroke != null)
-                {
-                    chordStrokeDuration.Update(beat.Stroke.Duration);
-                    chordStrokeStart.Update(beat.Stroke.StartTimeOffset);
-                }
-
-                if (beat.Tremolo != null)
-                {
-                    analyzer.Ingest([
-                        beat.Tremolo.Tone != 0,
-                        beat.Tremolo.Points.Count > 0,
-                        beat.Tremolo.Points.Any(r => r.Tone != 0)
-                    ]);
-                }
-
-
-                //glopes.Add(beat.Golpe);
-                //OctaveClefs.Add(beat.OctaveClef);
-
+              
                 Interlocked.Increment(ref counter);
                 if (counter % 100 == 0)
                 {
                     Console.WriteLine($"Processed {counter} files...");
                 }
             }
-            
+
         });
+
+
+        //var numberOfBeats = DaniSerializer.Groups.SelectMany(e => e.Value).Count();
+        //var numberOfGroups = DaniSerializer.Groups.Count;
+        //var beatsByCount = DaniSerializer.Groups.OrderByDescending(e => e.Value.Count);
+        //var avgReuse = (double)numberOfBeats / numberOfGroups;
+
+
 
         Range.ReportAll();
 
@@ -262,16 +233,18 @@ public static class Database
 
         var allFiles = Directory.GetFiles(DataPath);
 
-        var chunks = allFiles.Chunk(allFiles.Length/ Environment.ProcessorCount).Select((chunk, index) => new
+        var chunks = allFiles.Chunk(allFiles.Length / Environment.ProcessorCount).Select((chunk, index) => new
         {
             Chunk = chunk,
             Index = index
         });
 
+        var deser = new DaniSerializer();
+
         //foreach (var metaFile in Directory.GetFiles(MetaPath))
-        await Parallel.ForEachAsync(chunks, new ParallelOptions(){ MaxDegreeOfParallelism = Environment.ProcessorCount}, async (chunk, _) =>
+        await Parallel.ForEachAsync(chunks, new ParallelOptions() { MaxDegreeOfParallelism = Environment.ProcessorCount }, async (chunk, _) =>
         {
-            await using var fileStream = File.OpenWrite(Path.Combine(SummaryPath, $"Beats_Partial_{chunk.Index}.dani"));
+            //await using var fileStream = File.OpenWrite(Path.Combine(SummaryPath, $"Beats_Partial_{chunk.Index}.dani"));
 
             //await using var metaFileStream = File.OpenRead(metaFile);
             //var meta = JsonSerializer.Deserialize<SongMetaDataModel>(metaFileStream, JsonOptions);
@@ -293,10 +266,7 @@ public static class Database
 
                         foreach (var beat in thisBeats)
                         {
-                            // TODO: wrong order, first we suppose to know the size so we can write it, then the data
-                            DaniSerializer.Serialize(beat, fileStream);
-                            //await fileStream.WriteAsync( DaniSerializer.Serialize(beatBytes.Length, typeof(int)).ToArray(), 0, 4, _);
-                            //await fileStream.WriteAsync(beatBytes, _);
+                            deser.Serialize(beat);
                         }
                     }
                     catch (Exception ex)
@@ -313,6 +283,15 @@ public static class Database
                 }
             }
         });
+
+
+        var beats = deser.Groups.Keys;
+        using var beatStream = File.OpenWrite(Path.Combine(SummaryPath, "packedbeats.dani"));
+        foreach (var beat in beats)
+        {
+                beatStream.Write(beat, 0, beat.Length);
+        }
+
 
         //var json = JsonSerializer.Serialize(beats, JsonOptions);
         //await File.WriteAllTextAsync(Path.Combine(SummaryPath, "allbeats.json"), json);

@@ -2,8 +2,8 @@
 
 public sealed class Tempó : MeasureTempo
 {
-    public double Measure { get; set; }
-    public double Position { get; set; }
+    public ushort Measure { get; set; }
+    public float Position { get; set; }
     public bool Visible { get; set; }
     public bool Linear { get; set; }
     public string? Text { get; set; }

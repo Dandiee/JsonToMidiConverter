@@ -1,6 +1,9 @@
-﻿using System.Buffers;
+﻿using JsonToMidiConverter.Models.Song;
+using System;
+using System.Buffers;
 using System.Collections;
 using System.Collections.Concurrent;
+using System.IO;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -16,7 +19,11 @@ public record Primitive(int SizeInBits, Func<object, ulong> Packer, Func<ulong, 
     public readonly int SizeInBytes = (SizeInBits + 7) / 8;
 }
 
-
+public class DedupCounter
+{
+    // Start at 0 so the first Increment makes it 1
+    public volatile int Value = 0;
+}
 
 public class PropertyDefinition
 {
@@ -216,15 +223,66 @@ public class ObjectDefinition
     }
 }
 
-public static class DaniSerializer
+public class DaniSerializer
 {
+    public readonly ConcurrentDictionary<byte[], DedupCounter> Groups = new(ByteSpanComparer.Instance);
+
+    private int _id;
+
     // Entry point
-    public static void Serialize(ISerializable obj, Stream stream)
+
+    public void Serialize(ISerializable obj)
     {
-        SerializeInternal(obj, obj.GetType(), stream);
+        var buffer = ArrayPool<byte>.Shared.Rent(1024 * 4);
+        var cursor = 0;
+
+        try
+        {
+            SerializeInternal(obj, obj.GetType(), buffer, ref cursor);
+
+            if (obj is Beat beat)
+            {
+                ReadOnlySpan<byte> validData = buffer.AsSpan(0, cursor);
+
+                var lookup = Groups.GetAlternateLookup<ReadOnlySpan<byte>>();
+                if (lookup.TryGetValue(validData, out var counter))
+                {
+                    Interlocked.Increment(ref counter.Value);
+                }
+                else
+                {
+                    var newKey = validData.ToArray();
+                    counter = Groups.GetOrAdd(newKey, _ => new DedupCounter());
+                    Interlocked.Increment(ref counter.Value);
+                }
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+
+
+        //if (instance is Beat beat)
+        //{
+        //    var lookup = Groups.GetAlternateLookup<ReadOnlySpan<byte>>();
+        //    var key = span.ToArray();
+        //    Groups.GetOrAdd(key, _ => new ConcurrentBag<Beat>()).Add(beat);
+
+        //    if (lookup.TryGetValue(span, out var bag))
+        //    {
+        //        bag.Add(beat);
+        //    }
+        //    else
+        //    {
+        //        var newKey = span.ToArray();
+        //        bag = Groups.GetOrAdd(newKey, _ => new ConcurrentBag<Beat>());
+        //        bag.Add(beat);
+        //    }
+        //}
     }
 
-    private static void SerializeInternal(object? value, Type type, Stream stream)
+    private void SerializeInternal(object? value, Type type, Span<byte> buffer, ref int cursor)
     {
         var isList = type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>);
         if (isList && value is IList list)
@@ -232,47 +290,48 @@ public static class DaniSerializer
             if (value == null) throw new InvalidOperationException("Lists cannot be null");
 
             // Write List Count
-            WriteInt32(stream, list.Count);
+            WriteInt32(buffer, ref cursor, list.Count);
 
             var itemType = type.GetGenericArguments()[0];
             foreach (var item in list)
             {
-                SerializeInternal(item, itemType, stream);
+                SerializeInternal(item, itemType, buffer, ref cursor);
             }
         }
         else if (type == typeof(string))
         {
             if (value == null)
             {
-                stream.WriteByte(0); // Null marker
+                buffer[cursor++] = 0; // Null marker
             }
             else
             {
-                stream.WriteByte(1); // Presence marker
-                var str = (string)value;
-                var strBytes = Encoding.UTF8.GetBytes(str);
-                WriteInt32(stream, strBytes.Length);
-                stream.Write(strBytes, 0, strBytes.Length);
+                buffer[cursor++] = 1; // Presence marker
+                var lengthPosition = cursor;
+                cursor += 4;
+                var bytesWritten = Encoding.UTF8.GetBytes((string)value, buffer[cursor..]);
+                WriteInt32At(buffer, lengthPosition, bytesWritten);
+                cursor += bytesWritten;
             }
         }
         else if (type.IsAssignableTo(typeof(ISerializable)))
         {
             if (value == null)
             {
-                stream.WriteByte(0);
+                buffer[cursor++] = 0; // null marker
             }
             else
             {
-                stream.WriteByte(1);
+                buffer[cursor++] = 1; // Presence marker
                 var def = ObjectDefinition.Get(type);
 
                 // Pack primitives
-                Pack((ISerializable)value, def, stream);
+                Pack((ISerializable)value, def, buffer, ref cursor);
 
                 // Recurse complex
                 foreach (var prop in def.ComplexTypes)
                 {
-                    SerializeInternal(prop.Getter((ISerializable)value), prop.Type, stream);
+                    SerializeInternal(prop.Getter((ISerializable)value), prop.Type, buffer, ref cursor);
                 }
             }
         }
@@ -283,83 +342,81 @@ public static class DaniSerializer
             // we treat them as individual byte-aligned entities.
             var primitive = PropertyDefinition.GetPrimitive(value!.GetType());
             var bits = primitive.Packer(value);
-            var bytesCount = primitive.SizeInBytes;
-            WritePrimitiveBits(stream, bits, bytesCount);
+            WritePrimitiveBits(buffer, ref cursor, bits, primitive.SizeInBytes);
         }
     }
 
-    private static void Pack(ISerializable obj, ObjectDefinition def, Stream stream)
+    private void Pack(ISerializable obj, ObjectDefinition def, Span<byte> buffer, ref int cursor)
     {
         if (def.PackTypes.Count == 0) return;
 
-        var buffer = ArrayPool<byte>.Shared.Rent(def.TotalPackSizeByte);
+        var span = buffer.Slice(cursor, def.TotalPackSizeByte);
+        span.Clear();
 
-        try
+        var currentBitIndex = 0;
+
+        foreach (var prop in def.PackTypes)
         {
-            // Create a Span for safety and easy manipulation
-            var span = buffer.AsSpan(0, def.TotalPackSizeByte);
-            span.Clear();
-
-            var currentBitIndex = 0;
-
-            foreach (var prop in def.PackTypes)
+            var val = prop.Getter(obj)!;
+            var bits = prop.Primitive.Packer(val);
+            var bitCount = prop.Primitive.SizeInBits;
+            while (bitCount > 0)
             {
-                var val = prop.Getter(obj)!;
-                var bits = prop.Primitive.Packer(val);
-                var bitCount = prop.Primitive.SizeInBits;
-                while (bitCount > 0)
-                {
-                    var byteIndex = currentBitIndex >> 3; // divide by 8
-                    var bitOffset = currentBitIndex & 7;  // modulo 8
+                var byteIndex = currentBitIndex >> 3; // divide by 8
+                var bitOffset = currentBitIndex & 7;  // modulo 8
 
-                    span[byteIndex] |= (byte)(bits << bitOffset);
+                span[byteIndex] |= (byte)(bits << bitOffset);
 
-                    var bitsWritten = 8 - bitOffset;
-                    if (bitsWritten > bitCount)
-                        bitsWritten = bitCount;
+                var bitsWritten = 8 - bitOffset;
+                if (bitsWritten > bitCount)
+                    bitsWritten = bitCount;
 
-                    bits >>= bitsWritten;
-                    bitCount -= bitsWritten;
-                    currentBitIndex += bitsWritten;
-                }
+                bits >>= bitsWritten;
+                bitCount -= bitsWritten;
+                currentBitIndex += bitsWritten;
             }
+        }
 
-            stream.Write(buffer, 0, def.TotalPackSizeByte);
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(buffer);
-        }
+        cursor += def.TotalPackSizeByte;
     }
 
     // --- Serialization Helpers (Little Endian) ---
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void WriteInt32(Stream stream, int value)
+    private static void WriteInt32(Span<byte> buffer, ref int cursor, int value)
     {
-        // Little Endian
-        stream.WriteByte((byte)value);
-        stream.WriteByte((byte)(value >> 8));
-        stream.WriteByte((byte)(value >> 16));
-        stream.WriteByte((byte)(value >> 24));
+        buffer[cursor++] = (byte)value;
+        buffer[cursor++] = (byte)(value >> 8);
+        buffer[cursor++] = (byte)(value >> 16);
+        buffer[cursor++] = (byte)(value >> 24);
     }
 
-    private static void WritePrimitiveBits(Stream stream, ulong bits, int byteCount)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void WriteInt32At(Span<byte> buffer, int position, int value)
+    {
+        buffer[position] = (byte)value;
+        buffer[position + 1] = (byte)(value >> 8);
+        buffer[position + 2] = (byte)(value >> 16);
+        buffer[position + 3] = (byte)(value >> 24);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void WritePrimitiveBits(Span<byte> buffer, ref int cursor, ulong bits, int byteCount)
     {
         for (var i = 0; i < byteCount; i++)
         {
-            stream.WriteByte((byte)(bits >> (i * 8)));
+            buffer[cursor++] = (byte)(bits >> (i * 8));
         }
     }
 
     // --- Deserialization ---
 
-    public static T Deserialize<T>(Stream stream) where T : ISerializable, new()
+    public T Deserialize<T>(Stream stream) where T : ISerializable, new()
     {
         return (T)DeserializeInternal(typeof(T), stream);
     }
 
-    private static object? DeserializeInternal(Type type, Stream stream)
+    private object? DeserializeInternal(Type type, Stream stream)
     {
         // List
         if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>))
@@ -422,7 +479,11 @@ public static class DaniSerializer
         return primitive.Unpacker(bits);
     }
 
-    private static void Unpack(Stream stream, ISerializable instance, ObjectDefinition def)
+    //public static ConcurrentDictionary<string, Range> Ranges = new();
+
+
+
+    public void Unpack(Stream stream, ISerializable instance, ObjectDefinition def)
     {
         if (def.TotalPackSizeByte == 0) return;
 
@@ -434,7 +495,6 @@ public static class DaniSerializer
             ReadExactly(stream, buffer, def.TotalPackSizeByte);
 
             Span<byte> span = buffer.AsSpan(0, def.TotalPackSizeByte);
-
             int currentBitIndex = 0;
 
             foreach (var prop in def.PackTypes)
@@ -467,7 +527,21 @@ public static class DaniSerializer
                     currentBitIndex += bitsToTake;
                 }
 
-                prop.Setter(instance, prop.Primitive.Unpacker(extractedValue));
+                var vaaaaaaaalue = prop.Primitive.Unpacker(extractedValue);
+
+                // if (prop.Type == typeof(double))
+                // {
+                //     var key = $"{prop.Info.DeclaringType.Name} - {prop.Info.Name}";
+                //     if (!Ranges.TryGetValue(key, out var range))
+                //     {
+                //         range = new Range(key);
+                //         Ranges.TryAdd(key, range);
+                //     }
+                // 
+                //     range.Update((double)vaaaaaaaalue);
+                // }
+
+                prop.Setter(instance, vaaaaaaaalue);
             }
         }
         finally
@@ -499,4 +573,22 @@ public static class DaniSerializer
             offset += read;
         }
     }
+}
+
+public class ByteSpanComparer : IEqualityComparer<byte[]>, IAlternateEqualityComparer<ReadOnlySpan<byte>, byte[]>
+{
+    public static readonly ByteSpanComparer Instance = new();
+
+    public bool Equals(byte[]? x, byte[]? y) => ((ReadOnlySpan<byte>)x).SequenceEqual(y);
+    public int GetHashCode(byte[] obj) => GetHashCode(obj.AsSpan());
+    public bool Equals(ReadOnlySpan<byte> span, byte[] target) => span.SequenceEqual(target);
+
+    public int GetHashCode(ReadOnlySpan<byte> span)
+    {
+        var hash = new HashCode();
+        hash.AddBytes(span);
+        return hash.ToHashCode();
+    }
+
+    public byte[] Create(ReadOnlySpan<byte> alternate) => alternate.ToArray();
 }

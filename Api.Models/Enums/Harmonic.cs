@@ -1,11 +1,11 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace JsonToMidiConverter.Models.Song.Enums;
+namespace Api.Models.Enums;
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum Harmonic : byte
 {
-    Unset,
+    None,
 
     Semi,
     Artificial,
@@ -14,11 +14,4 @@ public enum Harmonic : byte
     Feedback,
     Tapped,
     Tap
-}
-
-public enum Dot : byte
-{
-    None,
-    Single,
-    Double
 }

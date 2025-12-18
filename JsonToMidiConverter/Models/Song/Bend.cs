@@ -7,7 +7,7 @@ public sealed class Bend : ISerializable
 {
     public TremoloStyle Style { get; set; } = TremoloStyle.CustomGraph;
 
-    public double Tone { get; set; }
+    public short Tone { get; set; } // -800 - 600
 
     public List<BasePoint> Points { get; set; } = new();
 

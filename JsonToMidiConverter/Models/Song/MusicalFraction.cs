@@ -2,11 +2,11 @@
 
 public class MusicalFraction : ISerializable
 {
-    public double Numerator { get; set; }
-    public double Denominator { get; set; }
+    public byte Numerator { get; set; } // 1 - 229
+    public byte Denominator { get; set; } // 1 - *
 
     public MusicalFraction() { }
-    public MusicalFraction(double numerator, double denominator)
+    public MusicalFraction(byte numerator, byte denominator)
     {
         Numerator = numerator;
         Denominator = denominator;
