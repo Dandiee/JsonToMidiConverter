@@ -94,8 +94,8 @@ public class PartSerializer
         var counter = 0;
         var index = 0;
         var sw = Stopwatch.StartNew();
-        Parallel.ForEach(chunks, new ParallelOptions { MaxDegreeOfParallelism = mdop }, (chunk, _, index) =>
-            //foreach (var chunk in chunks.Take(1))
+        //Parallel.ForEach(chunks, new ParallelOptions { MaxDegreeOfParallelism = mdop }, (chunk, _, index) =>
+        foreach (var chunk in chunks.Take(1))
         {
             var buffer = ArrayPool<byte>.Shared.Rent(1024 * 1024 * 4);
             var span = buffer.AsSpan();
@@ -135,7 +135,7 @@ public class PartSerializer
             {
                 ArrayPool<byte>.Shared.Return(buffer);
             }
-        });
+        }//);
 
         sw.Stop();
         Console.WriteLine($"{(sw.ElapsedMilliseconds/1000f):N1} sec");
@@ -271,8 +271,7 @@ public sealed class Serializer(ThreadSafeIndexer beats, ThreadSafeIndexer notes)
 
         foreach (var prop in def.PackTypes)
         {
-            var val = prop.Getter(obj)!;
-            var bits = prop.Primitive.Packer(val);
+            var bits = prop.UlongGetter(obj);
             var bitCount = prop.Primitive.SizeInBits;
             while (bitCount > 0)
             {

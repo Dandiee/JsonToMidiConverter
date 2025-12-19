@@ -27,6 +27,7 @@ public class PropertyDefinition
     private static readonly ConcurrentDictionary<PropertyInfo, PropertyDefinition> DefinitionCache = new();
     private static readonly ConcurrentDictionary<PropertyInfo, Func<object, object?>> CompiledGetters = new();
     private static readonly ConcurrentDictionary<PropertyInfo, Action<object, object?>> CompiledSetters = new();
+    private static readonly ConcurrentDictionary<PropertyInfo, Func<object, ulong>> CompiledBitGetters = new();
 
     private PropertyDefinition(PropertyInfo propertyInfo)
     {
@@ -37,11 +38,14 @@ public class PropertyDefinition
 
         Getter = CompiledGetters.GetOrAdd(propertyInfo, CompileGetter);
         Setter = CompiledSetters.GetOrAdd(propertyInfo, CompileSetter);
+        
+
 
         if (Type.IsEnum || Primitives.ContainsKey(propertyInfo.PropertyType))
         {
             IsPackable = true;
             Primitive = GetPrimitive(Type);
+            UlongGetter = CompiledBitGetters.GetOrAdd(propertyInfo, CompileBitGetter);
         }
     }
 
@@ -93,6 +97,7 @@ public class PropertyDefinition
 
     public Func<object, object?> Getter { get; }
     public Action<object, object?> Setter { get; }
+    public Func<object, ulong>? UlongGetter { get; }
 
     public Primitive? Primitive { get; }
 
@@ -152,6 +157,49 @@ public class PropertyDefinition
         var castEnum = Expression.Convert(castUnderlying, type);
         var box = Expression.Convert(castEnum, typeof(object));
         return Expression.Lambda<Func<ulong, object>>(box, param).Compile();
+    }
+
+    private static Func<object, ulong> CompileBitGetter(PropertyInfo prop)
+    {
+        var instanceParam = Expression.Parameter(typeof(object), "obj");
+        var instanceCast = Expression.Convert(instanceParam, prop.DeclaringType!);
+        var propertyAccess = Expression.Property(instanceCast, prop);
+
+        Expression toULong;
+        var type = prop.PropertyType;
+
+        if (type.IsEnum)
+        {
+            var underlying = Expression.Convert(propertyAccess, Enum.GetUnderlyingType(type));
+            toULong = Expression.Convert(underlying, typeof(ulong));
+        }
+        else if (type == typeof(bool)) // condition ? 1UL : 0UL
+        {
+            toULong = Expression.Condition(
+                propertyAccess,
+                Expression.Constant(1UL),
+                Expression.Constant(0UL)
+            );
+        }
+        else if (type == typeof(float)) // BitConverter.SingleToInt32Bits(prop)
+        {
+            var method = typeof(BitConverter).GetMethod(nameof(BitConverter.SingleToInt32Bits), [typeof(float)])!;
+            var asInt = Expression.Call(method, propertyAccess);
+            toULong = Expression.Convert(asInt, typeof(ulong));
+        }
+        else if (type == typeof(double)) // BitConverter.DoubleToUInt64Bits(prop)
+        {
+            var method = typeof(BitConverter).GetMethod(nameof(BitConverter.DoubleToUInt64Bits), [typeof(double)])!;
+            toULong = Expression.Call(method, propertyAccess);
+        }
+        else
+        {
+            // Integers (byte, int, long, etc.): Just cast directly to ulong
+            // Expression.Convert is guaranteed to be unchecked. Just don't use ConvertChecked ffs.
+            toULong = Expression.Convert(propertyAccess, typeof(ulong));
+        }
+
+        return Expression.Lambda<Func<object, ulong>>(toULong, instanceParam).Compile();
     }
 
 }
