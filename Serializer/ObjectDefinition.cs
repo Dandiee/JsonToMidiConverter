@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using Api.Models;
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json.Serialization;
 
@@ -18,6 +19,7 @@ public class ObjectDefinition
         var properties = type
             .GetProperties(BindingFlags.Instance | BindingFlags.Public)
             .Where(e => e.GetCustomAttribute<JsonIgnoreAttribute>() == null)
+            .Where(e => e.PropertyType != typeof(MusicalFraction))
             .OrderBy(e => e.Name != "Notes") // make sure that the Notes property is the very first to be serialized
             .ThenBy(e => e.Name) // Deterministic order is crucial
 

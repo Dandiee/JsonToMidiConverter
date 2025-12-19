@@ -1,6 +1,9 @@
-﻿namespace Api.Models;
+﻿using Api.Generators;
 
-public sealed class Song
+namespace Api.Models;
+
+[AutoSerialize]
+public sealed partial class Song : Serializable
 {
     public int SongId { get; set; }
     public int RevisionId { get; set; }

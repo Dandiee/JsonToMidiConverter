@@ -21,9 +21,9 @@ public class MusicalFractionConverter : JsonConverter<MusicalFraction>
     private static MusicalFraction FromArray(ref Utf8JsonReader reader)
     {
         reader.Read();
-        var numerator = FromElement(ref reader) ?? 0;
+        var numerator = (byte)Math.Max(byte.MaxValue, FromElement(ref reader) ?? 0);
         reader.Read();
-        var denominator = FromElement(ref reader) ?? 0;
+        var denominator = (byte)Math.Max(byte.MaxValue, FromElement(ref reader) ?? 0);
         reader.Read();
         
         if (reader.TokenType != JsonTokenType.EndArray)

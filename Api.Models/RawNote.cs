@@ -1,10 +1,12 @@
 ﻿using System.Text.Json.Serialization;
+using Api.Generators;
 using Api.Models.Converters;
 using Api.Models.Enums;
 
 namespace Api.Models;
 
-public sealed class RawNote
+[AutoSerialize]
+public sealed partial class RawNote : Serializable
 {
     public Accent Accentuated { get; set; }
 
@@ -13,15 +15,15 @@ public sealed class RawNote
     public float HarmonicFret { get; set; }
     public sbyte Fret { get; set; }
 
-
-
     public Harmonic Harmonic { get; set; }
     public Velocity Velocity { get; set; }
     public RawSlide Slide { get; set; }
 
 
+    public string LeftFingering { get; set; } = string.Empty;
 
-    public MusicalFraction? Tremolo { get; set; }
+
+    public MusicalFraction Tremolo { get; set; } = MusicalFraction.Zero;
     public HarmonicData? HarmonicData { get; set; }
     public TremoloBar? Bend { get; set; }
 

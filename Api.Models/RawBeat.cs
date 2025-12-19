@@ -1,8 +1,10 @@
-﻿using Api.Models.Enums;
+﻿using Api.Generators;
+using Api.Models.Enums;
 
 namespace Api.Models;
 
-public sealed class RawBeat
+[AutoSerialize]
+public sealed partial class RawBeat : Serializable
 {
     public List<RawNote> Notes { get; set; } = [];
 

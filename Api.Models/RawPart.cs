@@ -1,6 +1,11 @@
-﻿namespace Api.Models;
+﻿using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
+using Api.Generators;
 
-public sealed class RawPart
+namespace Api.Models;
+
+[AutoSerialize]
+public sealed partial class RawPart : Serializable
 {
     public int Index { get; set; }
     public string Name { get; set; } = string.Empty;

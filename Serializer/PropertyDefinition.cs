@@ -17,7 +17,8 @@ public class PropertyDefinition
         { typeof(uint),   new(32, o => (uint)o,                    b => (uint)b) },
         { typeof(long),   new(64, o => unchecked((ulong)(long)o),  b => unchecked((long)b)) },
         { typeof(ulong),  new(64, o => (ulong)o,                   b => b) },
-        
+
+
         // Float/Double use BitConverter helpers
         { typeof(float),  new(32, o => (ulong)BitConverter.SingleToInt32Bits((float)o), b => BitConverter.Int32BitsToSingle((int)b)) },
         { typeof(double), new(64, o => BitConverter.DoubleToUInt64Bits((double)o),      b => BitConverter.Int64BitsToDouble((long)b)) }

@@ -1,11 +1,15 @@
-﻿namespace Api.Models;
+﻿using Api.Generators;
 
-public sealed class TrackAutomations
+namespace Api.Models;
+
+[AutoSerialize]
+public sealed partial class TrackAutomations : Serializable
 {
     public List<TrackSoundAutomation> TrackSoundAutomations { get; set; } = [];
 }
 
-public sealed class TrackSoundAutomation
+[AutoSerialize]
+public sealed partial class TrackSoundAutomation : Serializable
 {
     public int InstrumentId { get; set; }
     public ushort Measure { get; set; }

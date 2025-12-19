@@ -201,6 +201,7 @@ public class ObjectDefinition
         var properties = type
             .GetProperties(BindingFlags.Instance | BindingFlags.Public)
             .Where(e => e.GetCustomAttribute<IgnoreDataMemberAttribute>() == null)
+            
             .OrderBy(e => e.Name)
             .Select(PropertyDefinition.Get)
             .ToList();

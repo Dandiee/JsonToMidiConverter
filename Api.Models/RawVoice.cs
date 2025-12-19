@@ -1,6 +1,10 @@
-﻿namespace Api.Models;
+﻿using Api.Generators;
 
-public sealed class RawVoice
+namespace Api.Models;
+
+
+[AutoSerialize]
+public sealed partial class RawVoice : Serializable
 {
     public List<RawBeat> Beats { get; set; } = [];
 

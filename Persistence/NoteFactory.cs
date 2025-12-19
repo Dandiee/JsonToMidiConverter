@@ -6,6 +6,21 @@ using Persistence.Models.Enums;
 namespace Persistence;
 public static class NoteFactory
 {
+
+    private static readonly float[] HarmonicFretTable =
+    [
+        -1f, 0f, 1f, 2f, 2.4f, 2.7f, 3f, 3.2f, 4f, 4.4f, 4.7f, 5f,
+        5.2f, 5.7f, 5.8f, 6f, 6.2f, 7f, 8f, 8.2f, 8.4f, 9f, 9.6f,
+        10f, 11f, 11.8f, 12f, 13f, 14f, 14.7f, 15f, 16f, 17f, 18f,
+        19f, 19.6f, 20f, 21f, 21.7f, 22f, 23f, 24f, 26f, 28f, 29f,
+        35f, 40f
+    ];
+
+    private static readonly Dictionary<float, byte> HarmonicFretLookup = HarmonicFretTable
+        .Select((fret, index) => (fret, index))
+        .ToDictionary(pair => pair.fret, pair => (byte)pair.index);
+
+
     private static readonly IReadOnlyDictionary<HarmonicType, Harmonic> HarmonicTypeMapping =
         new Dictionary<HarmonicType, Harmonic>
         {
@@ -19,12 +34,12 @@ public static class NoteFactory
         var model = ThreadLocalPool<Note>.Rent();
 
         model.Fret = raw.Fret;
-        model.Slides = MapSlides(raw).ToList();
-        model.Velocity = raw.Velocity;
+        model.Slides = MapSlides(raw);
         model.Tremolo = raw.Tremolo;
-        model.Harmonic = MapHarmonic(raw);
-        model.HarmonicFret = MapHarmonicFret(raw);
         model.Bend = MapBend(raw);
+        model.Velocity = raw.Velocity;
+        model.Harmonic = MapHarmonic(raw);
+        model.HarmonicFretIndex = HarmonicFretLookup[MapHarmonicFret(raw)];
         model.Accentuated = raw.Accentuated;
         model.Vibrato = MapVibrato(raw);
         model.Legato = MapLegato(raw);
@@ -33,8 +48,9 @@ public static class NoteFactory
         model.Staccato = raw.Staccato;
         model.Dead = raw.Dead;
         model.Ghost = raw.Ghost;
-        model.StringNumber = raw.StringNumber;
+        model.DoubledString = (sbyte)(raw.StringNumber * 2);
         model.Tie = raw.Tie;
+        // model.LeftFingering = raw.LeftFingering.Equals("T", StringComparison.CurrentCultureIgnoreCase);
 
         return model;
     }
@@ -76,7 +92,7 @@ public static class NoteFactory
     private static float MapHarmonicFret(RawNote raw)
     {
         if (raw.HarmonicData == null) return raw.HarmonicFret;
-        if (raw.HarmonicFret != 0) throw new NotSupportedException("Idk");
+        if (raw.HarmonicFret != 0) return raw.HarmonicFret;
 
         return raw.HarmonicData.Shift switch
         {
@@ -98,36 +114,33 @@ public static class NoteFactory
         return HarmonicTypeMapping[raw.HarmonicData.Type];
     }
 
-    private static IEnumerable<Slide> MapSlides(RawNote rawNote)
-    {
-        if (rawNote.Slide is RawSlide.Unknown or RawSlide.None)
-            yield break;
-
-        var rest = rawNote.Slide.ToString().ToLowerInvariant();
-
-        if (rest.StartsWith("below"))
+    private static SlideFlags MapSlides(RawNote rawNote)
+        => rawNote.Slide switch
         {
-            yield return Slide.Below;
-            rest = rest[5..];
-        }
-        else if (rest.StartsWith("above"))
-        {
-            yield return Slide.Above;
-            rest = rest[5..];
-        }
+            // 1. Standalone Origins
+            RawSlide.Below => SlideFlags.FromBelow,
+            RawSlide.Above => SlideFlags.FromAbove,
 
-        if (rest.Length > 0)
-        {
-            yield return rest switch
-            {
-                "upwards" => Slide.Upwards,
-                "downwards" => Slide.Downwards,
-                "shift" => Slide.Shift,
-                "legato" => Slide.Legato,
+            // 2. Standalone Motions
+            RawSlide.Upwards => SlideFlags.Upwards,
+            RawSlide.Downwards => SlideFlags.Downwards,
+            RawSlide.Shift => SlideFlags.Shift,
+            RawSlide.Legato => SlideFlags.Legato,
 
-                _ => throw new NotSupportedException()
-            };
-        }
-    }
+            // 3. The "Below" Combinations
+            RawSlide.BelowUpwards => SlideFlags.FromBelow | SlideFlags.Upwards,
+            RawSlide.BelowDownwards => SlideFlags.FromBelow | SlideFlags.Downwards,
+            RawSlide.BelowShift => SlideFlags.FromBelow | SlideFlags.Shift,
+            RawSlide.BelowLegato => SlideFlags.FromBelow | SlideFlags.Legato,
+
+            // 4. The "Above" Combinations
+            RawSlide.AboveUpwards => SlideFlags.FromAbove | SlideFlags.Upwards,
+            RawSlide.AboveDownwards => SlideFlags.FromAbove | SlideFlags.Downwards,
+            RawSlide.AboveShift => SlideFlags.FromAbove | SlideFlags.Shift,
+            RawSlide.AboveLegato => SlideFlags.FromAbove | SlideFlags.Legato,
+
+            // 5. Defaults
+            _ => SlideFlags.None
+        };
 }
 

@@ -2,6 +2,7 @@
 using Persistence;
 using Persistence.Models;
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Diagnostics;
@@ -87,33 +88,48 @@ public class PartSerializer
         ThreadSafeIndexer notes = new();
         var mdop = Environment.ProcessorCount;
 
-        var files = Directory.GetFiles(dataFolder, $"*.gz");
-        var chunks = files.Chunk(files.Length / mdop).ToList();
+        var files = Directory.GetFiles(dataFolder, $"*.gz").ToList();
+        var chunks = files.Chunk(files.Count / mdop).ToList();
 
         var serializer = new Serializer(beats, notes);
         var counter = 0;
-        var index = 0;
+        //var index = 0;
         var sw = Stopwatch.StartNew();
-        //Parallel.ForEach(chunks, new ParallelOptions { MaxDegreeOfParallelism = mdop }, (chunk, _, index) =>
-        foreach (var chunk in chunks.Take(1))
+        //foreach(var chunk in chunks)
+        Parallel.ForEach(chunks, new ParallelOptions { MaxDegreeOfParallelism = mdop }, (chunk, _, index) =>
         {
-            var buffer = ArrayPool<byte>.Shared.Rent(1024 * 1024 * 4);
+            var buffer = ArrayPool<byte>.Shared.Rent(1024 * 1024 * 32);
             var span = buffer.AsSpan();
 
-            using var outputStream = File.OpenWrite(Path.Combine(outputFolder, $"parts_{index++}.dani"));
+            var path = Path.Combine(outputFolder, $"parts_{index}.dani");
+            if (File.Exists(path))
+                File.Delete(path);
+
+            using var outputStream = File.OpenWrite(Path.Combine(outputFolder, $"parts_{index}.dani"));
+
+            var q1 = beats;
+            var q2 = notes;
 
             try
             {
                 foreach (var file in chunk)
                 {
-
                     try
                     {
                         using var inputStream = File.OpenRead(file);
                         using var decompressionStream = new GZipStream(inputStream, CompressionMode.Decompress);
                         var part = JsonSerializer.Deserialize<RawPart>(decompressionStream, JsonOptions);
+                        //var part = JsonSerializer.Deserialize(decompressionStream, JsonContext.Default.RawPart);
                         var length = serializer.Serialize(part, span);
-                        //outputStream.Write(span[..length]);
+                        outputStream.Write(span[..length]);
+
+                        foreach (var beat in part.Measures.SelectMany(e => e.Voices).SelectMany(e => e.Beats))
+                        {
+                            foreach (var note in beat.Notes)
+                            {
+                                NoteFactory.FromRaw(note);
+                            }
+                        }
                     }
                     catch (Exception e)
                     {
@@ -135,10 +151,11 @@ public class PartSerializer
             {
                 ArrayPool<byte>.Shared.Return(buffer);
             }
-        }//);
+        });//);
 
         sw.Stop();
-        Console.WriteLine($"{(sw.ElapsedMilliseconds/1000f):N1} sec");
+
+        Console.WriteLine($"{(sw.ElapsedMilliseconds / 1000f):N1} sec");
 
         WriteBuffers(Path.Combine(outputFolder, "parts.beats.notes.dani"), notes);
         WriteBuffers(Path.Combine(outputFolder, "parts.beats.dani"), beats);
@@ -171,36 +188,18 @@ public sealed class Serializer(ThreadSafeIndexer beats, ThreadSafeIndexer notes)
             if (value == null) throw new InvalidOperationException("Lists cannot be null");
 
             // Write List Count
-            WriteInt32(buffer, ref cursor, list.Count);
+            buffer[cursor++] = (byte)list.Count;
+            //WriteInt32(buffer, ref cursor, list.Count);
             var itemType = type.GetGenericArguments()[0];
 
             foreach (var item in list)
             {
-                if (item is RawBeat rawBeat)
+                if (item is RawBeat beat)
                 {
-
-                    var origCursor = cursor;
-                    SerializeInternal(BeatFactory.FromRaw(rawBeat), typeof(Beat), buffer, ref cursor);
-                    
-                    var beatBytes = buffer.Slice(origCursor, cursor - origCursor);
-                    var beatIndex = beats.GetOrAdd(beatBytes);
-                    
-                    cursor = origCursor;
-                    
-                    // store the beat index at the reserved position
-                    WriteInt32(buffer, ref cursor, beatIndex);
-                    WriteInt32(buffer, ref cursor, rawBeat.Notes.Count);
-
-                    foreach (var rawNote in rawBeat.Notes)
+                    BeatFactory.FromRaw(beat).Write(buffer, ref cursor);
+                    foreach (var note in beat.Notes)
                     {
-                        origCursor = cursor;
-                    
-                        SerializeInternal(NoteFactory.FromRaw(rawNote), typeof(Note), buffer, ref cursor);
-                        var noteBytes = buffer.Slice(origCursor, cursor - origCursor);
-                        var noteIndex = notes.GetOrAdd(noteBytes);
-                        cursor = origCursor;
-                    
-                        WriteInt32At(buffer, origCursor, noteIndex);
+                        NoteFactory.FromRaw(note).Write(buffer, ref cursor);
                     }
                 }
                 else SerializeInternal(item, itemType, buffer, ref cursor);
@@ -249,6 +248,7 @@ public sealed class Serializer(ThreadSafeIndexer beats, ThreadSafeIndexer notes)
             // Inside a List<Primitive> or List<Enum>
             // Note: We do NOT bit-pack items in a list against each other, 
             // we treat them as individual byte-aligned entities.
+
             var primitive = PropertyDefinition.GetPrimitive(value!.GetType());
             var bits = primitive.Packer(value);
             WritePrimitiveBits(buffer, ref cursor, bits, primitive.SizeInBytes);
@@ -302,6 +302,36 @@ public sealed class Serializer(ThreadSafeIndexer beats, ThreadSafeIndexer notes)
         buffer[cursor++] = (byte)(value >> 8);
         buffer[cursor++] = (byte)(value >> 16);
         buffer[cursor++] = (byte)(value >> 24);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void WriteInt64(Span<byte> buffer, ref int cursor, ulong value)
+    {
+        BinaryPrimitives.WriteUInt64LittleEndian(buffer.Slice(cursor), value);
+        cursor += 8;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void WriteInt24(Span<byte> buffer, ref int cursor, int value)
+    {
+        buffer[cursor++] = (byte)value;
+        buffer[cursor++] = (byte)(value >> 8);
+        buffer[cursor++] = (byte)(value >> 16);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void WriteInt16(Span<byte> buffer, ref int cursor, int value)
+    {
+        buffer[cursor++] = (byte)value;
+        buffer[cursor++] = (byte)(value >> 8);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void WriteInt24At(Span<byte> buffer, int position, int value)
+    {
+        buffer[position] = (byte)value;
+        buffer[position + 1] = (byte)(value >> 8);
+        buffer[position + 2] = (byte)(value >> 16);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
