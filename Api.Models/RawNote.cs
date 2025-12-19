@@ -1,12 +1,10 @@
 ﻿using System.Text.Json.Serialization;
-using Api.Generators;
 using Api.Models.Converters;
 using Api.Models.Enums;
 
 namespace Api.Models;
 
-[AutoSerialize]
-public sealed partial class RawNote : Serializable
+public sealed class RawNote
 {
     public Accent Accentuated { get; set; }
 

@@ -1,8 +1,7 @@
 ﻿using Api.Models.Converters;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
 using Api.Generators;
+using Api.Models.Serialization;
 
 namespace Api.Models;
 
@@ -22,19 +21,4 @@ public sealed partial class MusicalFraction(byte nominator, byte denominator) : 
         if (array.Count != 2) return null;
         return new MusicalFraction((byte)array[0], (byte)array[1]);
     }
-
-    //[MethodImpl(MethodImplOptions.AggressiveInlining)]
-    //public void Write(Span<byte> buffer, ref int cursor)
-    //{
-    //    // Write 2 bytes
-    //    buffer[cursor++] = Nominator;
-    //    buffer[cursor++] = Denominator;
-    //}
-
-    //[MethodImpl(MethodImplOptions.AggressiveInlining)]
-    //public void Read(ReadOnlySpan<byte> buffer, ref int cursor)
-    //{
-    //    Nominator = buffer[cursor++];
-    //    Denominator = buffer[cursor++];
-    //}
 }

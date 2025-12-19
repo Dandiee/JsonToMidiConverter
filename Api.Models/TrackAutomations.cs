@@ -1,4 +1,5 @@
 ﻿using Api.Generators;
+using Api.Models.Serialization;
 
 namespace Api.Models;
 

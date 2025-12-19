@@ -1,6 +1,7 @@
 ﻿using System.Text.Json.Serialization;
 using Api.Generators;
 using Api.Models.Converters;
+using Api.Models.Serialization;
 
 namespace Api.Models;
 
@@ -20,16 +21,4 @@ public partial class InternalDisplayText : Serializable
         Text = Text,
         Width = Width
     };
-
-    //public override void Read(ReadOnlySpan<byte> buffer, ref int cursor)
-    //{
-    //    Text = ReadString(buffer, ref cursor);
-    //    Width = ReadUInt16(buffer, ref cursor);
-    //}
-
-    //public override void Write(Span<byte> buffer, ref int cursor)
-    //{
-    //    Write(buffer, ref cursor, Text);
-    //    Write(buffer, ref cursor, Width);
-    //}
 }

@@ -1,7 +1,9 @@
 ﻿using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using Api.Models.Mappers;
 
-namespace Api.Models;
+namespace Api.Models.Serialization;
 public abstract class Serializable
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -48,7 +50,7 @@ public abstract class Serializable
         Write(buffer, ref cursor, isNull ? (byte)0 : (byte)1);
         if (!isNull)
         {
-            model!.Write(buffer, ref cursor, model);
+            model!.Write(buffer, ref cursor);
         }
     }
 
@@ -182,12 +184,22 @@ public abstract class Serializable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     protected void Write(Span<byte> buffer, ref int cursor, ICollection<sbyte> list)
     {
+        if (list == null)
+        {
+            Write(buffer, ref cursor, (ushort)0);
+            return;
+        }
+
         // 1. Write Count (as ushort)
         Write(buffer, ref cursor, (ushort)list.Count);
 
         // 2. Write Items
         foreach (var item in list)
         {
+            if (item == null) // impossible because value type
+            {
+                Debugger.Break();
+            }
             // Cast sbyte -> byte (Bit pattern is identical)
             buffer[cursor++] = (byte)item;
         }
@@ -207,15 +219,6 @@ public abstract class Serializable
         return list;
     }
 
-    //protected List<Serializable> Read(ReadOnlySpan<byte> buffer, ref int cursor)
-    //{
-    //    var count = ReadUInt16(buffer, ref cursor);
-    //    var list = new List<T>
-    //    foreach (var item in list)
-    //    {
-    //        item.Write(buffer, ref cursor);
-    //    }
-    //}
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     protected void Write<T>(Span<byte> buffer, ref int cursor, ICollection<T> list)
@@ -225,15 +228,26 @@ public abstract class Serializable
         foreach (var item in list)
         {
             item.Write(buffer, ref cursor);
+            if (item is Note note) ThreadLocalPool<Note>.Return(note);
+            if (item is Beat beat) ThreadLocalPool<Beat>.Return(beat);
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     protected void Write(Span<byte> buffer, ref int cursor, ICollection<byte> list)
     {
+        if (list == null)
+        {
+            Debugger.Break();
+        }
+
         Write(buffer, ref cursor, list.Count);
         foreach (var item in list)
         {
+            if (item == null) // impossible because byte is value type
+            {
+                Debugger.Break();
+            }
             Write(buffer, ref cursor, item);
         }
     }

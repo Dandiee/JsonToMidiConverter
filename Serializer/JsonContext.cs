@@ -9,7 +9,9 @@ namespace Serializer;
     UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
     NumberHandling = JsonNumberHandling.AllowReadingFromString
 )]
-[JsonSerializable(typeof(RawPart))]
+[JsonSerializable(typeof(Part))]
 [JsonSerializable(typeof(InternalDisplayText))]
 [JsonSerializable(typeof(InternalTremoloBar))]
+[JsonSerializable(typeof(RawBeat))]
+[JsonSerializable(typeof(RawNote))]
 public partial class JsonContext : JsonSerializerContext{}

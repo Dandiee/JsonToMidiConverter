@@ -1,11 +1,10 @@
-﻿using System.Text.Json;
-using System.Text.Json.Serialization.Metadata;
-using Api.Generators;
+﻿using Api.Generators;
+using Api.Models.Serialization;
 
 namespace Api.Models;
 
 [AutoSerialize]
-public sealed partial class RawPart : Serializable
+public sealed partial class Part : Serializable
 {
     public int Index { get; set; }
     public string Name { get; set; } = string.Empty;
@@ -23,7 +22,7 @@ public sealed partial class RawPart : Serializable
     public int Capo { get; set; }
     public int Voices { get; set; }
 
-    public List<RawMeasure> Measures { get; set; } = [];
+    public List<Measure> Measures { get; set; } = [];
     public CapoPartial? CapoPartial { get; set; }
     public TrackAutomations? TrackAutomations { get; set; }
 
