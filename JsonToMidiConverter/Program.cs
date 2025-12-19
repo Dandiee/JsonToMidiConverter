@@ -5,7 +5,11 @@ using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using System.Globalization;
 using System.Text.Json;
+using Serializer;
 
+Database.SerializeAll();
+
+return;
 await Database.DeserializeRawJsons();
 
 //Database.Idk();

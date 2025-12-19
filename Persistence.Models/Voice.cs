@@ -1,6 +1,6 @@
 ﻿namespace Persistence.Models;
 
-public sealed class Voice
+public sealed class Voice : Poolable<Voice>
 {
     public List<Beat> Beats { get; set; } = [];
 

@@ -5,11 +5,14 @@ namespace Persistence;
 
 public static class VoiceFactory
 {
-    public static Voice FromRaw(RawVoice raw) => new()
+    public static Voice FromRaw(RawVoice raw)
     {
-        Beats = raw.Beats.Select(BeatFactory.FromRaw).ToList(),
+        var model = ThreadLocalPool<Voice>.Rent();
 
-        Rest = raw.Rest,
-        HasSameRhythm = raw.HasSameRhythm,
-    };
+        model.Beats = raw.Beats.Select(BeatFactory.FromRaw).ToList();
+        model.Rest = raw.Rest;
+        model.HasSameRhythm = raw.HasSameRhythm;
+
+        return model;
+    }
 }

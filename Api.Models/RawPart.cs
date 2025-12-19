@@ -2,6 +2,7 @@
 
 public sealed class RawPart
 {
+    public int Index { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Instrument { get; set; } = string.Empty;
     public float Balance { get; set; }

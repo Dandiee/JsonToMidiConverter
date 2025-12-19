@@ -3,7 +3,7 @@
 namespace Persistence.Models;
 
 
-public sealed class ChordStroke
+public sealed class ChordStroke : Poolable<ChordStroke>
 {
     public StrokeTechnique Technique { get; set; }
     public short Duration { get; set; }

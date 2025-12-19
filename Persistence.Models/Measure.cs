@@ -3,10 +3,11 @@ using Api.Models.Enums;
 
 namespace Persistence.Models;
 
-public sealed class Measure
+public sealed class Measure : Poolable<Measure>
 {
+    public int Index { get; set; }
     public List<Voice> Voices { get; set; } = [];
-    public List<ushort> Signature { get; set; } = [];
+    public MusicalFraction Signature { get; set; } = MusicalFraction.Zero;
     public List<byte> AlternateEnding { get; set; } = [];
 
     public DisplayText? Marker { get; set; }

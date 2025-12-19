@@ -14,26 +14,30 @@ public static class NoteFactory
             [HarmonicType.Th] = Harmonic.Tapped,
         };
 
-    public static Note FromRaw(RawNote raw) => new()
+    public static Note FromRaw(RawNote raw)
     {
-        Fret = raw.Fret,
-        Slides = MapSlides(raw).ToList(),
-        Velocity = raw.Velocity,
-        Tremolo = MusicalFraction.Create(raw.Tremolo),
-        Harmonic = MapHarmonic(raw),
-        HarmonicFret = MapHarmonicFret(raw),
-        Bend = MapBend(raw),
-        Accentuated = raw.Accentuated,
-        Vibrato = MapVibrato(raw),
-        Legato = MapLegato(raw),
-        Grace = MapGrace(raw),
-        Rest = raw.Rest,
-        Staccato = raw.Staccato,
-        Dead = raw.Dead,
-        Ghost = raw.Ghost,
-        StringNumber = raw.StringNumber,
-        Tie = raw.Tie
-    };
+        var model = ThreadLocalPool<Note>.Rent();
+
+        model.Fret = raw.Fret;
+        model.Slides = MapSlides(raw).ToList();
+        model.Velocity = raw.Velocity;
+        model.Tremolo = raw.Tremolo;
+        model.Harmonic = MapHarmonic(raw);
+        model.HarmonicFret = MapHarmonicFret(raw);
+        model.Bend = MapBend(raw);
+        model.Accentuated = raw.Accentuated;
+        model.Vibrato = MapVibrato(raw);
+        model.Legato = MapLegato(raw);
+        model.Grace = MapGrace(raw);
+        model.Rest = raw.Rest;
+        model.Staccato = raw.Staccato;
+        model.Dead = raw.Dead;
+        model.Ghost = raw.Ghost;
+        model.StringNumber = raw.StringNumber;
+        model.Tie = raw.Tie;
+
+        return model;
+    }
 
     private static GraceNote MapGrace(RawNote raw)
     {
@@ -89,26 +93,26 @@ public static class NoteFactory
     private static Harmonic MapHarmonic(RawNote raw)
     {
         if (raw.HarmonicData == null) return raw.Harmonic;
-        if (raw.Harmonic != Harmonic.None) throw new NotSupportedException("Idk");
+        if (raw.Harmonic != Harmonic.None) return raw.Harmonic;
 
         return HarmonicTypeMapping[raw.HarmonicData.Type];
     }
 
-    private static IEnumerable<Models.Enums.Slide> MapSlides(RawNote rawNote)
+    private static IEnumerable<Slide> MapSlides(RawNote rawNote)
     {
-        if (rawNote.RawSlide is Api.Models.Enums.RawSlide.Unknown or Api.Models.Enums.RawSlide.None)
+        if (rawNote.Slide is RawSlide.Unknown or RawSlide.None)
             yield break;
 
-        var rest = rawNote.RawSlide.ToString().ToLowerInvariant();
+        var rest = rawNote.Slide.ToString().ToLowerInvariant();
 
         if (rest.StartsWith("below"))
         {
-            yield return Models.Enums.Slide.Below;
+            yield return Slide.Below;
             rest = rest[5..];
         }
         else if (rest.StartsWith("above"))
         {
-            yield return Models.Enums.Slide.Above;
+            yield return Slide.Above;
             rest = rest[5..];
         }
 
@@ -116,10 +120,10 @@ public static class NoteFactory
         {
             yield return rest switch
             {
-                "upwards" => Models.Enums.Slide.Upwards,
-                "downwards" => Models.Enums.Slide.Downwards,
-                "shift" => Models.Enums.Slide.Shift,
-                "legato" => Models.Enums.Slide.Legato,
+                "upwards" => Slide.Upwards,
+                "downwards" => Slide.Downwards,
+                "shift" => Slide.Shift,
+                "legato" => Slide.Legato,
 
                 _ => throw new NotSupportedException()
             };

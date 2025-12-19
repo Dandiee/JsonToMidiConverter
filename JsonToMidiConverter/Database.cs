@@ -1,5 +1,6 @@
 ﻿using JsonToMidiConverter.Models;
 using JsonToMidiConverter.Models.Song;
+using Serializer;
 using System.Collections.Concurrent;
 using System.IO.Compression;
 using System.Reflection.Metadata;
@@ -80,6 +81,12 @@ public static class Database
     public static readonly string BinPath = Path.Combine(RootPath, "Bin");
     public static readonly string ZstdPath = Path.Combine(RootPath, "zstd");
     public static readonly string SummaryPath = Path.Combine(RootPath, "Summary");
+
+    public static void SerializeAll()
+    {
+        PartSerializer serializer = new PartSerializer();
+        serializer.Serialize(DataPath, SummaryPath);
+    }
 
     public static readonly HashSet<char> WeirdoCharacters = new[] { '/', '?', '_' }.ToHashSet();
 

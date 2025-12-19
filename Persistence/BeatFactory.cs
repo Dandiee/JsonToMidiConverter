@@ -12,34 +12,35 @@ public static class BeatFactory
         var (stroke, pickDirection) = MapStrokeAndDirection(raw);
         var tremolo = MapTremolo(raw);
 
-        return new Beat
-        {
-            Notes = raw.Notes.Select(NoteFactory.FromRaw).ToList(),
+        var model = ThreadLocalPool<Beat>.Rent();
 
-            PalmMute = raw.PalmMute,
-            LetRing = raw.LetRing,
-            Rest = raw.Rest,
+        //model.Notes = raw.Notes.Select(NoteFactory.FromRaw).ToList();
 
-            // Logic Extractions
-            Duration = new MusicalFraction(raw.Duration),
-            Harmonic = MapHarmonic(raw),
-            Vibrato = MapVibrato(raw),
-            Technique = MapTechnique(raw),
-            Dots = MapDots(raw),
-            GradualVelocity = raw.FadeIn ? GradualVelocity.Crescendo : raw.GradualVelocity,
+        model.PalmMute = raw.PalmMute;
+        model.LetRing = raw.LetRing;
+        model.Rest = raw.Rest;
 
-            // Complex Spanner Logic
-            BeamSpan = MapSpanner(raw.BeamStart, raw.BeamStop),
-            TupletSpan = MapSpanner(raw.TupletStart, raw.TupletStop),
-            TupletDenominator = raw.Tuplet > 1 ? raw.Tuplet : (byte)0,
+        // Logic Extractions
+        model.Duration = raw.Duration;
+        model.Harmonic = MapHarmonic(raw);
+        model.Vibrato = MapVibrato(raw);
+        model.Technique = MapTechnique(raw);
+        model.Dots = MapDots(raw);
+        model.GradualVelocity = raw.FadeIn ? GradualVelocity.Crescendo : raw.GradualVelocity;
 
-            // Octave String Parsing
-            Octave = raw.OctaveClef,
-            // Calculated complex objects
-            Stroke = stroke,
-            PickDirection = pickDirection,
-            Tremolo = tremolo
-        };
+        // Complex Spanner Logic
+        model.BeamSpan = MapSpanner(raw.BeamStart, raw.BeamStop);
+        model.TupletSpan = MapSpanner(raw.TupletStart, raw.TupletStop);
+        model.TupletDenominator = raw.Tuplet > 1 ? raw.Tuplet : (byte)0;
+
+        // Octave String Parsing
+        model.Octave = raw.OctaveClef;
+        // Calculated complex objects
+        model.Stroke = stroke;
+        model.PickDirection = pickDirection;
+        model.Tremolo = tremolo;
+
+        return model;
     }
 
     private static Harmonic MapHarmonic(RawBeat raw)
@@ -118,7 +119,7 @@ public static class BeatFactory
     // Returns a Tuple because Legacy logic affected both Stroke AND PickDirection
     private static (ChordStroke? Stroke, Direction PickDirection) MapStrokeAndDirection(RawBeat raw)
     {
-        var stroke = new ChordStroke();
+        var stroke = ThreadLocalPool<ChordStroke>.Rent();
         var direction = Direction.None;
         bool hasStroke = false;
 

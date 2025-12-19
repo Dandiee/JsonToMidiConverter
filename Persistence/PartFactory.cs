@@ -1,41 +1,38 @@
 ﻿using Api.Models;
-using Api.Models.Enums;
 using Persistence.Models;
 namespace Persistence;
 
 public static class PartFactory
 {
-    public static Part FromRaw(RawPart raw) => new()
+    public static Part FromRaw(RawPart raw)
     {
-        Measures = raw.Measures.Select(MeasureFactory.FromRaw).ToList(),
+        var model = ThreadLocalPool<Part>.Rent();
 
-        // Primitives - Direct Copy
-        Name = raw.Name,
-        Instrument = raw.Instrument,
-        Balance = raw.Balance,
-        Volume = raw.Volume,
-        Frets = raw.Frets,
-        Strings = raw.Strings,
-        InstrumentId = raw.InstrumentId,
-        PartId = raw.PartId,
-        Version = raw.Version,
-        SongId = raw.SongId,
-        RevisionId = raw.RevisionId,
-        Capo = raw.Capo,
-        Voices = raw.Voices,
-        WithLyrics = raw.WithLyrics,
-        TuningFlat = raw.TuningFlat,
-        Anacrusis = raw.Anacrusis,
-        TuningShortDrone = raw.TuningShortDrone,
+        model.Measures = raw.Measures.Select(MeasureFactory.FromRaw).ToList();
+        model.Index = raw.Index;
+        model.Name = raw.Name;
+        model.Instrument = raw.Instrument;
+        model.Balance = raw.Balance;
+        model.Volume = raw.Volume;
+        model.Frets = raw.Frets;
+        model.Strings = raw.Strings;
+        model.InstrumentId = raw.InstrumentId;
+        model.PartId = raw.PartId;
+        model.Version = raw.Version;
+        model.SongId = raw.SongId;
+        model.RevisionId = raw.RevisionId;
+        model.Capo = raw.Capo;
+        model.Voices = raw.Voices;
+        model.WithLyrics = raw.WithLyrics;
+        model.TuningFlat = raw.TuningFlat;
+        model.Anacrusis = raw.Anacrusis;
+        model.TuningShortDrone = raw.TuningShortDrone;
+        model.CapoPartial = raw.CapoPartial;
+        model.TrackAutomations = raw.TrackAutomations;
+        model.Automations = raw.Automations;
+        model.Tuning = raw.Tuning;
+        model.NewLyrics = raw.NewLyrics;
 
-        // Simple Objects - Direct Copy (or clone if mutable)
-        CapoPartial = raw.CapoPartial,
-        TrackAutomations = raw.TrackAutomations,
-        Automations = raw.Automations,
-
-        // Collections - Create NEW lists to break reference to raw data
-        // (Assuming you have sanitizers for Measure and Lyric)
-        Tuning = raw.Tuning,
-        NewLyrics = raw.NewLyrics
-    };
+        return model;
+    }
 }

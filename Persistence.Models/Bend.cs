@@ -3,7 +3,7 @@ using Persistence.Models.Enums;
 
 namespace Persistence.Models;
 
-public sealed class Bend
+public sealed class Bend : Poolable<Bend>
 {
     public List<Point> Points { get; set; } = [];
     public TremoloStyle Style { get; set; }

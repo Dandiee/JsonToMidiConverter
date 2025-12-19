@@ -2,8 +2,9 @@
 
 namespace Persistence.Models;
 
-public sealed class Part
+public sealed class Part : Poolable<Part>
 {
+    public int Index { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Instrument { get; set; } = string.Empty;
     public float Balance { get; set; }

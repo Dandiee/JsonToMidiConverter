@@ -11,7 +11,7 @@ public class PickStrokeConverter : JsonConverter<PickStroke>
         {
             JsonTokenType.True => reader.GetBoolean() ? PickStroke.True : PickStroke.False,
             JsonTokenType.False => reader.GetBoolean() ? PickStroke.True : PickStroke.False,
-            JsonTokenType.String => Enum.Parse<PickStroke>(reader.GetString()!),
+            JsonTokenType.String => Enum.Parse<PickStroke>(reader.GetString()!, true),
 
             _ => throw new NotSupportedException($"Unexpected token type for PickStroke: {reader.TokenType}")
         };

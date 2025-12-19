@@ -68,4 +68,8 @@
     <PackageReference Include="SharpCompress" Version="0.42.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Serializer\Serializer.csproj" />
+  </ItemGroup>
+
 </Project>

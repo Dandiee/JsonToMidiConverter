@@ -10,7 +10,7 @@ public sealed class RawBeat
 
     public DisplayText? Chord { get; set; }
     public TremoloBar? TremoloBar { get; set; }
-    public List<ushort> Duration { get; set; } = [];
+    public MusicalFraction Duration { get; set; } = MusicalFraction.Zero;
     public MeasureTempo? Tempo { get; set; }
     public BrushStroke? BrushStroke { get; set; }
     public BrushStroke? Arpeggio { get; set; }

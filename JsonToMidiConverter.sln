@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Persistence", "Persistence\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Persistence.Models", "Persistence.Models\Persistence.Models.csproj", "{9BC7AB64-DE8F-4140-9B6D-20C7841F411E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Serializer", "Serializer\Serializer.csproj", "{FA536ECC-54BB-4086-A04F-4C703DE2C7B5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -39,6 +41,10 @@ Global
 		{9BC7AB64-DE8F-4140-9B6D-20C7841F411E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9BC7AB64-DE8F-4140-9B6D-20C7841F411E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9BC7AB64-DE8F-4140-9B6D-20C7841F411E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FA536ECC-54BB-4086-A04F-4C703DE2C7B5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FA536ECC-54BB-4086-A04F-4C703DE2C7B5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FA536ECC-54BB-4086-A04F-4C703DE2C7B5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FA536ECC-54BB-4086-A04F-4C703DE2C7B5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

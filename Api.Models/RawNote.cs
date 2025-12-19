@@ -15,13 +15,13 @@ public sealed class RawNote
 
 
 
-    public RawSlide RawSlide { get; set; }
     public Harmonic Harmonic { get; set; }
     public Velocity Velocity { get; set; }
+    public RawSlide Slide { get; set; }
 
 
 
-    public List<ushort> Tremolo { get; set; } = [];
+    public MusicalFraction? Tremolo { get; set; }
     public HarmonicData? HarmonicData { get; set; }
     public TremoloBar? Bend { get; set; }
 

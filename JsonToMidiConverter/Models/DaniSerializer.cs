@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.Serialization;
 using System.Text;
 using System.Text.Json.Serialization;
 
@@ -199,8 +200,8 @@ public class ObjectDefinition
     {
         var properties = type
             .GetProperties(BindingFlags.Instance | BindingFlags.Public)
-            .Where(e => e.GetCustomAttribute<JsonIgnoreAttribute>() == null)
-            .OrderBy(e => e.Name) // Deterministic order is crucial
+            .Where(e => e.GetCustomAttribute<IgnoreDataMemberAttribute>() == null)
+            .OrderBy(e => e.Name)
             .Select(PropertyDefinition.Get)
             .ToList();
 
@@ -244,7 +245,7 @@ public class DaniSerializer
             {
                 ReadOnlySpan<byte> validData = buffer.AsSpan(0, cursor);
 
-                var lookup = Groups.GetAlternateLookup<ReadOnlySpan<byte>>();
+                ConcurrentDictionary<byte[], DedupCounter>.AlternateLookup<ReadOnlySpan<byte>> lookup = Groups.GetAlternateLookup<ReadOnlySpan<byte>>();
                 if (lookup.TryGetValue(validData, out var counter))
                 {
                     Interlocked.Increment(ref counter.Value);

@@ -8,7 +8,7 @@ public class TremoloBarConverter : JsonConverter<TremoloBar>
     public override TremoloBar Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
         reader.TokenType switch
         {
-            JsonTokenType.StartObject => JsonSerializer.Deserialize<TremoloBar>(ref reader, options)!,
+            JsonTokenType.StartObject => JsonSerializer.Deserialize<InternalTremoloBar>(ref reader, options).ToModel(),
             JsonTokenType.True => new TremoloBar { LegacyFlag = reader.GetBoolean() },
             JsonTokenType.False => new TremoloBar { LegacyFlag = reader.GetBoolean() },
 

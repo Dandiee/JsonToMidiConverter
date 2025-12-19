@@ -8,7 +8,7 @@ public class DisplayTextConverter : JsonConverter<DisplayText>
     public override DisplayText Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
         reader.TokenType switch
         {
-            JsonTokenType.StartObject => JsonSerializer.Deserialize<DisplayText>(ref reader, options),
+            JsonTokenType.StartObject => JsonSerializer.Deserialize<InternalDisplayText>(ref reader, options)?.ToModel(),
             JsonTokenType.String => new DisplayText { Text = reader.GetString() },
 
             _ => throw new NotSupportedException($"Unexpected token type for Marker: {reader.TokenType}")

@@ -5,24 +5,23 @@ namespace Persistence;
 
 public static class MeasureFactory
 {
-    public static Measure FromRaw(RawMeasure raw) => new()
+    public static Measure FromRaw(RawMeasure raw)
     {
-        // Must map generic type (RawVoice -> Voice), so we create a new container
-        Voices = raw.Voices.Select(VoiceFactory.FromRaw).ToList(),
+        var model = ThreadLocalPool<Measure>.Rent();
 
-        // Keeping Direct References (No hard copy)
-        Signature = raw.Signature,
-        AlternateEnding = raw.AlternateEnding,
 
-        // Direct Object References
-        Marker = raw.Marker,
-        Tempo = raw.Tempo,
+        model.Voices = raw.Voices.Select(VoiceFactory.FromRaw).ToList();
+        model.Index = raw.Index;
+        model.Signature = raw.Signature;
+        model.AlternateEnding = raw.AlternateEnding;
+        model.Marker = raw.Marker;
+        model.Tempo = raw.Tempo;
+        model.TripletFeel = raw.TripletFeel;
+        model.Repeat = raw.Repeat;
+        model.Rest = raw.Rest;
+        model.RepeatStart = raw.RepeatStart;
+        model.DoubleBarLine = raw.DoubleBarLine;
 
-        // Primitives
-        TripletFeel = raw.TripletFeel,
-        Repeat = raw.Repeat,
-        Rest = raw.Rest,
-        RepeatStart = raw.RepeatStart,
-        DoubleBarLine = raw.DoubleBarLine
-    };
+        return model;
+    }
 }

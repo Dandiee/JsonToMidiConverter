@@ -4,8 +4,9 @@ namespace Api.Models;
 
 public sealed class RawMeasure
 {
+    public int Index { get; set; }
     public List<RawVoice> Voices { get; set; } = [];
-    public List<ushort> Signature { get; set; } = [];
+    public MusicalFraction  Signature { get; set; } = MusicalFraction.Zero;
     public List<byte> AlternateEnding { get; set; } = [];
 
     public DisplayText? Marker { get; set; }

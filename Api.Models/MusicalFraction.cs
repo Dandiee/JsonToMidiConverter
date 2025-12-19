@@ -1,9 +1,15 @@
-﻿namespace Persistence.Models;
+﻿using Api.Models.Converters;
+using System.Text.Json.Serialization;
 
-public struct MusicalFraction
+namespace Api.Models;
+
+[JsonConverter(typeof(MusicalFractionConverter))]
+public class MusicalFraction
 {
-    public ushort Nominator;
-    public ushort Denominator;
+    public static readonly MusicalFraction Zero = new(0, 0);
+
+    public ushort Nominator { get; set; }
+    public ushort Denominator { get; set; }
 
     public MusicalFraction(ushort nominator, ushort denominator)
     {
