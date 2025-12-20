@@ -83,13 +83,6 @@ public abstract class Serializable
     protected void Write<T>(Span<byte> buffer, ref int cursor, ICollection<T> list)
             where T : Serializable
     {
-
-        if (list == null)
-        {
-
-        }
-
-        // Write Count (ushort covers up to 65,535 items)
         Write(buffer, ref cursor, (ushort)list.Count);
 
         foreach (var item in list)
@@ -107,12 +100,6 @@ public abstract class Serializable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     protected void Write(Span<byte> buffer, ref int cursor, List<byte> list)
     {
-
-        if (list == null)
-        {
-
-        }
-
         ushort count = (ushort)list.Count;
         Write(buffer, ref cursor, count);
 
