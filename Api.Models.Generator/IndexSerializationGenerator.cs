@@ -154,7 +154,7 @@ public class IndexSerializationGenerator : IIncrementalGenerator
                 public partial class {model.Name}
                 {{
                     private static readonly ConcurrentDictionary<UInt128, ushort> _indexMap = new();
-                    public static readonly List<UInt128> _valueList = new();
+                    private static List<UInt128> _valueList = new();
                     private static readonly object _listLock = new();
                     
                     public override void Write(Span<byte> buffer, ref int cursor)
@@ -188,6 +188,9 @@ public class IndexSerializationGenerator : IIncrementalGenerator
                         {GetPrimitiveReader(model)}
                         {GetReferenceReader(model)}
                     }}
+
+                    public static List<UInt128> GetHeaders() => _valueList.ToList();
+                    public static void LoadHeaders(List<UInt128> headers) => _valueList = headers.ToList();
                 }}
             }}";
 

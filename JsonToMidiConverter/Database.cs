@@ -85,7 +85,8 @@ public static class Database
     public static void SerializeAll()
     {
         PartSerializer serializer = new PartSerializer();
-        serializer.Serialize(DataPath, SummaryPath);
+        serializer.Deserialize(SummaryPath);
+        //serializer.Serialize(DataPath, SummaryPath);
     }
 
     public static readonly HashSet<char> WeirdoCharacters = new[] { '/', '?', '_' }.ToHashSet();
