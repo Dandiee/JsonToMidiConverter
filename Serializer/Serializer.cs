@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Text.Json;
+using Api.Models;
 
 namespace Serializer;
 
@@ -68,6 +69,9 @@ public class PartSerializer
             }
         });//);
 
+
+        var notes = Note._valueList; // 
+        var beats = Beat._valueList; // 11 bit
         
         sw.Stop();
 

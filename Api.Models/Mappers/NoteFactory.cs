@@ -29,7 +29,7 @@ public static class NoteFactory
     public static Note FromRaw(RawNote raw)
     {
         var model = ThreadLocalPool<Note>.Rent();
-
+        
         model.Fret = raw.Fret;
         model.Slides = MapSlides(raw);
         model.Tremolo = raw.Tremolo;

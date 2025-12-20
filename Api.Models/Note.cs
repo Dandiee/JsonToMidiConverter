@@ -6,12 +6,13 @@ using System.Text.Json.Serialization;
 
 namespace Api.Models;
 
-[AutoSerialize]
+[AutoSerializeIndex]
 [JsonConverter(typeof(NoteConverter))]
 public sealed partial class Note : Serializable
 {
     public Bend? Bend { get; set; }
 
+    // fixed 16 bits
     public MusicalFraction Tremolo { get; set; } = MusicalFraction.Zero;
 
     // Observed unique values: "-6,-5,-4,-3,-2,-1.5,-1,-0.5,0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,7,8"

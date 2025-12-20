@@ -1,4 +1,5 @@
-﻿using Api.Generators;
+﻿using System.Text.Json.Serialization;
+using Api.Generators;
 using Api.Models.Enums;
 using Api.Models.Serialization;
 
@@ -8,6 +9,7 @@ namespace Api.Models;
 public sealed partial class Measure : Serializable
 {
     public int Index { get; set; }
+
     public List<Voice> Voices { get; set; } = [];
     public MusicalFraction  Signature { get; set; } = MusicalFraction.Zero;
     public List<byte> AlternateEnding { get; set; } = [];

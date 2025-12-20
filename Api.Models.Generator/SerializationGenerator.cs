@@ -29,18 +29,6 @@ namespace Api.Models.Generator
             public List<PropModel> Properties;
         }
 
-        private class PropModel
-        {
-            public string Name;
-            public string TypeName;
-            public bool IsBool;
-            public bool IsEnum;
-            public bool IsList;
-            public string ListInnerType;
-            public int Bits; // 0 = Not packed, 1 = Bool, >1 = Small Enum
-        }
-
-        // --- 1. ANALYSIS PHASE ---
         private static ClassModel GetClassModel(GeneratorSyntaxContext context)
         {
             var classDeclaration = (ClassDeclarationSyntax)context.Node;
@@ -67,53 +55,27 @@ namespace Api.Models.Generator
 
             foreach (var prop in properties)
             {
+                // 1. Use Shared Analysis
+                var pModel = GeneratorShared.AnalyzeProperty(prop);
                 var type = prop.Type;
-                var pModel = new PropModel
-                {
-                    Name = prop.Name,
-                    TypeName = type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
-                    IsBool = type.SpecialType == SpecialType.System_Boolean,
-                    IsEnum = type.TypeKind == TypeKind.Enum,
-                    IsList = (type.Name == "List" || type.Name == "IList") && type is INamedTypeSymbol g && g.IsGenericType
-                };
 
-                if (pModel.IsList && type is INamedTypeSymbol listType)
-                {
-                    pModel.ListInnerType = listType.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
-                }
-
-                // --- BIT CALCULATION LOGIC ---
+                // 2. Apply Standard Serialization Rules
                 if (pModel.IsBool)
                 {
                     pModel.Bits = 1;
                 }
                 else if (pModel.IsEnum && type is INamedTypeSymbol enumSym)
                 {
-                    // Calculate bits based on Max Enum Value
-                    long maxVal = 0;
-                    bool complexEnum = false;
-
-                    foreach (var member in enumSym.GetMembers().OfType<IFieldSymbol>())
-                    {
-                        if (member.HasConstantValue && member.ConstantValue is IConvertible c)
-                        {
-                            long val = c.ToInt64(null);
-                            if (val < 0) { complexEnum = true; break; } // Don't pack negative enums
-                            if (val > maxVal) maxVal = val;
-                        }
-                    }
-
-                    if (!complexEnum)
-                    {
-                        // Log2(0) is undef, so maxVal 0 needs 1 bit
-                        int bitsNeeded = maxVal == 0 ? 1 : (int)Math.Floor(Math.Log(maxVal, 2)) + 1;
-
-                        // Only pack if it fits comfortably in a byte (< 8 bits)
-                        if (bitsNeeded <= 7)
-                        {
-                            pModel.Bits = bitsNeeded;
-                        }
-                    }
+                    pModel.Bits = GeneratorShared.CalculateEnumBits(enumSym);
+                }
+                // Nullable packing logic (only for nullable references that aren't strings/lists)
+                else if (type.IsReferenceType &&
+                         type.SpecialType != SpecialType.System_String &&
+                         pModel.IsList == false &&
+                         prop.NullableAnnotation == NullableAnnotation.Annotated)
+                {
+                    pModel.Bits = 1;
+                    pModel.IsPackedNull = true;
                 }
 
                 model.Properties.Add(pModel);
@@ -122,15 +84,14 @@ namespace Api.Models.Generator
             return model;
         }
 
-        // --- 2. GENERATION PHASE ---
         private void Execute(SourceProductionContext context, ClassModel model)
         {
             var sb = new StringBuilder();
             sb.AppendLine("using System;");
             sb.AppendLine("using System.Collections.Generic;");
             sb.AppendLine("using System.Buffers.Binary;");
-            sb.AppendLine("using Api.Models;"); // Adjust if your base class is elsewhere
-            sb.AppendLine("using Api.Models.Enums;"); // Adjust if your base class is elsewhere
+            sb.AppendLine("using Api.Models;");
+            sb.AppendLine("using Api.Models.Enums;");
 
             if (!string.IsNullOrEmpty(model.Namespace))
             {
@@ -141,109 +102,155 @@ namespace Api.Models.Generator
             sb.AppendLine($"    public partial class {model.Name}");
             sb.AppendLine("    {");
 
-            // Split into "Packables" (Bools & Small Enums) vs "Others"
-            var packables = model.Properties.Where(p => p.Bits > 0).ToList();
-            var others = model.Properties.Where(p => p.Bits == 0).ToList();
+            var packables = model.Properties.Where(p => p.Bits > 0).OrderByDescending(p => p.Bits).ToList();
+            var payloadProps = model.Properties.Where(p => p.Bits == 0 || p.IsPackedNull).ToList();
 
-            // ---------------------------------------------------------
-            // WRITE METHOD
-            // ---------------------------------------------------------
+            int totalBits = packables.Sum(p => p.Bits);
+            int totalBytes = (totalBits + 7) / 8;
+
+            // ---------------- WRITER ----------------
             sb.AppendLine("        public override void Write(Span<byte> buffer, ref int cursor)");
             sb.AppendLine("        {");
 
-            // --- PACKING LOOP ---
-            int currentByteIndex = 0;
-            int currentBitPos = 0;
-            bool byteStarted = false;
-
-            for (int i = 0; i < packables.Count; i++)
+            for (int i = 0; i < totalBytes; i++)
             {
-                var p = packables[i];
-
-                // If this prop doesn't fit in the remaining bits, flush and start new byte
-                if (currentBitPos + p.Bits > 8)
-                {
-                    sb.AppendLine($"            Write(buffer, ref cursor, packed{currentByteIndex});");
-                    currentByteIndex++;
-                    currentBitPos = 0;
-                    byteStarted = false;
-                }
-
-                if (!byteStarted)
-                {
-                    sb.AppendLine($"            byte packed{currentByteIndex} = 0;");
-                    byteStarted = true;
-                }
-
-                // Pack Logic: (byte)((Value & Mask) << Shift)
-                string valueRead = p.IsBool ? $"({p.Name} ? 1 : 0)" : $"(byte){p.Name}";
-                sb.AppendLine($"            packed{currentByteIndex} |= (byte)({valueRead} << {currentBitPos});");
-
-                currentBitPos += p.Bits;
+                sb.AppendLine($"            byte packed{i} = 0;");
             }
 
-            // Write the final pending byte
-            if (byteStarted)
+            int currentGlobalBit = 0;
+
+            foreach (var p in packables)
             {
-                sb.AppendLine($"            Write(buffer, ref cursor, packed{currentByteIndex});");
+                string valExpr;
+                if (p.IsBool) valExpr = $"({p.Name} ? 1 : 0)";
+                else if (p.IsPackedNull) valExpr = $"({p.Name} != null ? 1 : 0)";
+                else valExpr = $"(byte){p.Name}";
+
+                int bitsRemaining = p.Bits;
+                int valOffset = 0;
+
+                while (bitsRemaining > 0)
+                {
+                    int byteIndex = currentGlobalBit / 8;
+                    int bitIndexInByte = currentGlobalBit % 8;
+                    int spaceInByte = 8 - bitIndexInByte;
+                    int bitsToWrite = Math.Min(bitsRemaining, spaceInByte);
+                    int mask = (1 << bitsToWrite) - 1;
+
+                    sb.AppendLine($"            packed{byteIndex} |= (byte)((({valExpr} >> {valOffset}) & {mask}) << {bitIndexInByte});");
+
+                    bitsRemaining -= bitsToWrite;
+                    valOffset += bitsToWrite;
+                    currentGlobalBit += bitsToWrite;
+                }
             }
 
-            // --- STANDARD WRITES ---
-            foreach (var prop in others)
+            for (int i = 0; i < totalBytes; i++)
             {
-                string cast = GetWriteCast(prop);
-                sb.AppendLine($"            Write(buffer, ref cursor, {cast}{prop.Name});");
+                sb.AppendLine($"            Write(buffer, ref cursor, packed{i});");
+            }
+
+            foreach (var prop in payloadProps)
+            {
+                if (prop.IsPackedNull)
+                {
+                    sb.AppendLine($"            if ({prop.Name} != null)");
+                    sb.AppendLine("            {");
+                    sb.AppendLine($"                {prop.Name}.Write(buffer, ref cursor);");
+                    sb.AppendLine("            }");
+                }
+                else
+                {
+                    bool isPrimitive = GeneratorShared.IsPrimitive(prop.TypeName);
+                    if (isPrimitive || prop.IsList)
+                    {
+                        string cast = GetWriteCast(prop);
+                        sb.AppendLine($"            Write(buffer, ref cursor, {cast}{prop.Name});");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"            {prop.Name}.Write(buffer, ref cursor);");
+                    }
+                }
             }
             sb.AppendLine("        }");
 
-            // ---------------------------------------------------------
-            // READ METHOD
-            // ---------------------------------------------------------
+            // ---------------- READER ----------------
             sb.AppendLine();
             sb.AppendLine("        public override void Read(ReadOnlySpan<byte> buffer, ref int cursor)");
             sb.AppendLine("        {");
 
-            // --- UNPACKING LOOP ---
-            currentByteIndex = 0;
-            currentBitPos = 0;
-            byteStarted = false;
-
-            for (int i = 0; i < packables.Count; i++)
+            for (int i = 0; i < totalBytes; i++)
             {
-                var p = packables[i];
-
-                if (currentBitPos + p.Bits > 8)
-                {
-                    currentByteIndex++;
-                    currentBitPos = 0;
-                    byteStarted = false;
-                }
-
-                if (!byteStarted)
-                {
-                    sb.AppendLine($"            byte packed{currentByteIndex} = ReadByte(buffer, ref cursor);");
-                    byteStarted = true;
-                }
-
-                // Unpack Logic: (Type)((packed >> Shift) & Mask)
-                int mask = (1 << p.Bits) - 1;
-                string cast = p.IsBool ? "" : $"({p.TypeName})";
-                string extraction = $"(packed{currentByteIndex} >> {currentBitPos}) & {mask}";
-
-                if (p.IsBool)
-                    sb.AppendLine($"            {p.Name} = ({extraction}) != 0;");
-                else
-                    sb.AppendLine($"            {p.Name} = {cast}({extraction});");
-
-                currentBitPos += p.Bits;
+                sb.AppendLine($"            byte packed{i} = ReadByte(buffer, ref cursor);");
             }
 
-            // --- STANDARD READS ---
-            foreach (var prop in others)
+            currentGlobalBit = 0;
+
+            foreach (var p in packables)
             {
-                string readCall = GetReadCall(prop);
-                string cast = GetReadCast(prop);
-                sb.AppendLine($"            {prop.Name} = {cast}{readCall};");
+                List<string> parts = new List<string>();
+                int bitsRemaining = p.Bits;
+                int resultOffset = 0;
+
+                while (bitsRemaining > 0)
+                {
+                    int byteIndex = currentGlobalBit / 8;
+                    int bitIndexInByte = currentGlobalBit % 8;
+                    int spaceInByte = 8 - bitIndexInByte;
+                    int bitsToRead = Math.Min(bitsRemaining, spaceInByte);
+                    int mask = (1 << bitsToRead) - 1;
+
+                    string part = $"((packed{byteIndex} >> {bitIndexInByte}) & {mask})";
+                    if (resultOffset > 0) part = $"({part} << {resultOffset})";
+                    parts.Add(part);
+
+                    bitsRemaining -= bitsToRead;
+                    resultOffset += bitsToRead;
+                    currentGlobalBit += bitsToRead;
+                }
+
+                string combined = string.Join(" | ", parts);
+                if (parts.Count > 1) combined = $"({combined})";
+
+                if (p.IsBool) sb.AppendLine($"            {p.Name} = ({combined}) != 0;");
+                else if (p.IsPackedNull) sb.AppendLine($"            bool has{p.Name} = ({combined}) != 0;");
+                else
+                {
+                    string cast = p.IsEnum ? $"({p.TypeName})" : $"({p.TypeName})";
+                    sb.AppendLine($"            {p.Name} = {cast}{combined};");
+                }
+            }
+
+            foreach (var prop in payloadProps)
+            {
+                if (prop.IsPackedNull)
+                {
+                    sb.AppendLine($"            if (has{prop.Name})");
+                    sb.AppendLine("            {");
+                    sb.AppendLine($"                {prop.Name} = new {prop.CleanTypeName}();");
+                    sb.AppendLine($"                {prop.Name}.Read(buffer, ref cursor);");
+                    sb.AppendLine("            }");
+                    sb.AppendLine("            else");
+                    sb.AppendLine("            {");
+                    sb.AppendLine($"                {prop.Name} = null;");
+                    sb.AppendLine("            }");
+                }
+                else
+                {
+                    bool isPrimitive = GeneratorShared.IsPrimitive(prop.TypeName);
+                    if (isPrimitive || prop.IsList)
+                    {
+                        string readCall = GetReadCall(prop);
+                        string cast = GetReadCast(prop);
+                        sb.AppendLine($"            {prop.Name} = {cast}{readCall};");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"            {prop.Name} = new {prop.CleanTypeName}();");
+                        sb.AppendLine($"            {prop.Name}.Read(buffer, ref cursor);");
+                    }
+                }
             }
             sb.AppendLine("        }");
             sb.AppendLine("    }");
@@ -253,11 +260,9 @@ namespace Api.Models.Generator
             context.AddSource($"{model.Name}.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
         }
 
-        // --- HELPERS ---
-
         private static string GetWriteCast(PropModel p)
         {
-            if (p.IsEnum) return "(byte)"; // Default for non-packed enums
+            if (p.IsEnum) return "(byte)";
             if (p.TypeName == "sbyte") return "(byte)";
             if (p.TypeName == "short") return "(ushort)";
             if (p.TypeName == "int") return "(uint)";
@@ -268,29 +273,22 @@ namespace Api.Models.Generator
         private static string GetReadCall(PropModel p)
         {
             if (p.IsEnum) return "ReadByte(buffer, ref cursor)";
-
-            // Signed
             if (p.TypeName == "sbyte") return "ReadByte(buffer, ref cursor)";
-            if (p.TypeName == "short") return "ReadUInt16(buffer, ref cursor)";
-            if (p.TypeName == "int") return "ReadUInt32(buffer, ref cursor)";
-            if (p.TypeName == "long") return "ReadUInt64(buffer, ref cursor)";
-
-            // Unsigned
             if (p.TypeName == "byte") return "ReadByte(buffer, ref cursor)";
+            if (p.TypeName == "short") return "ReadUInt16(buffer, ref cursor)";
             if (p.TypeName == "ushort") return "ReadUInt16(buffer, ref cursor)";
+            if (p.TypeName == "int") return "ReadUInt32(buffer, ref cursor)";
             if (p.TypeName == "uint") return "ReadUInt32(buffer, ref cursor)";
+            if (p.TypeName == "long") return "ReadUInt64(buffer, ref cursor)";
             if (p.TypeName == "ulong") return "ReadUInt64(buffer, ref cursor)";
-
             if (p.TypeName == "float") return "ReadSingle(buffer, ref cursor)";
             if (p.TypeName == "string") return "ReadString(buffer, ref cursor)";
-
             if (p.IsList)
             {
                 if (p.ListInnerType == "byte") return "ReadList(buffer, ref cursor)";
                 if (p.ListInnerType == "sbyte") return "ReadSByteList(buffer, ref cursor)";
                 return $"ReadList<{p.ListInnerType}>(buffer, ref cursor)";
             }
-
             return $"Read<{p.TypeName}>(buffer, ref cursor)";
         }
 
@@ -301,8 +299,6 @@ namespace Api.Models.Generator
             if (p.TypeName == "short") return "(short)";
             if (p.TypeName == "int") return "(int)";
             if (p.TypeName == "long") return "(long)";
-            if (!p.IsList && char.IsUpper(p.TypeName[0]) && p.TypeName != "String" && p.TypeName != "Byte" && !p.TypeName.StartsWith("List") && !p.TypeName.EndsWith("?"))
-                return $"({p.TypeName})"; // Fallback cast for Objects
             return "";
         }
     }

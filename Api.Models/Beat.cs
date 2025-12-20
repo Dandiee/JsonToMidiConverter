@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 
 namespace Api.Models;
 
-[AutoSerialize]
+[AutoSerializeIndex]
 [JsonConverter(typeof(BeatConverter))]
 public sealed partial class Beat : Serializable
 {

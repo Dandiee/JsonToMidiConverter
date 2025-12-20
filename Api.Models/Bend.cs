@@ -1,4 +1,5 @@
-﻿using Api.Generators;
+﻿using System.Text.Json.Serialization;
+using Api.Generators;
 using Api.Models.Enums;
 using Api.Models.Serialization;
 

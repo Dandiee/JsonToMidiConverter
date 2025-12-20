@@ -1,5 +1,6 @@
 ﻿using Api.Generators;
 using Api.Models.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Api.Models;
 
@@ -27,6 +28,7 @@ public sealed partial class Part : Serializable
     public TrackAutomations? TrackAutomations { get; set; }
 
     public List<sbyte> Tuning { get; set; } = [];
+
     public List<NewLyric> NewLyrics { get; set; } = [];
     public Automations Automations { get; set; } = new();
 
