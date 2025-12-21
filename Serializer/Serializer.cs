@@ -58,40 +58,22 @@ public class PartSerializer
             {
                 foreach (var file in chunk)
                 {
-                    try
+                    using var inputStream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    using var decompressionStream = new GZipStream(inputStream, CompressionMode.Decompress);
+                    var part = JsonSerializer.Deserialize(decompressionStream, JsonContext.Default.Part);
+
+                    if (cursor > BufferSize - SafetyMargin)
                     {
-                        using var inputStream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read);
-                        using var decompressionStream = new GZipStream(inputStream, CompressionMode.Decompress);
-
-                        var part = JsonSerializer.Deserialize(
-                            decompressionStream,
-                            JsonContext.Default.Part
-                        );
-
-                        if (part == null) continue;
-
-                        // Flush check BEFORE writing
-                        if (cursor > BufferSize - SafetyMargin)
-                        {
-                            outputStream.Write(buffer, 0, cursor);
-                            cursor = 0;
-                        }
-
-                        part.Write(buffer, ref cursor);
+                        outputStream.Write(buffer, 0, cursor);
+                        cursor = 0;
                     }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine($"Error processing {Path.GetFileName(file)}: {e.Message}");
-                        // Decide: Skip file? Fail batch?
-                        // For archive integrity, you might want to log this but continue.
-                    }
+
+                    part!.Write(buffer, ref cursor);
 
                     var c = Interlocked.Increment(ref counter);
                     if (c % 100 == 0) Console.WriteLine($"Processed {c}...");
                 }
 
-                // --- INTEGRITY 3: THE FINAL FLUSH ---
-                // Write remaining bytes in the buffer to disk.
                 if (cursor > 0)
                 {
                     outputStream.Write(buffer, 0, cursor);
@@ -153,84 +135,14 @@ public class PartSerializer
             {
                 ArrayPool<byte>.Shared.Return(sharedBuffer);
             }
-        }, localParts => parts.AddRange(localParts) );
+        }, localParts => parts.AddRange(localParts));
 
 
         Console.WriteLine(parts.Count);
 
     }
 
-    internal ref struct SpanStreamReader
-    {
-        private readonly Stream _stream;
-        private readonly byte[] _buffer;
-        private int _validLength; // How many bytes in _buffer are valid data
-        private int _offset;      // Current read position in _buffer
-
-        public SpanStreamReader(Stream stream, byte[] buffer)
-        {
-            _stream = stream;
-            _buffer = buffer;
-            _offset = 0;
-            _validLength = 0;
-
-            // Initial Fill
-            FillBuffer();
-        }
-
-        public bool HasData => _offset < _validLength || _stream.Position < _stream.Length;
-
-        public ReadOnlySpan<byte> CurrentSpan => new ReadOnlySpan<byte>(_buffer, _offset, _validLength - _offset);
-
-        public void Advance(int bytesConsumed)
-        {
-            _offset += bytesConsumed;
-
-            // Safety check
-            if (_offset > _validLength)
-                throw new InvalidOperationException("Parser read past the end of the buffer! Buffer too small for object?");
-        }
-
-        public void EnsureBuffer()
-        {
-            if (_offset > _buffer.Length * 0.75)
-            {
-                CompactAndFill();
-            }
-            else if (_validLength - _offset == 0 && _stream.Position < _stream.Length)
-            {
-                CompactAndFill();
-            }
-        }
-
-        private void FillBuffer()
-        {
-            // Read as much as possible into free space
-            int freeSpace = _buffer.Length - _validLength;
-            if (freeSpace > 0)
-            {
-                int read = _stream.Read(_buffer, _validLength, freeSpace);
-                _validLength += read;
-            }
-        }
-
-        private void CompactAndFill()
-        {
-            int remaining = _validLength - _offset;
-
-            if (remaining > 0)
-            {
-                // Move remaining data to start of buffer
-                // We use Span.CopyTo which handles overlaps correctly
-                _buffer.AsSpan(_offset, remaining).CopyTo(_buffer);
-            }
-
-            _validLength = remaining;
-            _offset = 0;
-
-            FillBuffer();
-        }
-    }
+ 
 
     public static void WriteHeaders(List<UInt128> index, string filePath)
     {

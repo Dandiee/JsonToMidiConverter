@@ -7,8 +7,8 @@ using System.Globalization;
 using System.Text.Json;
 using Serializer;
 
-DbBuilder.Asd(@"C:\src\data\Meta");
-
+//DbBuilder.Serialize(@"C:\src\data\Meta", @"C:\src\data\Summary");
+var metas = DbBuilder.Deserialize(@"C:\src\data\Summary");
 //Database.SerializeAll();
 
 return;
