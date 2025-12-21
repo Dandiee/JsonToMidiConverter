@@ -1,5 +1,6 @@
 ﻿using Api.Models;
 using System.Buffers;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
@@ -121,18 +122,16 @@ public class PartSerializer
         Beat.LoadHeaders(beatHeaders);
 
         var files = Directory.GetFiles(inputFolder, "parts_*.dani");
+        const int bufferSize = 64 * 1024 * 1024;
+        int counter = 0;
+        var parts = new List<Part>();
 
-        int bufferSize = 64 * 1024 * 1024;
-        byte[] sharedBuffer = ArrayPool<byte>.Shared.Rent(bufferSize);
-        int i = 0;
-        try
+        Parallel.ForEach(files, () => new List<Part>(12500), (file, state, localParts) =>
         {
-
-            foreach (var partFile in files)
+            byte[] sharedBuffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+            try
             {
-                using var fs = new FileStream(partFile, FileMode.Open, FileAccess.Read, FileShare.Read,
-                    bufferSize: 1, // We manage buffering, disable FileStream's small internal buffer
-                    useAsync: false);
+                var fs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 1, useAsync: false);
 
                 var reader = new SpanStreamReader(fs, sharedBuffer);
                 while (reader.HasData)
@@ -140,19 +139,25 @@ public class PartSerializer
                     reader.EnsureBuffer();
 
                     var part = new Part();
-
                     int localCursor = 0;
                     part.Read(reader.CurrentSpan, ref localCursor);
+                    localParts.Add(part);
                     reader.Advance(localCursor);
-                    Console.WriteLine(i++);
+                    var c = Interlocked.Increment(ref counter);
+                    if (c % 100 == 0) Console.WriteLine($"Desered {c}...");
                 }
+
+                return localParts;
             }
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(sharedBuffer);
-        }
-        
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(sharedBuffer);
+            }
+        }, localParts => parts.AddRange(localParts) );
+
+
+        Console.WriteLine(parts.Count);
+
     }
 
     internal ref struct SpanStreamReader
