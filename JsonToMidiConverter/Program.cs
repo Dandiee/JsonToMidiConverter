@@ -7,7 +7,9 @@ using System.Globalization;
 using System.Text.Json;
 using Serializer;
 
-Database.SerializeAll();
+DbBuilder.Asd(@"C:\src\data\Meta");
+
+//Database.SerializeAll();
 
 return;
 await Database.DeserializeRawJsons();

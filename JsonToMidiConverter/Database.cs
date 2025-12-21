@@ -255,7 +255,7 @@ public static class Database
             //await using var fileStream = File.OpenWrite(Path.Combine(SummaryPath, $"Beats_Partial_{chunk.Index}.dani"));
 
             //await using var metaFileStream = File.OpenRead(metaFile);
-            //var meta = JsonSerializer.Deserialize<SongMetaDataModel>(metaFileStream, JsonOptions);
+            //var meta = JsonSerializer.Deserialize<MetaData>(metaFileStream, JsonOptions);
 
             foreach (var partFile in chunk.Chunk)
             {

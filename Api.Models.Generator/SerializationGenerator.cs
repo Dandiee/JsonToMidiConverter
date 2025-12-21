@@ -270,6 +270,7 @@ public class SerializationGenerator : IIncrementalGenerator
             "ulong" => "ReadUInt64(buffer, ref cursor)",
             "float" => "ReadSingle(buffer, ref cursor)",
             "string" => "ReadString(buffer, ref cursor)",
+            "DateTime" => "ReadDateTime(buffer, ref cursor)",
             _ when p.IsList => GetListReadCall(p),
             _ => $"Read<{p.TypeName}>(buffer, ref cursor)"
         };
@@ -281,6 +282,7 @@ public class SerializationGenerator : IIncrementalGenerator
         {
             "byte" => "ReadList(buffer, ref cursor)",
             "sbyte" => "ReadSByteList(buffer, ref cursor)",
+            "string" => "ReadStringList(buffer, ref cursor)",
             _ => $"ReadList<{p.ListInnerType}>(buffer, ref cursor)"
         };
     }

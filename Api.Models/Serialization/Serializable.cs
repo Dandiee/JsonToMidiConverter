@@ -49,6 +49,13 @@ public abstract class Serializable
         cursor += 4;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    protected void Write(Span<byte> buffer, ref int cursor, DateTime value)
+    {
+        var dateBytes = (ulong)value.ToBinary();
+        Write(buffer, ref cursor, dateBytes);
+    }
+
     // --- STRING WRITER (CORRECTED) ---
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     protected void Write(Span<byte> buffer, ref int cursor, string value)
@@ -105,6 +112,25 @@ public abstract class Serializable
             var listSpan = CollectionsMarshal.AsSpan(list);
             listSpan.CopyTo(buffer.Slice(cursor));
             cursor += count;
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    protected void Write(Span<byte> buffer, ref int cursor, List<string> list)
+    {
+        // GUARD: Essential here because of the CopyTo logic!
+        if (list.Count > ushort.MaxValue)
+            throw new InvalidOperationException($"List<byte> Overflow: {list.Count} items exceeds limit of 65535.");
+
+        ushort count = (ushort)list.Count;
+        Write(buffer, ref cursor, count);
+
+        if (count > 0)
+        {
+            foreach (var str in list)
+            {
+                Write(buffer, ref cursor, str);
+            }
         }
     }
 
@@ -212,5 +238,24 @@ public abstract class Serializable
             list.Add((sbyte)buffer[cursor++]);
         }
         return list;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    protected List<string> ReadStringList(ReadOnlySpan<byte> buffer, ref int cursor)
+    {
+        var count = ReadUInt16(buffer, ref cursor);
+        var list = new List<string>(count);
+        for (int i = 0; i < count; i++)
+        {
+            list.Add(ReadString(buffer, ref cursor));
+        }
+        return list;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    protected DateTime ReadDateTime(ReadOnlySpan<byte> buffer, ref int cursor)
+    {
+        var dateBytes = (long)ReadUInt64(buffer, ref cursor);
+        return DateTime.FromBinary(dateBytes);
     }
 }

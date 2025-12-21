@@ -47,6 +47,6 @@ internal static class GeneratorShared
                typeName == "int" || typeName == "uint" ||
                typeName == "long" || typeName == "ulong" ||
                typeName == "float" || typeName == "double" ||
-               typeName == "string";
+               typeName == "string" || typeName == "DateTime";
     }
 }

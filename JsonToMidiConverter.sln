@@ -5,8 +5,6 @@ VisualStudioVersion = 17.14.36623.8
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JsonToMidiConverter", "JsonToMidiConverter\JsonToMidiConverter.csproj", "{4394DF93-45F9-4D6F-B25F-E0759C16D473}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Api", "Api\Api.csproj", "{D5145C98-2A1F-41AB-ADF4-CC6767887460}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Api.Models", "Api.Models\Api.Models.csproj", "{396B8060-C1DE-40F9-B404-72C1605571C1}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Serializer", "Serializer\Serializer.csproj", "{FA536ECC-54BB-4086-A04F-4C703DE2C7B5}"
@@ -23,10 +21,6 @@ Global
 		{4394DF93-45F9-4D6F-B25F-E0759C16D473}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4394DF93-45F9-4D6F-B25F-E0759C16D473}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4394DF93-45F9-4D6F-B25F-E0759C16D473}.Release|Any CPU.Build.0 = Release|Any CPU
-		{D5145C98-2A1F-41AB-ADF4-CC6767887460}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D5145C98-2A1F-41AB-ADF4-CC6767887460}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D5145C98-2A1F-41AB-ADF4-CC6767887460}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D5145C98-2A1F-41AB-ADF4-CC6767887460}.Release|Any CPU.Build.0 = Release|Any CPU
 		{396B8060-C1DE-40F9-B404-72C1605571C1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{396B8060-C1DE-40F9-B404-72C1605571C1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{396B8060-C1DE-40F9-B404-72C1605571C1}.Release|Any CPU.ActiveCfg = Release|Any CPU
