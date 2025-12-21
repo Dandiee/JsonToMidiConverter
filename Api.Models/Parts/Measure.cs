@@ -1,9 +1,8 @@
-﻿using System.Text.Json.Serialization;
-using Api.Generators;
+﻿using Api.Generators;
 using Api.Models.Enums;
 using Api.Models.Serialization;
 
-namespace Api.Models;
+namespace Api.Models.Parts;
 
 [AutoSerialize]
 public sealed partial class Measure : Serializable

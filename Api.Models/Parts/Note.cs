@@ -1,10 +1,10 @@
-﻿using Api.Generators;
+﻿using System.Text.Json.Serialization;
+using Api.Generators;
 using Api.Models.Converters;
 using Api.Models.Enums;
 using Api.Models.Serialization;
-using System.Text.Json.Serialization;
 
-namespace Api.Models;
+namespace Api.Models.Parts;
 
 [AutoSerializeIndex]
 [JsonConverter(typeof(NoteConverter))]

@@ -1,7 +1,7 @@
 ﻿using Api.Models.Enums;
 using Api.Models.Parts;
 
-namespace Api.Models.Mappers;
+namespace Api.Models.Factories;
 public static class NoteFactory
 {
 
@@ -27,9 +27,9 @@ public static class NoteFactory
             [HarmonicType.Th] = Harmonic.Tapped,
         };
 
-    public static Note FromRaw(RawNote raw)
+    public static Parts.Note FromRaw(RawNote raw)
     {
-        var model = ThreadLocalPool<Note>.Rent();
+        var model = ThreadLocalPool<Parts.Note>.Rent();
         
         model.Fret = raw.Fret;
         model.Slides = MapSlides(raw);

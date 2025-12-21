@@ -1,4 +1,4 @@
-﻿namespace Api.Models.Mappers;
+﻿namespace Api.Models.Factories;
 
 public static class ThreadLocalPool<T>
     where T : class, new()

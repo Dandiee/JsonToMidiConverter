@@ -1,6 +1,6 @@
 ﻿using Api.Generators;
 
-namespace Api.Models;
+namespace Api.Models.Parts;
 
 [AutoSerialize]
 public sealed partial class AutomationTempo : MeasureTempo

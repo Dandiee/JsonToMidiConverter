@@ -1,16 +1,16 @@
 ﻿using Api.Models.Enums;
 using Api.Models.Parts;
 
-namespace Api.Models.Mappers;
+namespace Api.Models.Factories;
 
 public static class BeatFactory
 {
-    public static Beat FromRaw(RawBeat raw)
+    public static Parts.Beat FromRaw(RawBeat raw)
     {
         var (stroke, pickDirection) = MapStrokeAndDirection(raw);
         var tremolo = MapTremolo(raw);
 
-        var model = ThreadLocalPool<Beat>.Rent();
+        var model = ThreadLocalPool<Parts.Beat>.Rent();
 
         // clear the notes in the final instance, the rented Beat might have notes in it
         // the notes are already returned to the pool by writing them to the stream

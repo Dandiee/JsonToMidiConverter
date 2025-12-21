@@ -1,7 +1,7 @@
 ﻿using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Api.Models.Mappers;
+using Api.Models.Factories;
 
 namespace Api.Models.Serialization;
 
@@ -91,8 +91,8 @@ public abstract class Serializable
             item.Write(buffer, ref cursor);
 
             // Pooling
-            if (item is Note note) ThreadLocalPool<Note>.Return(note);
-            else if (item is Beat beat) ThreadLocalPool<Beat>.Return(beat);
+            if (item is Parts.Note note) ThreadLocalPool<Parts.Note>.Return(note);
+            else if (item is Parts.Beat beat) ThreadLocalPool<Parts.Beat>.Return(beat);
         }
     }
 

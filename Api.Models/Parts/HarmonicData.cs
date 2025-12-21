@@ -2,7 +2,7 @@
 using Api.Models.Enums;
 using Api.Models.Serialization;
 
-namespace Api.Models;
+namespace Api.Models.Parts;
 
 [AutoSerialize]
 public sealed partial class HarmonicData : Serializable

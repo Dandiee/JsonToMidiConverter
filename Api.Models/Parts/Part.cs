@@ -1,8 +1,7 @@
 ﻿using Api.Generators;
 using Api.Models.Serialization;
-using System.Text.Json.Serialization;
 
-namespace Api.Models;
+namespace Api.Models.Parts;
 
 [AutoSerialize]
 public sealed partial class Part : Serializable

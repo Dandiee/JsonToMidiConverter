@@ -3,7 +3,7 @@ using Api.Generators;
 using Api.Models.Converters;
 using Api.Models.Serialization;
 
-namespace Api.Models;
+namespace Api.Models.Parts;
 
 [JsonConverter(typeof(DisplayTextConverter))]
 public sealed class DisplayText : InternalDisplayText;

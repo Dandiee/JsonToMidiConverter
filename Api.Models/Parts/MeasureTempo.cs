@@ -1,7 +1,7 @@
 ﻿using Api.Generators;
 using Api.Models.Serialization;
 
-namespace Api.Models;
+namespace Api.Models.Parts;
 
 [AutoSerialize]
 public partial class MeasureTempo : Serializable

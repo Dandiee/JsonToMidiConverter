@@ -7,14 +7,18 @@ using System.Globalization;
 using System.Text.Json;
 using Serializer;
 
-//DbBuilder.Serialize(@"C:\src\data\Meta", @"C:\src\data\Summary");
-var metas = DbBuilder.Deserialize(@"C:\src\data\Summary");
+DbBuilder.Build(@"C:\src\data\");
+var db = new Db(@"C:\src\data\summary");
+db.Load();
+var one = db.GetBest("one");
+var parts = db.GetParts(one!.SongId);
+
+//DbBuilder.SerializeMeta(@"C:\src\data\Meta", @"C:\src\data\Summary");
 //Database.SerializeAll();
 
 return;
-await Database.DeserializeRawJsons();
 
-//Database.Idk();
+//Database.Idk();   
 
 //await Database.ProcessBeats();
 

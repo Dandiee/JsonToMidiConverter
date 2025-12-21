@@ -82,12 +82,7 @@ public static class Database
     public static readonly string ZstdPath = Path.Combine(RootPath, "zstd");
     public static readonly string SummaryPath = Path.Combine(RootPath, "Summary");
 
-    public static void SerializeAll()
-    {
-        PartSerializer serializer = new PartSerializer();
-        serializer.Deserialize(SummaryPath);
-        //serializer.Serialize(DataPath, SummaryPath);
-    }
+   
 
     public static readonly HashSet<char> WeirdoCharacters = new[] { '/', '?', '_' }.ToHashSet();
 
@@ -136,7 +131,7 @@ public static class Database
                     song.Parts.Add(JsonSerializer.Deserialize<Part>(decompressionStream, JsonOptions)!);
                 }
 
-                //var bytes = DaniSerializer.Serialize(song).ToArray();
+                //var bytes = DaniSerializer.SerializeMeta(song).ToArray();
                 Interlocked.Increment(ref counter);
                 if (counter % 100 == 0)
                 {
@@ -163,148 +158,7 @@ public static class Database
         fs.Write(compressedSpan);
     }
 
-    public static async Task ProcessBeats()
-    {
-        var files = Directory.GetFiles(SummaryPath, "Beats_Partial_*.dani");
-
-        var analyzer = new FlagCorrelationAnalyzer(
-            "Tremolo.Tone != 0",
-            "Tremolo.Points.Count > 0",
-            "Tremolo.Points.AnyNonNull"
-        );
-
-        var counter = 0;
-
-        var i = 0;
-        var deser = new DaniSerializer();
-        await Parallel.ForEachAsync(files, new ParallelOptions(){MaxDegreeOfParallelism = Environment.ProcessorCount }, async (file, ct) =>
-        {
-
-            await using var stream = File.OpenRead(Path.Combine(SummaryPath, file));
-            //using var reader = new BinaryReader(stream);
-
-            while (stream.Position < stream.Length)
-            {
-                deser.Deserialize<Beat>(new MemoryStream());
-
-              
-                Interlocked.Increment(ref counter);
-                if (counter % 100 == 0)
-                {
-                    Console.WriteLine($"Processed {counter} files...");
-                }
-            }
-
-        });
-
-
-        //var numberOfBeats = DaniSerializer.Groups.SelectMany(e => e.Value).Count();
-        //var numberOfGroups = DaniSerializer.Groups.Count;
-        //var beatsByCount = DaniSerializer.Groups.OrderByDescending(e => e.Value.Count);
-        //var avgReuse = (double)numberOfBeats / numberOfGroups;
-
-
-
-        Range.ReportAll();
-
-
-        Console.WriteLine(analyzer.GenerateReport());
-    }
-
-    public static void Idk()
-    {
-        var data = JsonSerializer.Deserialize<List<Bend>>(File.ReadAllText("D:\\randomszar2.json"));
-        var tones = string.Join(",", data.Select(e => e.Tone).ToHashSet());
-
-        //var cc = data.Count(e => e.LegacyFlag);
-        //Console.WriteLine(cc);
-        //var points = data.SelectMany(e => e.Points).ToList();
-        //var vibratos = string.Join(",", points.Select(e => e.Vibrato).ToHashSet());
-        //var positions = string.Join(",", points.Select(e => e.Position).ToHashSet());
-        //var pointtones = string.Join(",", points.Select(e => e.Tone).ToHashSet());
-
-    }
-
-    public static async Task DeserializeRawJsons()
-    {
-        int counter = 0;
-        //var allFiles = Directory
-        //    .GetFiles(MetaPath)
-        //    .Select(e => int.Parse(Path.GetFileNameWithoutExtension(e)))
-        //    .Select(e => new
-        //    {
-        //        //Id = e,
-        //        Parts = Directory.GetFiles(DataPath, $"{e}_*")
-        //    })
-        //    .ToList();
-
-
-        var allFiles = Directory.GetFiles(DataPath);
-
-        var chunks = allFiles.Chunk(allFiles.Length / Environment.ProcessorCount).Select((chunk, index) => new
-        {
-            Chunk = chunk,
-            Index = index
-        });
-
-        var deser = new DaniSerializer();
-
-        //foreach (var metaFile in Directory.GetFiles(MetaPath))
-        await Parallel.ForEachAsync(chunks, new ParallelOptions() { MaxDegreeOfParallelism = Environment.ProcessorCount }, async (chunk, _) =>
-        {
-            //await using var fileStream = File.OpenWrite(Path.Combine(SummaryPath, $"Beats_Partial_{chunk.Index}.dani"));
-
-            //await using var metaFileStream = File.OpenRead(metaFile);
-            //var meta = JsonSerializer.Deserialize<MetaData>(metaFileStream, JsonOptions);
-
-            foreach (var partFile in chunk.Chunk)
-            {
-                //foreach (var partFile in item.Parts)
-                {
-                    try
-                    {
-                        await using var originalFileStream = File.OpenRead(partFile);
-                        await using var decompressionStream = new GZipStream(originalFileStream, CompressionMode.Decompress);
-                        var part = JsonSerializer.Deserialize<Part>(decompressionStream, JsonOptions);
-
-                        var thisBeats = part.Measures
-                            .SelectMany(e => e.Voices)
-                            .SelectMany(e => e.Beats)
-                            .ToList();
-
-                        foreach (var beat in thisBeats)
-                        {
-                            deser.Serialize(beat);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        DumpFile(partFile);
-                        throw ex;
-                    }
-                }
-
-                Interlocked.Increment(ref counter);
-                if (counter % 100 == 0)
-                {
-                    Console.WriteLine($"Processed {counter} files...");
-                }
-            }
-        });
-
-
-        var beats = deser.Groups.Keys;
-        using var beatStream = File.OpenWrite(Path.Combine(SummaryPath, "packedbeats.dani"));
-        foreach (var beat in beats)
-        {
-                beatStream.Write(beat, 0, beat.Length);
-        }
-
-
-        //var json = JsonSerializer.Serialize(beats, JsonOptions);
-        //await File.WriteAllTextAsync(Path.Combine(SummaryPath, "allbeats.json"), json);
-
-    }
+  
 
     public static void TestAll()
     {
