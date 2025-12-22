@@ -1,14 +1,8 @@
-﻿using JsonToMidiConverter.Context;
-using JsonToMidiConverter.Models.Song;
-using Melanchall.DryWetMidi.Common;
+﻿using JsonToMidiConverter.Models.Song;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
-using Melanchall.DryWetMidi.MusicTheory;
 using System.Collections;
 using System.Diagnostics;
-using System.Linq.Expressions;
-using System.Reflection;
-using Slide = JsonToMidiConverter.Context.Slide;
 
 namespace JsonToMidiConverter;
 

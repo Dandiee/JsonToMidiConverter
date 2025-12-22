@@ -1,24 +1,18 @@
-﻿using System.Text.Json.Serialization;
-using Melanchall.DryWetMidi.Core;
+﻿using System.Diagnostics;
+using Dani.Data.Models;
+using DataPart = Dani.Data.Models.Parts.Part;
 
 namespace JsonToMidiConverter.Models.Song;
 
-public sealed partial class Song
+[DebuggerDisplay("{Record.Artist} - {Record.Title}")]
+public sealed class Song
 {
-    [JsonIgnore] public MidiFile Midi { get; private set; }
+    public Record Record { get; }
+    public List<Part> Parts { get; }
 
-    public string Name { get; private set; }
-
-    public void Build(MidiFile midi, RecordModel record)
+    public Song(Record record, IReadOnlyList<DataPart> parts)
     {
-        Name = $"{record.Artist} {record.Title}";
-
-        Midi = midi;
-        Parts = Parts.OrderBy(e => e.PartId).ToList();
-
-        for (var i = 0; i < Parts.Count; i++)
-        {
-            Parts[i].Build(this, i);
-        }
+        Record = record;
+        Parts = parts.Select(e => new Part(this, e)).ToList();
     }
 }

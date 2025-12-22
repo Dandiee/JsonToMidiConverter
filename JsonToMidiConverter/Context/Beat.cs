@@ -1,85 +1,72 @@
-﻿using JsonToMidiConverter.Context;
+﻿using Dani.Data.Models.Enums;
+using JsonToMidiConverter.Context;
 using System.Diagnostics;
-using System.Text.Json.Serialization;
-using JsonToMidiConverter.Models.Song.Enums;
+using Dani.Data.Models.Parts;
+using DataBeat = Dani.Data.Models.Parts.Beat;
 
 namespace JsonToMidiConverter.Models.Song;
 
-[DebuggerDisplay("B{Index} V{Voice.Index} M{Measure.Index} P{Part.Index} - {Duration.Span}")]
-public sealed partial class Beat : MusicalElement<Beat>
+[DebuggerDisplay("B{Index} V{Voice.Index} M{Voice.Measure.Index} P{Voice.Measure.Part.Index} - {Duration.Span}")]
+public sealed class Beat : MusicalElement<Beat, Voice>
 {
-    private Time? _duration;
-    [JsonIgnore]
-    public override Time Duration
-    {
-        get
-        {
-            if (!_duration.HasValue)
-            {
-                _duration = new Time((long)MusicalFraction.Numerator, (long)MusicalFraction.Denominator);
-            }
+    public Voice Voice => Parent;
+    public List<Nota> Notes { get; set; }
 
-            return _duration.Value;
-        }
-        set
+    public Velocity CalculatedVelocity { get; set; }
+    public GraceNote GraceNote { get; }
+    public Spanner BeamSpan { get; }
+    public Velocity Velocity { get; }
+    public GradualVelocity GradualVelocity { get; }
+    public Technique Technique { get; }
+    public bool Rest { get; }
+    public bool LetRing { get; }
+    public Bend? Tremolo { get; }
+
+    public List<Beat>? BeamGroup { get; set; }
+    public List<Beat>? GradualVelocityGroup { get; set; }
+
+    public Beat(Voice voice, DataBeat data, int index)
+     : base(voice.Part, voice, index)
+    {
+        Duration = data.Duration.ToTime();
+        GraceNote = data.GraceNote;
+        BeamSpan = data.BeamSpan;
+        Velocity = data.Velocity;
+        GradualVelocity = data.GradualVelocity;
+        Rest = data.Rest;
+        LetRing = data.LetRing;
+        Technique = data.Technique;
+        Tremolo = data.Tremolo;
+
+        var orderedNotes = data.Notes
+            //.Where(e => !e.Rest)
+            .OrderByDescending(e => e.DoubledString)
+            .ToList();
+
+        Notes = new List<Nota>(orderedNotes.Count);
+        for (var i = 0; i < orderedNotes.Count; i++)
         {
-            if (_duration.HasValue)
-            {
-                Modifications.Add($"Changed from {_duration.Value.Span} to {value.Span}");
-            }
-            _duration = value;
+            Notes.Add(new Nota(this, orderedNotes[i], i));
         }
     }
-    [JsonIgnore] public Voice Voice { get; private set; }
-    [JsonIgnore] public Measure Measure => Voice.Measure;
-    [JsonIgnore] public Song Song => Part.Song;
-    [JsonIgnore] public bool LastInMeasure { get; private set; }
-    [JsonIgnore] public List<string> Modifications { get; private set; } = [];
-    [JsonIgnore] public List<Beat>? BeamGroup { get; set; }
-    [JsonIgnore] public Velocity CalculatedVelocity { get; set; }
-    [JsonIgnore] public List<Beat>? GradualVelocityGroup { get; set; }
 
-
-    public void SetNavigation(Voice voice, int index)
+    protected override Beat? GetPrevious(object? state = null)
     {
-        Index = index;
-        Voice = voice;
-        LastInMeasure = Index == Measure.Voices[Voice.Index].Beats.Count - 1;
-        Part = voice.Part;
-
         if (Index > 0)
         {
-            Previous = Voice.Beats[Index - 1];
+            return Voice.Beats[Index - 1];
         }
-        else if (Measure.Previous?.Voices.Count > Voice.Index)
+
+        if (Voice.Measure.Previous?.Voices.Count > Voice.Index)
         {
-            var prevBeat = Measure.Previous?.Voices[Voice.Index].Beats;
+            var prevBeat = Voice.Measure.Previous?.Voices[Voice.Index].Beats;
             if (prevBeat != null)
             {
-                Previous = prevBeat[^1];
+                return prevBeat[^1];
             }
         }
 
-        if (Previous != null)
-        {
-            Previous.Next = this;
-        }
-
-
-        if (!Part.IsPianoLike)
-        {
-            Notes = Notes.OrderByDescending(e => e.StringNumber).ToList();
-        }
-
-        for (var i = 0; i < Notes.Count; i++)
-        {
-            Notes[i].SetNavigation(this, i);
-        }
-    }
-
-    public void Build()
-    {
-        Notes.ForEach(e => e.Build());
+        return null;
     }
 
     public void SetTimes()
@@ -88,7 +75,7 @@ public sealed partial class Beat : MusicalElement<Beat>
 
         if (Voice.Index > 0 && Previous == null)
         {
-            Start = Measure.Start;
+            Start = Voice.Measure.Start;
         }
 
         End = Start + Duration;

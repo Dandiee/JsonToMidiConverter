@@ -1,22 +1,33 @@
-﻿
-
-using JsonToMidiConverter.Models.Song;
-using System.Text.Json.Serialization;
+﻿using JsonToMidiConverter.Models.Song;
 
 namespace JsonToMidiConverter.Context
 {
-    public class MusicalElement<T> where T : MusicalElement<T>
+    public abstract class MusicalElement<T, TParent> where T : MusicalElement<T, TParent>
     {
-        [JsonIgnore] public Part Part { get; set; }
-        [JsonIgnore] public int Index { get; set; }
-        [JsonIgnore] public T? Next { get; set; }
-        [JsonIgnore] public T? Previous { get; set; }
-        [JsonIgnore] public bool IsLast { get; set; }
-        [JsonIgnore] public bool IsFirst { get; set; }
+        public Part Part { get; }
+        public TParent Parent { get; }
+        public int Index { get; }
+        public T? Next { get; private set; }
+        public T? Previous { get; }
 
-        [JsonIgnore] public Time Start { get; set; }
-        [JsonIgnore] public Time End { get; set; }
-        [JsonIgnore] public virtual Time Duration { get; set; }
+        public Time Start { get; set; }
+        public Time End { get; set; }
+        public virtual Time Duration { get; set; }
+
+        protected MusicalElement(Part part, TParent parent, int index, object? state = null)
+        {
+            Part = part;
+            Parent = parent;
+            Index = index;
+
+            Previous = GetPrevious(state);
+            if (Previous != null)
+            {
+                Previous.Next = (T)this;
+            }
+        }
+
+        protected abstract T? GetPrevious(object? state = null);
 
         public IEnumerable<T> Forward()
         {

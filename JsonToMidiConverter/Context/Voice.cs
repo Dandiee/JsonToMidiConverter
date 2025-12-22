@@ -1,30 +1,31 @@
-﻿using System;
+﻿using Dani.Data.Models.Enums;
+using Dani.Data.Models.Parts;
+using JsonToMidiConverter.Context;
 using System.Diagnostics;
-using System.Reflection;
-using System.Text.Json.Serialization;
-using JsonToMidiConverter.Models.Song.Enums;
+using DataVoice = Dani.Data.Models.Parts.Voice;
 
 namespace JsonToMidiConverter.Models.Song;
 
 [DebuggerDisplay("V{Index} M{Measure.Index} P{Part.Index}")]
-public sealed partial class Voice
+public sealed class Voice : MusicalElement<Voice, Measure>
 {
-    [JsonIgnore] public Measure Measure { get; private set; }
-    [JsonIgnore] public Part Part => Measure.Part;
-    [JsonIgnore] public Song Song => Part.Song;
-    [JsonIgnore] public int Index { get; private set; }
-    [JsonIgnore] public List<List<Beat>> BeamGroups { get; private set; } = [];
+    public Measure Measure => Parent;
+    public List<Beat> Beats { get; }
 
-    public void SetNavigation(Measure measure, int index)
+    public List<List<Beat>> BeamGroups { get; } = [];
+    
+
+    public Voice(Measure measure, DataVoice data, int index) 
+        : base(measure.Part, measure, index)
     {
-        Index = index;
-        Measure = measure;
-
-        for (var i = 0; i < Beats.Count; i++)
+        Beats = new List<Beat>(data.Beats.Count);
+        for (var i = 0; i < data.Beats.Count; i++)
         {
-            Beats[i].SetNavigation(this, i);
+            Beats.Add(new Beat(this, data.Beats[i], i));
         }
     }
+
+    protected override Voice? GetPrevious(object? state = null) => null;
 
     public void Build()
     {
@@ -32,7 +33,6 @@ public sealed partial class Voice
 
         foreach (var beat in Beats)
         {
-            beat.Build();
             if (beat.BeamSpan == Spanner.Start)
             {
                 currentBeamGroup = [beat];
@@ -66,11 +66,11 @@ public sealed partial class Voice
         {
             'V' => $"{this}".Equals(trimmed),
             'M' => $"{Measure}".Equals(trimmed),
-            'P' => $"{Part}".Equals(trimmed),
+            'P' => $"{Measure.Part}".Equals(trimmed),
             _ => false
         };
 
-        return isMatching && (string.IsNullOrEmpty(filter) || Part.FullName.Contains(filter, StringComparison.OrdinalIgnoreCase));
+        return isMatching && (string.IsNullOrEmpty(filter) || Measure.Part.FullName.Contains(filter, StringComparison.OrdinalIgnoreCase));
     }
 
 }

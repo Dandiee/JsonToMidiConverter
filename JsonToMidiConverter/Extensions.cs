@@ -1,11 +1,17 @@
-﻿using System.Diagnostics;
+﻿using Dani.Data;
+using Dani.Data.Models;
+using Dani.Data.Models.Enums;
+using Dani.Data.Models.Parts;
 using JsonToMidiConverter.Models;
 using JsonToMidiConverter.Models.Song;
-using JsonToMidiConverter.Models.Song.Enums;
 using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
-using Slide = JsonToMidiConverter.Context.Slide;
+using System.Diagnostics;
+using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Part = Dani.Data.Models.Parts.Part;
 
 namespace JsonToMidiConverter;
 
@@ -147,37 +153,6 @@ public static class Extensions
             .ToList();
     }
 
-    public static IEnumerable<Slide> ToSlides(this RawSlide slide)
-    {
-        if (slide == RawSlide.Unknown || slide == RawSlide.Unset) yield break;
-
-        var rest = slide.ToString().ToLowerInvariant();
-
-        if (rest.StartsWith("below"))
-        {
-            yield return Slide.Below;
-            rest = rest[5..];
-        }
-        else if (rest.StartsWith("above"))
-        {
-            yield return Slide.Above;
-            rest = rest[5..];
-        }
-
-        if (rest.Length > 0)
-        {
-            yield return rest switch
-            {
-                "upwards" => Slide.Upwards,
-                "downwards" => Slide.Downwards,
-                "shift" => Slide.Shift,
-                "legato" => Slide.Legato,
-
-                _ => throw new NotSupportedException()
-            };
-        }
-    }
-
     private static readonly int[] _velocityLadder = { 45, 55, 67, 80, 87, 95, 105, 112 };
     private static readonly Dictionary<Velocity, int> _dynamicMap = new Dictionary<Velocity, int>
         {
@@ -201,7 +176,7 @@ public static class Extensions
         // RULE UPDATE: Ghost notes override Accents. 
         if (input.Ghost)
         {
-            if (input.Part.InstrumentId == 1024)
+            if (input.Beat.Voice.Measure.Part.IsDrum)
             {
                 if (input.Beat.Notes.Count > 1)
                 {
@@ -221,8 +196,8 @@ public static class Extensions
         else
         {
             // Only apply accent if it's NOT a ghost note
-            if (input.Accentuated == 1) index += 1;
-            if (input.Accentuated == 2) index += 2;
+            if (input.Accentuated == Accent.None) index += 1;
+            if (input.Accentuated == Accent.Heavy) index += 2;
         }
 
         if (input.IsHpTarget) index -= 1;
@@ -238,9 +213,6 @@ public static class Extensions
         // 5. Lookup Result
         return _velocityLadder[index];
     }
-
-    public static bool IsBefore(this IEnumerable<Slide> slides)
-        => slides.Any(e => e is Slide.Below /*or Slide.Above*/);
 
     public static int GetHarmonicOffset(float fret)
     {
@@ -284,19 +256,68 @@ public static class Extensions
 
     public static int GetNoteNumber(this Nota note, bool withHarmonic = true)
     {
+        var part = note.Beat.Voice.Measure.Part;
+
         if (note.Rest) return 0;
 
-        if (note.Part.InstrumentId == 1024 || (int)note.StringNumber == -1)
+        if (part.IsDrum || (int)note.StringNumber == -1)
         {
             return DrumMapping.Mapping.TryGetValue(note.Fret, out var noteNumber) ? noteNumber.NoteNumber : note.Fret; // default to Acoustic Bass Drum
         }
 
-        var open = note.Part.Tuning.Count == 0 ? (int)note.StringNumber : note.Part.Tuning[(int)note.StringNumber];
-        if (note.Harmonic == Harmonic.Unset || !withHarmonic) return open + note.Fret;
+        var open = part.Tuning.Count == 0 ? (int)note.StringNumber : part.Tuning[(int)note.StringNumber];
+        if (note.Harmonic == Harmonic.None || !withHarmonic) return open + note.Fret;
         var harmonicOffset = GetHarmonicOffset(note.HarmonicFret);
         if (note.Harmonic == Harmonic.Natural) return open + harmonicOffset;
         return open + harmonicOffset + note.Fret;
     }
 
-    public static FourBitNumber GetNoteChannel(this Nota note) => note.Part.InstrumentId == 1024 ? 9.To4() : (FourBitNumber)note.StringNumber;
+    public static FourBitNumber GetNoteChannel(this Nota note) => note.Beat.Voice.Measure.Part.IsDrum ? 9.To4() : (FourBitNumber)note.StringNumber;
+
+    public static Time ToTime(this MusicalFraction fraction) => new(fraction.Nominator, fraction.Denominator);
+
+    public static readonly HashSet<ushort> PianoLikeInstruments = new() { 0, 48, 1024, 67, 66 };
+
+    public static bool IsPianoLike(this Part part) => PianoLikeInstruments.Contains(part.InstrumentId);
+
+    public static bool Has(this SlideFlags flags, SlideFlags value) => (flags & value) != 0;
+
+    public static IEnumerable<SlideFlags> GetUniques(this SlideFlags flags)
+    {
+        for (int i = 0; i < 8; i++)
+        {
+            int singleBitMask = 1 << i;
+            if (((int)flags & singleBitMask) != 0)
+            {
+                yield return (SlideFlags)singleBitMask;
+            }
+        }
+    }
+
+    public static readonly HashSet<char> WeirdoCharacters = new[] { '/', '?', '_' }.ToHashSet();
+
+    public static string Clean(this string str)
+    {
+        var result = str;
+        foreach (var weirdoCharacter in WeirdoCharacters)
+        {
+            result = result.Replace(weirdoCharacter.ToString(), "");
+        }
+
+        return result;
+    }
+
+    public static string FromClean(this string str)
+    {
+        var result = str;
+        foreach (var weirdoCharacter in WeirdoCharacters)
+        {
+            result = result.Replace(weirdoCharacter.ToString(), "");
+        }
+
+        return result;
+    }
+
+    public static string GetPath(this Record record, string root, string fileName)
+        => Path.Combine(root, record.Artist.Clean(), record.Title.Clean(), fileName);
 }

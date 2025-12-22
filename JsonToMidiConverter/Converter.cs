@@ -1,10 +1,7 @@
-using JsonToMidiConverter.Models;
 using JsonToMidiConverter.Models.Song;
-using JsonToMidiConverter.Test;
-using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
-using System.Threading.Channels;
+using Dani.Data.Models.Enums;
 
 namespace JsonToMidiConverter;
 
@@ -12,19 +9,15 @@ internal static class Converter
 {
     public const int TicksPerQuarter = 15360;
     public static readonly TicksPerQuarterNoteTimeDivision Tpqn = new(TicksPerQuarter);
-    public const int TicksPer64Th = 960; // The "Magic Grid" unit
-    public const int MsPer64Th = TicksPerQuarter / TicksPer64Th;
 
 
     // Standard MIDI Values
     private const ushort PitchBendCenter = 8192;
 
-    public static readonly SevenBitNumber DefaultVelocity = 112.To7();
-
-    public static MidiFile Convert(Song song, RecordModel record)
+    public static MidiFile Convert(Song song)
     {
         var midiFile = new MidiFile { TimeDivision = new TicksPerQuarterNoteTimeDivision(TicksPerQuarter) };
-        Time.Map = song.Parts[0].GetTempo(midiFile);
+        Time.Map = song.Parts[0].TempoMap;
         midiFile.ReplaceTempoMap(Time.Map);
 
         var usedChannels = new HashSet<int>();
@@ -78,9 +71,11 @@ internal static class Converter
                     }
                 }
 
-                if (note.Slides.Count > 0 && emittedPitches.Count == 1)
+                if (note.Slides != SlideFlags.None  && emittedPitches.Count == 1)
                 {
-                    var target = Nota.GetSlideTargetPitch(note.Slides[0], note);
+                    // TODO: not sure
+                    // var target = Nota.GetSlideTargetPitch(note.Slides[0], note);
+                    var target = Nota.GetSlideTargetPitch(note.Slides.GetUniques().First(), note);
                     var bends = PitchBendGenerator.GenerateSlide((int)note.Duration.Tick, note.Fret, target);
                     foreach (var bend in bends)
                     {
@@ -113,14 +108,14 @@ internal static class Converter
         }
 
 
-        var dumpFileName = Dumper.GetFileName("Output", record).Replace(".js", ".mid");
+        var dumpFileName = song.Record.GetPath("", "Output.mid");
         var fi = new FileInfo(dumpFileName);
-        if (!fi.Directory.Exists)
+        if (fi.Directory is { Exists: false })
         {
             fi.Directory.Create();
         }
+
         midiFile.Write(dumpFileName, true);
-        
         return midiFile;
     }
 
@@ -130,12 +125,12 @@ internal static class Converter
 
         if ((measure.Previous?.Bpm ?? 0) != measure.Bpm)
         {
-            //events.Add(new SetTempoEvent(measure.Bpm), measure.Start);
+            //events.Add(new SetTempoEvent(measure.Bpm).ToTimed(measure.Start));
         }
 
-        if (measure.Index > 0 && measure.SignatureArray != null)
+        if (measure.Index > 0) // TODO: && measure.SignatureArray != null)
         {
-            events.Add(new TimeSignatureEvent((byte)measure.Signature.Span.Numerator, (byte)measure.Signature.Span.Denominator).ToTimed(measure.Start));
+            events.Add(new TimeSignatureEvent(measure.SignatureFracture.Nominator, measure.SignatureFracture.Denominator).ToTimed(measure.Start));
         }
     }
 

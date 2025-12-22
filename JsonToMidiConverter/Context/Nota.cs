@@ -1,64 +1,71 @@
-﻿using System.Diagnostics;
-using System.Diagnostics.Metrics;
-using System.Text.Json.Serialization;
+﻿using Dani.Data.Models.Enums;
+using Dani.Data.Models.Parts;
 using JsonToMidiConverter.Context;
 using Melanchall.DryWetMidi.Common;
+using System.Diagnostics;
+using Dani.Data.Factories;
 
 namespace JsonToMidiConverter.Models.Song;
 
-[DebuggerDisplay("N{Index} B{Beat.Index} V{Voice.Index} M{Measure.Index} P{Part.Index}")]
-public sealed partial class Nota : MusicalElement<Nota>
+[DebuggerDisplay("N{Index} B{Beat.Index} V{Beat.Voice.Index} M{Beat.Voice.Measure.Index} P{Part.Index}")]
+public sealed class Nota : MusicalElement<Nota, Beat>
 {
-    [JsonIgnore] public Beat Beat { get; private set; }
-    [JsonIgnore] public Voice Voice => Beat.Voice;
-    [JsonIgnore] public Measure Measure => Voice.Measure;
-    [JsonIgnore] public Song Song => Part.Song;
-    [JsonIgnore] public int Channel { get; private set; }
-    [JsonIgnore] public SevenBitNumber NoteNumber { get; set; }
-    [JsonIgnore] public bool WillBeTied { get; private set; }
-    [JsonIgnore] public List<Context.Slide> Slides { get; private set; } = [];
-    [JsonIgnore] public List<TimedNoteEvent> MidiNoteEvents { get; set; } = [];
-    [JsonIgnore] public TieContext? TieDetails { get; private set; }
-    [JsonIgnore] public bool LastInBeat { get; private set; }
-    [JsonIgnore] public Time? TremoloDuration { get; private set; }
-    [JsonIgnore] public int PureNoteNumber { get; private set; }
-    [JsonIgnore] public bool IsHpTarget { get; private set; }
+    public Beat Beat => Parent;
+    public int Channel { get; }
+    public SevenBitNumber NoteNumber { get; }
+    public SlideFlags Slides { get; }
+    public Time? TremoloDuration { get; }
+    public int PureNoteNumber { get; }
+    public double StringNumber { get; }
+    public bool Dead { get; }
+    public sbyte Fret { get; }
+    public bool Staccato { get; }
+    public bool Tie { get; }
+    public bool Rest { get; }
+    public bool Ghost { get; }
+    public Accent Accentuated { get; }
+    public Legato Legato { get;}
+    public Harmonic Harmonic { get; }
+    public float HarmonicFret { get; }
+    public Bend? Bend { get; }
 
-    public void SetNavigation(Beat beat, int index)
+    public List<TimedNoteEvent> MidiNoteEvents { get; set; } = [];
+    public TieContext? TieDetails { get; private set; }
+    public bool IsHpTarget { get; private set; }
+    public bool WillBeTied { get; }
+
+    public Nota(Beat beat, Note data, int index)
+     : base(beat.Part, beat, index, data.DoubledString)
     {
-        Index = index;
-        Beat = beat;
-        Part = beat.Part;
-        LastInBeat = Index == Beat.Notes.Count - 1;
+        var capo = Beat.Voice.Measure.Part.Capo;
 
-        var prevBeat = Beat.Previous;
-        while (prevBeat != null && Previous == null)
-        {
-            var prevNote = prevBeat.Notes.FirstOrDefault(n => (int)n.StringNumber == (int)StringNumber);
-            if (prevNote != null)
-            {
-                Previous = prevNote;
-                prevNote.Next = this;
-            }
-            else prevBeat = prevBeat.Previous;
-        }
-    }
-
-    public void Build()
-    {
-        Slides = RawSlide.ToSlides().ToList() ?? [];
-        NoteNumber = (this.GetNoteNumber() + Part.Capo).To7();
-        PureNoteNumber = this.GetNoteNumber(false) + Part.Capo;
+        Fret = data.Fret;
+        Slides = data.Slides;
+        Ghost = data.Ghost;
+        Harmonic = data.Harmonic;
+        Accentuated = data.Accentuated;
+        StringNumber = data.DoubledString / 2.0;
+        NoteNumber = (this.GetNoteNumber() + capo).To7();
+        PureNoteNumber = this.GetNoteNumber(false) + capo;
         Channel = this.GetNoteChannel();
+        TremoloDuration = data.Tremolo.IsZero() ? null : data.Tremolo.ToTime();
+        Legato = data.Legato;
+        Rest = data.Rest;
+        Bend = data.Bend;
+        HarmonicFret = NoteFactory.HarmonicFretTable[data.HarmonicFretIndex];
+        IsHpTarget = Previous?.Legato == Legato.HammerPull;
+        Dead = data.Dead;
+        Staccato = data.Staccato;
+        
+        Tie = data.Tie;
+        WillBeTied = Previous?.Tie == true;
 
-        if (Tremolo != null)
+        if (!Tie && Previous?.WillBeTied == true)
         {
-            TremoloDuration = new Time((long)Tremolo.Numerator, (long)Tremolo.Denominator);
-
+            WillBeTied = false;
         }
 
-        WillBeTied = Next?.Tie ?? false;
-
+        
         if (Tie && !WillBeTied)
         {
             TieDetails = new TieContext(this);
@@ -68,23 +75,40 @@ public sealed partial class Nota : MusicalElement<Nota>
                 tiedNote.TieDetails = TieDetails;
             }
         }
-
-        IsHpTarget = Previous?.Hp == true;
     }
 
-    private static readonly HashSet<Slide> SlidesWhichMakesTheNotePlayEarlierForSomeReason = [Slide.Below, Slide.Above];
+    protected override Nota? GetPrevious(object? state = null)
+    {
+        var stringNUmber = (sbyte)state! / 2.0d;
+
+        var prevBeat = Beat.Previous;
+        while (prevBeat != null && Previous == null && !prevBeat.Rest)
+        {
+            var prevNote = prevBeat.Notes.FirstOrDefault(n => (int)n.StringNumber == stringNUmber);
+            if (prevNote != null)
+            {
+                if (prevNote.Rest) return null;
+
+                return prevNote;
+            }
+
+            prevBeat = prevBeat.Previous;
+        }
+
+        return null;
+    }
 
     public void SetTimings()
     {
-        Start = Slides.Any(e => SlidesWhichMakesTheNotePlayEarlierForSomeReason.Contains(e))
+        Start = Slides.Has(SlideFlags.FromAbove) || Slides.Has(SlideFlags.FromBelow)
             ? Beat.Start - 1920
             : Beat.Start;
 
-        Start += Part.IsPianoLike ? new Time() : new Time(100 * Index);
+        Start += Beat.Voice.Measure.Part.IsPianoLike ? new Time() : new Time(100 * Index);
 
         End = GetEndTime();
 
-        if (Next?.Slides.Contains(Slide.Below) == true)
+        if (Next?.Slides.Has(SlideFlags.FromBelow) == true)
         {
             //End -= 1920;
         }
@@ -94,6 +118,8 @@ public sealed partial class Nota : MusicalElement<Nota>
 
     private Time GetEndTime()
     {
+        if (Rest) return Beat.End;
+
         if (Dead) return Start + 400;
 
         if (Staccato)
@@ -103,19 +129,19 @@ public sealed partial class Nota : MusicalElement<Nota>
         }
 
         if (!Beat.LetRing && !WillBeTied)
-            return Next?.Slides.IsBefore() == true
+            return Next?.Slides.Has(SlideFlags.FromBelow) ==  true
                 ? Beat.End
                 : Beat.End;
 
         var tieEnd = (TieDetails?.Destination ?? this).Beat.Notes.First(e =>
-            Part.InstrumentId == 1024
+            Beat.Voice.Measure.Part.IsDrum
                 ? DrumMapping.Mapping[e.Fret].NoteNumber == DrumMapping.Mapping[Fret].NoteNumber
                 : e.StringNumber == StringNumber);
 
 
         if (!tieEnd.Beat.LetRing || tieEnd.Bend != null)
         {
-            return tieEnd.Beat.Next?.Notes.Any(e => e.StringNumber == StringNumber && e.Slides.IsBefore()) == true
+            return tieEnd.Beat.Next?.Notes.Any(e => e.StringNumber == StringNumber && e.Slides.Has(SlideFlags.FromBelow)) == true
                 ? tieEnd.Beat.End
                 : tieEnd.Beat.End;
         }
@@ -127,7 +153,7 @@ public sealed partial class Nota : MusicalElement<Nota>
                 return nextBeat.Start;
             }
 
-            if (nextBeat.Notes.Any(e => e.Slides.Contains(Slide.Below) || e.Slides.Contains(Slide.Above)))
+            if (nextBeat.Notes.Any(e => e.Slides.Has(SlideFlags.FromBelow) || e.Slides.Has(SlideFlags.FromAbove)))
             {
                 continue;
             }
@@ -141,13 +167,13 @@ public sealed partial class Nota : MusicalElement<Nota>
 
 
 
-            if (nextBeat.Measure.Index > Measure.Index + 20)
+            if (nextBeat.Voice.Measure.Index > Beat.Voice.Measure.Index + 20)
             {
                 //return tieEnd.Measure.End;
             }
         }
 
-        return Part.Measures[^1].Voices[Voice.Index].Beats[^1].End;
+        return Beat.Voice.Measure.Part.Measures[^1].Voices[Beat.Voice.Index].Beats[^1].End;
     }
 
 
@@ -155,13 +181,13 @@ public sealed partial class Nota : MusicalElement<Nota>
     {
         if (!Tie &&
             !TremoloDuration.HasValue &&
-            !Slides.Contains(Context.Slide.Below) &&
-            !Slides.Contains(Context.Slide.Above))
+            !Slides.Has(SlideFlags.FromBelow) &&
+            !Slides.Has(SlideFlags.FromAbove))
         {
             yield return NoteNumber;
         }
 
-        foreach (var slide in Slides)
+        foreach (var slide in Slides.GetUniques())
         {
             foreach (var note in GetSlideEmittedNotes(this, slide))
             {
@@ -195,7 +221,7 @@ public sealed partial class Nota : MusicalElement<Nota>
         }
     }
 
-    private static IEnumerable<int> GetSlideEmittedNotes(Nota note, Context.Slide slide)
+    private static IEnumerable<int> GetSlideEmittedNotes(Nota note, SlideFlags slide)
     {
         var target = GetSlideTargetPitch(slide, note);
         var delta = target - note.Fret;
@@ -207,21 +233,20 @@ public sealed partial class Nota : MusicalElement<Nota>
 
         }
 
-        if (slide == Context.Slide.Shift && delta == 0) yield break;
-
-        if (slide == Context.Slide.Shift && delta == 0 && note.WillBeTied && note.TieDetails.Destination.Slides.Count == 0)
+        if (slide == SlideFlags.Shift && delta == 0) yield break;
+        if (slide == SlideFlags.Shift && delta == 0 && note.WillBeTied && note.TieDetails.Destination.Slides == SlideFlags.None)
         {
             sign = -1;
             steps = 2;
         }
 
-        if (slide == Context.Slide.Below && delta == 0)
+        if (slide == SlideFlags.FromBelow && delta == 0)
         {
             sign = -1;
             steps = 1;
         }
 
-        if (slide == Context.Slide.Below || slide == Context.Slide.Above)
+        if (slide == SlideFlags.FromBelow || slide == SlideFlags.FromAbove)
         {
             for (var i = 1; i < steps; i++)
             {
@@ -240,20 +265,20 @@ public sealed partial class Nota : MusicalElement<Nota>
     }
 
 
-    public static sbyte GetSlideTargetPitch(Context.Slide slide, Nota note)
+    public static sbyte GetSlideTargetPitch(SlideFlags slide, Nota note)
     {
-        if (slide == Context.Slide.Shift || slide == Context.Slide.Legato)
+        if (slide == SlideFlags.Shift || slide == SlideFlags.Legato)
         {
             var targetNote = note.Next;
             if (targetNote.NoteNumber == note.NoteNumber && targetNote.Tie)
             {
-                targetNote = targetNote.Next;
+                targetNote = targetNote.Next ?? targetNote;
             }
             return targetNote.Fret;
         }
 
         var affectedStrings = note.Beat.Notes
-            .Where(e => (slide != Slide.Below && slide != Slide.Downwards) || e.Fret > 0)
+            .Where(e => (slide != SlideFlags.FromBelow && slide != SlideFlags.Downwards) || e.Fret > 0)
             .ToList();
 
         if (affectedStrings.Count == 0) return note.Fret;
@@ -261,7 +286,7 @@ public sealed partial class Nota : MusicalElement<Nota>
         var maxFretSeparation = affectedStrings.Max(e => e.Fret) - affectedStrings.Min(e => e.Fret);
         var moveTogether = maxFretSeparation < 10;
 
-        if (slide == Context.Slide.Upwards || slide == Context.Slide.Above)
+        if (slide == SlideFlags.Upwards || slide == SlideFlags.FromAbove)
         {
             // the killin the name: https://www.songsterr.com/a/wsa/rage-against-the-machine-killing-in-the-name-tab-s360t5
             // really wants to go above 24, on ryhtm guitar at measure 46, there are two double-upwards, both goes up 10 steps,
@@ -269,7 +294,7 @@ public sealed partial class Nota : MusicalElement<Nota>
             // but enter sandmen: https://www.songsterr.com/a/wsa/metallica-enter-sandman-tab-s19
             // on the lead guitar at measure 99 after a long tie chain theres a float upwards from 17/16 
             // both note goes up 6 semitones, stopping at 24. if we go till 25 we overflow with one extra note on each note 
-            var maxChordFret = note.Beat.Notes.Where(e => e.Slides.Contains(slide)).Max(e => e.Fret);
+            var maxChordFret = note.Beat.Notes.Where(e => e.Slides.Has(slide)).Max(e => e.Fret);
             var maxTargetFret = Math.Min(Math.Max((sbyte)24, maxChordFret), maxChordFret + 10);
             var maxDistance = maxTargetFret - maxChordFret;
 
@@ -280,12 +305,12 @@ public sealed partial class Nota : MusicalElement<Nota>
 
             return (sbyte)(note.Fret + maxDistance);
         }
-        if (slide == Context.Slide.Downwards || slide == Context.Slide.Below)
+        if (slide == SlideFlags.Downwards || slide == SlideFlags.FromBelow)
         {
             if (note.Fret == 0) return 0;
 
             var minChordFret = note.Beat.Notes
-                .Where(e => e.Slides.Contains(slide))
+                .Where(e => e.Slides.Has(slide))
                 .Where(e => e.Fret != 0)
                 .Min(e => e.Fret);
 
@@ -303,38 +328,5 @@ public sealed partial class Nota : MusicalElement<Nota>
         throw new Exception("what slide");
     }
 
-
-
     public override string ToString() => $"N{Index} {Beat}";
-
-
-
-
-
-}
-
-public sealed class TieContext
-{
-    public Nota Source { get; }
-    public Nota Destination { get; }
-    public IReadOnlyList<Nota> FullChain { get; }
-    //public Time FullDuration { get; }
-
-    public TieContext(Nota destinationNote)
-    {
-        if (!destinationNote.Tie || destinationNote.WillBeTied) throw new Exception("no");
-
-        var chain = new List<Nota> { destinationNote };
-
-        while (chain[^1].Previous != null && (chain[^1].Tie))
-        {
-            chain.Add(chain[^1].Previous!);
-        }
-
-        chain.Reverse();
-
-        FullChain = chain;
-        Source = FullChain[0];
-        Destination = FullChain[^1];
-    }
 }

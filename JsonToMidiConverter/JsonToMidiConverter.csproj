@@ -9,68 +9,30 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Models\Song\**" />
+    <EmbeddedResource Remove="Models\Song\**" />
+    <None Remove="Models\Song\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="Data\DrumNoteMapping.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="NirvanaReference.mid">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Update="References\Blink182.mid">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="References\Guns N%27 Roses-Sweet Child O%27 Mine-11-25-2025.mid">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="References\LedZeppelin.mid">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="References\Linkin Park-In The End-11-12-2025%283%29.mid">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="References\LinkinPark.mid">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="References\Metallica-Nothing Else Matters-11-15-2025%281%29.mid">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="References\Metallica.mid">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="References\Nirvana.mid">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="References\Queen-Bohemian Rhapsody-11-19-2025.mid">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="References\Rage Against The Machine-Killing in the Name-11-24-2025.mid">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="References\Red Hot Chili Peppers-Californication-11-09-2025.mid">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="References\Red Hot Chili Peppers-Can%27t Stop-11-15-2025.mid">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="References\Red Hot Chili Peppers-Under The Bridge-10-26-2025.mid">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="References\ReferenceOutput.mid">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="References\Tool.mid">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="CsvHelper" Version="33.1.0" />
+    <PackageReference Include="DeepCloner" Version="0.10.4" />
     <PackageReference Include="Melanchall.DryWetMidi" Version="8.0.2" />
     <PackageReference Include="Parquet.Net" Version="5.4.0" />
     <PackageReference Include="SharpCompress" Version="0.42.1" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Serializer\Serializer.csproj" />
+    <ProjectReference Include="..\Dani.Data\Dani.Data.csproj" />
   </ItemGroup>
 
 </Project>

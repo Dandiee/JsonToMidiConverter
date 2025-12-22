@@ -5,24 +5,16 @@ using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using System.Globalization;
 using System.Text.Json;
-using Serializer;
+using Dani.Data;
+using JsonToMidiConverter.Models.Song;
 
-DbBuilder.Build(@"C:\src\data\");
-var db = new Db(@"C:\src\data\summary");
-db.Load();
-var one = db.GetBest("one");
-var parts = db.GetParts(one!.SongId);
-
-//DbBuilder.SerializeMeta(@"C:\src\data\Meta", @"C:\src\data\Summary");
-//Database.SerializeAll();
-
-return;
+//Database.Build(@"c:\src\data\");
+var db = new Database(@"C:\src\data\summary");
+var pp = db.GetParts(db.GetBest("one").SongId);
 
 //Database.Idk();   
 
 //await Database.ProcessBeats();
-
-return;
 
 //Database.TestAll();
 
@@ -32,67 +24,41 @@ return;
 
 //await Database.RefreshSong(27);
 
-while (false)
-{
-    Console.Write("Whatcha looking for:");
-    var filter = Console.ReadLine();
-    Console.WriteLine("Looking for it...");
-    var onlineResults = await Database.OnlineSearch(filter);
+//while (false)
+//{
+//    Console.Write("Whatcha looking for:");
+//    var filter = Console.ReadLine();
+//    Console.WriteLine("Looking for it...");
+//    var record = db.GetBest(filter);
 
-    foreach (var result in onlineResults.Records.Take(10))
-    {
-        Console.WriteLine($"[{result.SongId}] {result.Artist} - {result.Title}");
-    }
-
-    Console.WriteLine("Stealing track...");
-    var best = onlineResults.Records.First();
-    await Database.RefreshSong(best.SongId);
-
-    Console.WriteLine("Processing midi...");
-    var bestMidi = Database.GetMidiData(best.SongId);
-    var bestSong = Database.Get(best.SongId);
-    Dumper.DumpWithoutReference(bestMidi, bestSong, true);
-    var output = new MidiFile { TimeDivision = Converter.Tpqn };
-    Time.Map = bestMidi.Parts[0].GetTempo(output);
-    output.ReplaceTempoMap(Time.Map);
-    bestMidi.Build(output, bestSong);
+//    //Dumper.DumpWithoutReference(bestMidi, bestSong, true);
+//    var output = new MidiFile { TimeDivision = Converter.Tpqn };
+//    Time.Map = bestMidi.Parts[0].GetTempo(output);
+//    output.ReplaceTempoMap(Time.Map);
+//    bestMidi.Build(output, bestSong);
 
 
-    Converter.Convert(bestMidi, bestSong);
-    Console.WriteLine("EZ GG WP");
-}
+//    Converter.Convert(bestMidi, bestSong);
+//    Console.WriteLine("EZ GG WP");
+//}
 
 var midis = Directory.GetFiles("FreshSongs");
 var c = 0;
 foreach (var midiPath in midis)
 {
-    var pathParts = midiPath.Split('-');
+    var fileName = Path.GetFileNameWithoutExtension(midiPath);
+    var pathParts = fileName.Split('-');
     var artist = pathParts[0];
     var title = string.Join("-", pathParts.Skip(1).Take(pathParts.Length - 4));
 
-    var record = Database.Search(artist, title).First();
-    //if (!record.Title.Contains("Californication"))
-    if (!record.Title.Contains("Nothing Else Matters", StringComparison.OrdinalIgnoreCase))
-    {
-        //continue;
-    }
+    var record = db.Get(artist, title);
+    if (record == null) continue;
+    var parts = db.GetParts(record.SongId);
 
-    var song = Database.GetMidiData(record.SongId);
+    Dumper.DumpBeforeBuild(parts.ToList(), MidiFile.Read(midiPath), record, true);
 
-    var mid = new MidiFile { TimeDivision = Converter.Tpqn };
-    Time.Map = song.Parts[0].GetTempo(mid);
-    mid.ReplaceTempoMap(Time.Map);
-
-
-    if (song.Parts.SelectMany(e => e.Measures).SelectMany(e => e.Voices).SelectMany(e => e.Beats)
-        .SelectMany(e => e.Notes).Any(e => e.Tremolo != null))
-    {
-        //Console.WriteLine("Fuck this piece of shit.");
-        //continue;
-    }
-
-    song.Build(mid, record);
-    Converter.Convert(song, record);
+    var song = new Song(record, parts);
+    Converter.Convert(song);
 
     Console.WriteLine($"Processing completed for {record.Title} {record.Artist}");
 
@@ -108,25 +74,6 @@ foreach (var midiPath in midis)
 
 }
 
-
-var q = Dumper.Bends.Select(e => new
-{
-    NoteDuration = e.Note.Duration.Tick,
-    OutputPitchBends = e.Event.PitchBends,
-    InputData = e.Note.Beat.Tremolo
-});
-
-var data = JsonSerializer.Serialize(q);
-File.WriteAllText("PitchBendings.json", data);
-
-
-var vels = Dumper.Velocities.ToHashSet();
-
-using (var writer = new StreamWriter("velocities.csv"))
-using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
-{
-    csv.WriteRecords(vels);
-}
 
 
 static MidiFile GetNormalizedMidi(string file)

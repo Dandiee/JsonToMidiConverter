@@ -1,48 +1,57 @@
 ﻿using System.Diagnostics;
-using System.Text.Json.Serialization;
+using Dani.Data.Models.Enums;
+using Dani.Data.Models.Parts;
 using JsonToMidiConverter.Context;
-using JsonToMidiConverter.Models.Song.Enums;
-using Melanchall.DryWetMidi.Interaction;
+using DataMeasure = Dani.Data.Models.Parts.Measure;
 
 namespace JsonToMidiConverter.Models.Song;
 
 [DebuggerDisplay("M{Index} P{Part.Index}")]
-public sealed partial class Measure : MusicalElement<Measure>
+public sealed class Measure : MusicalElement<Measure, Part>
 {
-    [JsonIgnore]public Song Song => Part.Song;
-    [JsonIgnore] public int OriginalIndex { get; set; }
-    [JsonIgnore] public Time Signature { get; set; }
-    [JsonIgnore] public int RepeatIndex { get; set; }
-    [JsonIgnore] public int Bpm { get; set; }
+    public List<Voice> Voices { get; } = new();
 
-    public void SetNavigation(Part part, int index)
+    public TripletFeel TripletFeel { get; }
+    public Time Signature { get; }
+    public MusicalFraction SignatureFracture { get; }
+    public bool RepeatStart { get; }
+    public int Repeat { get; }
+    public List<byte> AlternateEnding { get; }
+    public int Bpm { get; }
+    
+    public Measure(Part part, DataMeasure data, int index) 
+        : base(part, part, index)
     {
-        Index = index;
-        Part = part;
+        Signature = data.Signature.IsZero() ? Previous!.Signature : data.Signature.ToTime();
+        TripletFeel = data.TripletFeel;
+        RepeatStart = data.RepeatStart;
+        Repeat = data.Repeat;
+        AlternateEnding = data.AlternateEnding;
+        Bpm = (int)Math.Round(Part.TempoMap.GetTempoAtTime(Start.Span).BeatsPerMinute);
+        
+        SignatureFracture = data.Signature.IsZero() ? Previous.SignatureFracture : data.Signature;
 
-        if (Index > 0)
+        Voices = new List<Voice>(data.Voices.Count);
+        for (var i = 0; i < data.Voices.Count; i++)
         {
-            Previous = Part.Measures[Index - 1];
-            Previous.Next = this;
+            Voices.Add(new Voice(this, data.Voices[i], i));
         }
-
-        for (var i = 0; i < Voices.Count; i++)
-        {
-            Voices[i].SetNavigation(this, i);
-        }
+        
     }
+
+    protected override Measure? GetPrevious(object? state = null) 
+        => Index > 0 ? Part.Measures[Index - 1] : null;
 
     public void Build()
     {
         Start = Previous?.End ?? new Time();
         Duration = Part.Anacrusis && Index == 0 
-            ? new Time(Voices[0].Beats.Where(e => e.GraceNote == GraceNote.Unset).Sum(e => e.Duration.Tick))
+            ? new Time(Voices[0].Beats.Where(e => e.GraceNote == GraceNote.None).Sum(e => e.Duration.Tick))
             : Signature;
         End = Start + Duration;
-        Bpm = (int)Math.Round(Part.TempoMap.GetTempoAtTime(Start.Span).BeatsPerMinute);
+        
         Voices.ForEach(v => v.Build());
     }
-
 
     public override string ToString() => $"M{Index} {Part}";
 }

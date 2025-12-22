@@ -1,8 +1,5 @@
-﻿using JsonToMidiConverter.Models.Song;
-using Melanchall.DryWetMidi.Interaction;
-using System;
+﻿using Melanchall.DryWetMidi.Interaction;
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 
 namespace JsonToMidiConverter;
 

@@ -1,51 +1,65 @@
-﻿using Melanchall.DryWetMidi.Core;
+﻿using Dani.Data.Models.Enums;
+using Dani.Data.Models.Parts;
+using Force.DeepCloner;
+using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using System.Diagnostics;
-using System.Text.Json.Serialization;
-using JsonToMidiConverter.Models.Song.Enums;
+using DataMeasure = Dani.Data.Models.Parts.Measure;
+using DataPart = Dani.Data.Models.Parts.Part;
+
 
 namespace JsonToMidiConverter.Models.Song;
 
-[DebuggerDisplay("P{Index} {Song.Name} {Instrument} {Name}")]
-public sealed partial class Part
+[DebuggerDisplay("P{Index} {FullName}")]
+public sealed class Part
 {
-    [JsonIgnore] public int Index { get; private set; }
-    [JsonIgnore] public Song Song { get; private set; }
-    [JsonIgnore] public bool IsPianoLike { get; private set; }
-    [JsonIgnore] public TempoMap TempoMap { get; private set; }
-    [JsonIgnore] public string FullName { get; private set; }
-    [JsonIgnore] public List<Nota> Notes { get; set; } = [];
-    [JsonIgnore] public List<TimedEvent> TimedEvents { get; set; } = [];
+    public Song Song { get; }
+    public List<Nota> Notes { get; }
 
+    public int Index { get; }
+    public bool IsPianoLike { get; }
+    public TempoMap TempoMap { get; }
+    public string FullName { get; }
+    public int InstrumentId { get; }
+    public string Instrument { get; }
+    public string Name { get; }
+    public List<Measure> Measures { get; }
+    public List<sbyte> Tuning { get; }
+    public bool Anacrusis { get; }
+    public int Capo { get; }
+    public bool IsDrum { get; }
 
-    public void Build(Song song, int index)
+    public List<TimedEvent> TimedEvents { get; } = [];
+
+    public Part(Song song, DataPart data)
     {
-        if (index == 2)
-        {
+        TempoMap = GetTempo(data);
+        Time.Map = TempoMap;
 
-        }
-        TempoMap = GetTempo(song.Midi);
-        Index = index;
         Song = song;
-        IsPianoLike = PianoLikeInstruments.Contains(InstrumentId);
-        FullName = $"{song.Name} {Instrument} {Name}";
+        Index = data.Index;
+        IsPianoLike = data.IsPianoLike();
+        InstrumentId = data.InstrumentId;
+        Instrument = data.Instrument;
+        Name = data.Name;
+        FullName = $"{song.Record.Artist} - {song.Record.Title}: {data.Instrument} / {data.Name}";
+        Anacrusis = data.Anacrusis;
+        Capo = data.Capo;
+        IsDrum = data.InstrumentId == 1024;
+        Tuning = data.Tuning;
 
-        SetSignatures();
-        FixBeats();
-
-        Measures = UnrollRepeats();
-
-        for (var i = 0; i < Measures.Count; i++)
+        var unrolledMeasures = UnrollRepeats(data);
+        Measures = new List<Measure>(unrolledMeasures.Count);
+        for (var i = 0; i < data.Measures.Count; i++)
         {
-            Measures[i].SetNavigation(this, i);
+            Measures.Add(new Measure(this, data.Measures[i], i));
         }
-
+   
+        FixBeats();
         ApplyTripletFeel();
         ProcessGraceClusters();
         
-
         Measures.ForEach(m => m.Build());
-
         Notes = Measures
             .SelectMany(e => e.Voices)
             .SelectMany(e => e.Beats)
@@ -80,12 +94,12 @@ public sealed partial class Part
             {
                 foreach (var beat in voice.Beats)
                 {
-                    if (beat.Velocity != Velocity.Unset)
+                    if (beat.Velocity != Velocity.None)
                     {
                         currentVelocity = beat.Velocity;
                     }
 
-                    if (beat.GradualVelocity == Dynamic.Unset)
+                    if (beat.GradualVelocity == GradualVelocity.None)
                     {
                         if (gradualVelocitySpan.Count == 0 || gradualVelocitySpan[0].GradualVelocity == beat.GradualVelocity)
                         {
@@ -117,7 +131,7 @@ public sealed partial class Part
     private void ProcessGradualVelocity(ref List<Beat> span)
     {
         var start = span[0].CalculatedVelocity;
-        var end = span[^1].Velocity == Velocity.Unset ? Velocity.F : span[^1].Velocity;
+        var end = span[^1].Velocity == Velocity.None ? Velocity.F : span[^1].Velocity;
 
         var startIndex = Velocities.IndexOf(start);
         var endIndex = Velocities.IndexOf(end);
@@ -140,18 +154,6 @@ public sealed partial class Part
         span = [];
     }
 
-    private void SetSignatures()
-    {
-        var signature = new Time();
-        foreach (var measure in Measures)
-        {
-            if (measure.SignatureArray != null)
-            {
-                signature = new Time((long)measure.SignatureArray.Numerator, (long)measure.SignatureArray.Denominator);
-            }
-            measure.Signature = signature;
-        }
-    }
 
     public static readonly IReadOnlyDictionary<TripletFeel, Time> SupportedSwings = new Dictionary<TripletFeel, Time>
     {
@@ -165,7 +167,7 @@ public sealed partial class Part
 
         foreach (var measure in Measures)
         {
-            if (measure.TripletFeel != TripletFeel.Unset)
+            if (measure.TripletFeel != TripletFeel.None)
             {
                 division = measure.TripletFeel == TripletFeel.Off
                     ? null
@@ -180,7 +182,7 @@ public sealed partial class Part
                 var cursor = new Time();
                 foreach (var beat in voice.Beats)
                 {
-                    if (beat.GraceNote != GraceNote.Unset) continue;
+                    if (beat.GraceNote != GraceNote.None) continue;
 
                     var start = cursor;
                     var end = start + beat.Duration;
@@ -196,12 +198,10 @@ public sealed partial class Part
                             if (startingGridIndex % 2 == 0)
                             {
                                 beat.Duration += offset.Value;
-                                beat.Modifications.Add("Triplet long");
                             }
                             else
                             {
                                 beat.Duration -= offset.Value;
-                                beat.Modifications.Add("Triplet short");
                             }
                         }
                     }
@@ -223,7 +223,7 @@ public sealed partial class Part
 
                 foreach (var beat in voice.Beats)
                 {
-                    if (beat.GraceNote != null)
+                    if (beat.GraceNote != GraceNote.None)
                     {
                         if (currentCluster.Count == 0)
                         {
@@ -264,7 +264,6 @@ public sealed partial class Part
                         foreach (var beat in cluster)
                         {
                             beat.Duration = unitDuration;
-                            beat.Modifications.Add("Grace duration updated");
                         }
                     }
 
@@ -282,7 +281,6 @@ public sealed partial class Part
                             foreach (var beat in cluster)
                             {
                                 beat.Duration = stepSize;
-                                beat.Modifications.Add("Grace duration updated");
                             }
                         }
                         else head.Previous.Duration -= clusterLength;
@@ -296,7 +294,6 @@ public sealed partial class Part
                             foreach (var beat in cluster)
                             {
                                 beat.Duration = stepSize;
-                                beat.Modifications.Add("Grace duration updated");
                             }
                         }
                         else tail.Next.Duration -= clusterLength;
@@ -313,16 +310,11 @@ public sealed partial class Part
         {
             if (Anacrusis && measureIndex == 0) continue;
 
-            if (Index == 2 && measureIndex == 81 && Song.Name.Contains("Bon Jovi You Give Love a Bad Name!"))
-            {
-
-            }
-
             var duration = measure.Signature;
 
             foreach (var voice in measure.Voices)
             {
-                var sum = voice.Beats.Where(e => e.GraceNote == GraceNote.Unset).Sum(b => b.Duration.Tick);
+                var sum = voice.Beats.Where(e => e.GraceNote == GraceNote.None).Sum(b => b.Duration.Tick);
                 var error = sum - duration.Tick;
 
                 if (Math.Abs(error) > 20)
@@ -340,7 +332,7 @@ public sealed partial class Part
         var targetMeasure = measure ?? voice.Measure;
 
         var expectedDuration = targetMeasure.Signature;
-        var actualDuration = voice.Beats.Where(e => e.GraceNote == GraceNote.Unset).Sum(e => e.Duration.Tick);
+        var actualDuration = voice.Beats.Where(e => e.GraceNote == GraceNote.None).Sum(e => e.Duration.Tick);
         var error = expectedDuration - actualDuration;
 
         if (error.Tick == 0) return;
@@ -353,12 +345,12 @@ public sealed partial class Part
             }
             else
             {
-                voice.Beats.Add(new Beat
-                {
-                    MusicalFraction = new MusicalFraction((byte)error.Span.Numerator, (byte)error.Span.Denominator),
-                    Rest = true,
-                    Modifications = { "Manually created" }
-                });
+                // TODO:
+                // voice.Beats.Add(new Beat
+                // {
+                //     MusicalFraction = new MusicalFraction((byte)error.Span.Numerator, (byte)error.Span.Denominator),
+                //     Rest = true,
+                // });
             }
         }
         else
@@ -370,28 +362,24 @@ public sealed partial class Part
                 {
                     beat.Duration = new Time();
                     error += beatDuration;
-                    beat.Modifications.Add("Zeroed");
                 }
                 else if (beatDuration.Tick >= error.Tick)
                 {
                     beat.Duration = beatDuration + error;
-                    beat.Modifications.Add($"Shorten by {error.Tick}");
                     break;
                 }
             }
         }
     }
 
-    public List<Measure> UnrollRepeats()
+    public static List<DataMeasure> UnrollRepeats(DataPart part)
     {
-        var measures = new List<Measure>();
-        var repeats = new List<Measure>();
+        var measures = new List<DataMeasure>();
+        var repeats = new List<DataMeasure>();
 
         var c = 0;
-        foreach (var measure in Measures)
+        foreach (var measure in part.Measures)
         {
-            measure.OriginalIndex = c++;
-
             if (measure.RepeatStart || repeats.Count > 0)
             {
                 repeats.Add(measure);
@@ -417,12 +405,7 @@ public sealed partial class Part
 
                     var parts = part1.Concat(part2).ToList();
 
-                    measures.AddRange(parts.Select(repeat =>
-                    {
-                        var copy = repeat.Clone();
-                        copy.RepeatIndex = i + 1;
-                        return copy;
-                    }));
+                    measures.AddRange(parts.Select(repeat => repeat.DeepClone()));
                 }
 
                 repeats.Clear();
@@ -432,24 +415,27 @@ public sealed partial class Part
         }
 
         return measures;
-
     }
 
-    public TempoMap GetTempo(MidiFile midi)
+    private TempoMap GetTempo(DataPart data)
     {
-        var bpmChangeByMeasure = Automations.Tempo.GroupBy(e => e.Measure)
+        var mid = new MidiFile { TimeDivision = Converter.Tpqn };
+
+        var bpmChangeByMeasure = data.Automations.Tempo
+            .GroupBy(e => e.Measure)
             .ToDictionary(kvp => kvp.Key, kvp => kvp.Last().Bpm);
+
         MusicalFraction? lastSignature = null;
         var lastBpm = 120;
 
-        using var tempoMapManager = new TempoMapManager(midi.TimeDivision);
+        using var tempoMapManager = new TempoMapManager(Converter.Tpqn);
 
-        for (ushort i = 0; i < Measures.Count; i++)
+        for (ushort i = 0; i < data.Measures.Count; i++)
         {
-            var measure = Measures[i];
-            if (measure.SignatureArray != null)
+            var measure = data.Measures[i];
+            if (!measure.Signature.IsZero())
             {
-                lastSignature = measure.SignatureArray;
+                lastSignature = measure.Signature;
             }
 
             if (bpmChangeByMeasure.TryGetValue(i, out var newBpm))
@@ -458,14 +444,14 @@ public sealed partial class Part
             }
 
             var time = new BarBeatTicksTimeSpan(i, 0, 0);
-            tempoMapManager.SetTimeSignature(time, new TimeSignature((int)lastSignature.Numerator, (int)lastSignature.Denominator));
+            tempoMapManager.SetTimeSignature(time, new TimeSignature((int)lastSignature.Nominator, (int)lastSignature.Denominator));
             tempoMapManager.SetTempo(time, Tempo.FromBeatsPerMinute(lastBpm));
         }
 
         return tempoMapManager.TempoMap;
     }
 
-    public static readonly HashSet<int> PianoLikeInstruments = new() { 0, 48, 1024, 67, 66 };
+    
 
     public override string ToString() => $"P{Index}";
 }

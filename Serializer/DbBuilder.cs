@@ -1,8 +1,8 @@
-﻿using Api.Models;
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using System.Text.Json;
-using Beat = Api.Models.Parts.Beat;
-using Note = Api.Models.Parts.Note;
+using Beat = Api.Models.Models.Parts.Beat;
+using JsonContext = Api.Models.Json.JsonContext;
+using Note = Api.Models.Models.Parts.Note;
 
 namespace Serializer;
 
@@ -24,7 +24,7 @@ public static class DbBuilder
         SerializeRecords(outputFolder, records);
     }
 
-    private static void SerializeRecords(string outputFolder, IReadOnlyList<Record> records)
+    private static void SerializeRecords(string outputFolder, IReadOnlyList<Api.Models.Models.Record> records)
     {
         var file = Path.Combine(outputFolder, "records.dani");
         using var outputStream = new FileStream(file, FileMode.Create, FileAccess.Write, FileShare.None, 4096);
@@ -32,7 +32,7 @@ public static class DbBuilder
         _ = DaniSerializer.Serialize(outputStream, records).ToList();
     }
 
-    private static IReadOnlyList<Record> SerializeMeta(string metaFolder, string outputFolder)
+    private static IReadOnlyList<Api.Models.Models.Record> SerializeMeta(string metaFolder, string outputFolder)
     {
         var files = Directory.GetFiles(metaFolder, "*.json");
         using var outputStream = new FileStream(Path.Combine(outputFolder, "meta.dani"), FileMode.Create, FileAccess.Write, FileShare.None, 4096);
@@ -42,12 +42,12 @@ public static class DbBuilder
             return JsonSerializer.Deserialize(inputStream, JsonContext.Default.MetaData)!;
         });
 
-        var records = new List<Record>();
+        var records = new List<Api.Models.Models.Record>();
         foreach (var meta in DaniSerializer.Serialize(outputStream, metaModels))
         {
             if (meta.Model.SongId <= 0) continue;
 
-            records.Add(new Record
+            records.Add(new Api.Models.Models.Record
             {
                 Artist = meta.Model.Artist,
                 Title = meta.Model.Title,
@@ -62,7 +62,7 @@ public static class DbBuilder
     }
 
 
-    private static void SerializeParts(string dataFolder, string outputFolder, IReadOnlyList<Record> records)
+    private static void SerializeParts(string dataFolder, string outputFolder, IReadOnlyList<Api.Models.Models.Record> records)
     {
         var mdop = Environment.ProcessorCount;
 
