@@ -269,7 +269,7 @@ public static class Extensions
         if (note.Harmonic == Harmonic.None || !withHarmonic) return open + note.Fret;
         var harmonicOffset = GetHarmonicOffset(note.HarmonicFret);
         if (note.Harmonic == Harmonic.Natural) return open + harmonicOffset;
-        return open + harmonicOffset + note.Fret;
+        return Math.Min(127, open + harmonicOffset + note.Fret);
     }
 
     public static FourBitNumber GetNoteChannel(this Nota note) => note.Beat.Voice.Measure.Part.IsDrum ? 9.To4() : (FourBitNumber)note.StringNumber;

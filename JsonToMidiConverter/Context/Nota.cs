@@ -32,12 +32,17 @@ public sealed class Nota : MusicalElement<Nota, Beat>
     public List<TimedNoteEvent> MidiNoteEvents { get; set; } = [];
     public TieContext? TieDetails { get; private set; }
     public bool IsHpTarget { get; private set; }
-    public bool WillBeTied { get; }
+    public bool WillBeTied { get; set; }
 
     public Nota(Beat beat, Note data, int index)
      : base(beat.Part, beat, index, data.DoubledString)
     {
         var capo = Beat.Voice.Measure.Part.Capo;
+
+        if (Is("N0 B2 V0 M88 P8", "Duality:"))
+        {
+
+        }
 
         Fret = data.Fret;
         Slides = data.Slides;
@@ -57,15 +62,14 @@ public sealed class Nota : MusicalElement<Nota, Beat>
         Dead = data.Dead;
         Staccato = data.Staccato;
         
-        Tie = data.Tie;
-        WillBeTied = Previous?.Tie == true;
-
-        if (!Tie && Previous?.WillBeTied == true)
+        if (Tie && Previous != null)
         {
-            WillBeTied = false;
+            Previous.WillBeTied = true;
         }
+    }
 
-        
+    public void SecondPass()
+    {
         if (Tie && !WillBeTied)
         {
             TieDetails = new TieContext(this);
@@ -197,7 +201,9 @@ public sealed class Nota : MusicalElement<Nota, Beat>
 
         if (TremoloDuration.HasValue)
         {
-            var noteDuration = WillBeTied ? TieDetails.Destination.End.Tick - TieDetails.Source.Start.Tick : Duration.Tick;
+            var noteDuration = WillBeTied 
+                ? TieDetails.Destination.End.Tick - TieDetails.Source.Start.Tick
+                : Duration.Tick;
             var integerRepeats = noteDuration / TremoloDuration.Value.Tick;
             var leftover = noteDuration / (float)TremoloDuration.Value.Tick - integerRepeats;
             if (leftover > 0.5)
@@ -270,6 +276,11 @@ public sealed class Nota : MusicalElement<Nota, Beat>
         if (slide == SlideFlags.Shift || slide == SlideFlags.Legato)
         {
             var targetNote = note.Next;
+            if (targetNote == null)
+            {
+                return (sbyte)Math.Max(0, note.Fret - 2);
+            }
+
             if (targetNote.NoteNumber == note.NoteNumber && targetNote.Tie)
             {
                 targetNote = targetNote.Next ?? targetNote;

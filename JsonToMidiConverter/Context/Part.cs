@@ -78,7 +78,7 @@ public sealed class Part
         }
 
         ApplyBeatVelocities();
-
+        Notes.ForEach(e => e.SecondPass());
         Notes.ForEach(e => e.SetTimings());
     }
 
