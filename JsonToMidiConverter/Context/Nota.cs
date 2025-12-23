@@ -39,11 +39,6 @@ public sealed class Nota : MusicalElement<Nota, Beat>
     {
         var capo = Beat.Voice.Measure.Part.Capo;
 
-        if (Is("N0 B2 V0 M88 P8", "Duality:"))
-        {
-
-        }
-
         Fret = data.Fret;
         Slides = data.Slides;
         Ghost = data.Ghost;
@@ -61,7 +56,8 @@ public sealed class Nota : MusicalElement<Nota, Beat>
         IsHpTarget = Previous?.Legato == Legato.HammerPull;
         Dead = data.Dead;
         Staccato = data.Staccato;
-        
+        Tie = data.Tie;
+
         if (Tie && Previous != null)
         {
             Previous.WillBeTied = true;

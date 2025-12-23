@@ -2,6 +2,7 @@ using JsonToMidiConverter.Models.Song;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using Dani.Data.Models.Enums;
+using JsonToMidiConverter.Test;
 
 namespace JsonToMidiConverter;
 
@@ -108,7 +109,7 @@ internal static class Converter
         }
 
 
-        var dumpFileName = song.Record.GetPath("", "Output.mid");
+        var dumpFileName = song.Record.GetPath("Midik", "Output.mid");
         var fi = new FileInfo(dumpFileName);
         if (fi.Directory is { Exists: false })
         {

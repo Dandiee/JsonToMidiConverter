@@ -56,8 +56,9 @@ foreach (var midiPath in midis)
     var parts = db.GetParts(record.SongId);
 
     Dumper.DumpBeforeBuild(parts.ToList(), MidiFile.Read(midiPath), record, true);
-
+    
     var song = new Song(record, parts);
+    Dumper.Dump(song, GetNormalizedMidi(midiPath), record, true);
     Converter.Convert(song);
 
     Console.WriteLine($"Processing completed for {record.Title} {record.Artist}");

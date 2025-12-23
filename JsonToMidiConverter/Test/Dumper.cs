@@ -1,15 +1,18 @@
-﻿using JsonToMidiConverter.Context;
+﻿using Dani.Data;
+using Dani.Data.Models;
+using Dani.Data.Models.Enums;
+using Dani.Data.Models.Parts;
+using JsonToMidiConverter.Context;
 using JsonToMidiConverter.Models;
+using JsonToMidiConverter.Models.Song;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using System.Diagnostics;
+using System.Diagnostics.Tracing;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
-using Dani.Data;
-using Dani.Data.Models;
-using JsonToMidiConverter.Models.Song;
 using Beat = Dani.Data.Models.Parts.Beat;
 using Measure = Dani.Data.Models.Parts.Measure;
 using Part = Dani.Data.Models.Parts.Part;
@@ -56,7 +59,7 @@ public static class Dumper
         WriteRawJsons(record);
         //WriteMinifiedMidiInputJson(parts, record, overwrite);
         WriteRawMidiData(midi, record, overwrite);
-        //WriteMeasuredMidiData(parts, midi, record, overwrite);
+        WriteMeasuredMidiData(parts, midi, record, overwrite);
         //WriteMetaData(record, overwrite);
     }
 
@@ -70,10 +73,10 @@ public static class Dumper
         }
     }
 
-    public static void Dump(Song song, MidiFile midi, Record record, bool overwrite)
+    public static void Dump(JsonToMidiConverter.Models.Song.Song song, MidiFile midi, Record record, bool overwrite)
     {
-        //AssignNotesToMidiEvents(song, midi, record);
-        CheckMeasureCounts(song, midi);
+        AssignNotesToMidiEvents(song, midi, record);
+        //CheckMeasureCounts(parts, midi);
         //WriteBible(song, midi, record, overwrite);
 
         Console.WriteLine($"Dumped: {record.Artist} - {record.Title}");
@@ -161,113 +164,117 @@ public static class Dumper
         //new ("V1 M249 P2", "ride")
     ];
 
-    // private static void OpenForDebug(Nota note, Record record)
-    // {
-    //     var paths = new[] { GetFileName("Bible", record), GetFileName("MidiMeasured", record) };
-    //     var path = paths.First(File.Exists);
-    //     var lines = File.ReadAllLines(path).ToList();
-    //     var match = lines.Single(e => e.Contains($"{note}"));
-    //     var index = lines.IndexOf(match);
-    // 
-    //     Process.Start(@"C:\Program Files\Notepad++\notepad++.exe", $"-n{index + 1} \"{path}\"");
-    //     Process.Start(new ProcessStartInfo
-    //     {
-    //         FileName = $"https://www.songsterr.com/a/wsa/{GetUrlFriendlyName(record.Artist)}-{GetUrlFriendlyName(record.Title)}-tab-s{record.SongId}t{note.Part.Index}",
-    //         UseShellExecute = true
-    //     });
-    // 
-    //     var measureIndex = note.Part.Anacrusis
-    //         ? note.Measure.OriginalIndex
-    //         : note.Measure.OriginalIndex + 1;
-    // 
-    //     Console.WriteLine($"Error at {note} - Measure: {measureIndex}, Repeat: {note.Measure.RepeatIndex}");
-    // 
-    // }
+    private static void OpenForDebug(Nota note, Record record)
+    {
+        var paths = new[] { GetFileName("Bible", record), GetFileName("MidiMeasured", record) };
+        var path = paths.First(File.Exists);
+        var lines = File.ReadAllLines(path).ToList();
+        var match = lines.Single(e => e.Contains($"{note}"));
+        var index = lines.IndexOf(match);
+    
+        Process.Start(@"C:\Program Files\Notepad++\notepad++.exe", $"-n{index + 1} \"{path}\"");
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = $"https://www.songsterr.com/a/wsa/{GetUrlFriendlyName(record.Artist)}-{GetUrlFriendlyName(record.Title)}-tab-s{record.SongId}t{note.Part.Index}",
+            UseShellExecute = true
+        });
+    
+        //var measureIndex = note.Part.Anacrusis
+        //    ? note.Measure.OriginalIndex
+        //    : note.Measure.OriginalIndex + 1;
+    
+        //Console.WriteLine($"Error at {note} - Measure: {measureIndex}, Repeat: {note.Measure.RepeatIndex}");
+    
+    }
+
+    public static string GetUrlFriendlyName(string name)
+    {
+        return name.ToLowerInvariant().Replace(" ", "-");
+    }
 
 
-    //public static void AssignNotesToMidiEvents(Song song, MidiFile midi, Record record)
-    //{
-    //    foreach (var part in song.Parts)
-    //    {
-    //        Time.Map = part.TempoMap;
+    public static void AssignNotesToMidiEvents(JsonToMidiConverter.Models.Song.Song song, MidiFile midi, Record record)
+    {
+        foreach (var part in song.Parts)
+        {
+            Time.Map = part.TempoMap;
 
-    //        var originalEvents = midi.GetEvents(part.Index);
-    //        var measureEvents = originalEvents.ToList();
+            var originalEvents = midi.GetEvents(part.Index);
+            var measureEvents = originalEvents.ToList();
 
-    //        var notes = part.Measures
-    //            .SelectMany(e => e.Voices)
-    //            .SelectMany(e => e.Beats)
-    //            .SelectMany(n => n.Notes)
-    //            .Where(e => !e.Rest)
-    //            .OrderBy(e => e.Start.Tick)
-    //            .ToList();
+            var notes = part.Measures
+                .SelectMany(e => e.Voices)
+                .SelectMany(e => e.Beats)
+                .SelectMany(n => n.Notes)
+                .Where(e => !e.Rest)
+                .OrderBy(e => e.Start.Tick)
+                .ToList();
 
-    //        foreach (var note in notes)
-    //        {
-    //            if (note.Slides.Count > 0 && note.Tremolo != null) throw new Exception("Just drop this track in the bin doesnt matter fuck that");
+            foreach (var note in notes)
+            {
+                if (note.Harmonic != Harmonic.None) break;
 
-    //            var emittedNotes = note.GetEmittedNotes().ToList();
+                if (note.Is("N0 B3 V0 M67 P3", "black"))
+                {
 
-    //            var c = 0;
-    //            foreach (var emittedNote in emittedNotes)
-    //            {
-    //                var noteEvent = measureEvents
-    //                    .SkipWhile(e => e.On.Channel != note.Channel || e.On.NoteNumber != emittedNote)
-    //                    .First();
+                }
 
-    //                if (note.Bend != null && note.Beat.Tremolo != null)
-    //                {
-    //                    //OpenForDebug(note, record);
-    //                }
+                if (note.Slides != SlideFlags.None && note.TremoloDuration != null) throw new Exception("Just drop this track in the bin doesnt matter fuck that");
 
-    //                if (note.Bend != null)
-    //                {
-    //                    //var pitchBends = note.GeneratePitchBends();
-    //                }
+                var emittedNotes = note.GetEmittedNotes().ToList();
+                var q = note.GetNoteNumber(true);
+                var c = 0;
+                foreach (var emittedNote in emittedNotes)
+                {
+                    var noteEvent = measureEvents
+                        .SkipWhile(e => e.On.Channel != note.Channel || e.On.NoteNumber != emittedNote)
+                        .First();
 
-    //                if (note.Beat.Tremolo != null)
-    //                {
-    //                    //Bends.Add(new (noteEvent, note));
-    //                    var pitchBends = note.GenerateBends((int)note.Duration.Tick);
-    //                }
+                    var startError = Math.Abs(noteEvent.Start - note.Start.Tick);
+                    var endError = Math.Abs(noteEvent.End - note.End.Tick);
 
-    //                if (note.Bend == null && note.Beat.Tremolo == null && note.Slides.Count > 0 && emittedNotes.Count > 1 && note.TieDetails == null && noteEvent.PitchBends.Count > 2)
-    //                {
-    //                    OpenForDebug(note, record);
-    //                }
+                    if (emittedNotes.Count == 1 && !note.Tie)
+                    {
+                        Debug.Assert(startError < 1920 && endError < 1920);
+                        if (DateTime.Now.Year == 2006)
+                            OpenForDebug(note, record);
+                    }
+                    else
+                    {
+                        Debug.Assert(noteEvent.Start >= note.Start.Tick - 1920 || noteEvent.End <= note.End.Tick + 1920);
+                        if (DateTime.Now.Year == 2006) 
+                            OpenForDebug(note, record);
+                    }
+                        
 
+                    measureEvents.Remove(noteEvent);
+                    note.MidiNoteEvents.Add(noteEvent);
+                    c++;
+                }
 
-    //                if (noteEvent.PitchBends.Count > 0 && note.Bend == null)
-    //                {
-    //                    //OpenForDebug(note, record);
-    //                }
+                if (note.Index == note.Beat.Notes.Count - 1 &&
+                    note.Beat.Index == note.Beat.Voice.Measure.Voices[note.Beat.Voice.Index].Beats.Count - 1)
+                {
+                    var allUsed = measureEvents.All(e => e.MeasureIndex >= note.Beat.Voice.Measure.Index);
+                    var w = measureEvents.Where(e => e.MeasureIndex <= note.Beat.Voice.Measure.Index).ToList();
+                    Debug.Assert(allUsed);
+                    if (!allUsed)
+                    {
+                        //OpenForDebug(note, record);
+                    }
+                }
 
-    //                measureEvents.Remove(noteEvent);
-    //                note.MidiNoteEvents.Add(noteEvent);
-    //                c++;
-    //            }
-
-    //            if (note.LastInBeat && note.Beat.LastInMeasure)
-    //            {
-    //                var allUsed = measureEvents.All(e => e.MeasureIndex >= note.Measure.Index);
-    //                Debug.Assert(allUsed);
-    //                if (!allUsed)
-    //                {
-    //                    //OpenForDebug(note, record);
-    //                }
-    //            }
-
-    //        }
-    //        Debug.Assert(measureEvents.Count == 0);
-    //    }
-    //}
+            }
+            //Debug.Assert(measureEvents.Count == 0);
+        }
+    }
 
 
     private static void WriteMinifiedMidiInputJson(List<Part> parts, Record record, bool overwrite)
     {
         if (!overwrite && File.Exists(GetFileName("JsonMini", record))) return;
 
-        
+
         var sb = new StringBuilder();
         foreach (var part in parts)
         {
@@ -339,38 +346,44 @@ public static class Dumper
 
         var sb = new StringBuilder();
 
+        var partStrings = Database.GetRawParts(@"c:\src\data\data", record);
+
         var p = 0;
-        foreach (var part in parts)
+        foreach (var partString in partStrings)
         {
+            using var doc = JsonDocument.Parse(partString);
+            var part = doc.RootElement;
             var partEvents = midi.GetEvents(p);
 
             var m = 0;
-            sb.AppendLine($"\r\n\r\n P{p} {GetJson(part)}");
-            foreach (var measure in part.Measures)
+            sb.AppendLine($"\r\n\r\n P{p} {JsonHelper.GetString(part, ["measures"])}");
+            var measures = part.GetProperty("measures");
+            foreach (var measure in measures.EnumerateArray())
             {
                 var v = 0;
-                sb.AppendLine($"\r\n\t M{m} P{p} {GetJson(measure)}");
-                foreach (var voice in measure.Voices)
+                sb.AppendLine($"\t M{m} P{p} {JsonHelper.GetString(measure, ["voices"])}");
+                var voices = measure.GetProperty("voices");
+                foreach (var voice in voices.EnumerateArray())
                 {
                     var b = 0;
-                    sb.AppendLine($"\r\n\t\t V{v} M{m} P{p} {GetJson(voice)}");
-                    foreach (var beat in voice.Beats)
+                    sb.AppendLine($"\t\t V{v} M{m} P{p} {JsonHelper.GetString(voice, ["beats"])}");
+                    var beats = voice.GetProperty("beats");
+                    foreach (var beat in beats.EnumerateArray())
                     {
-
                         var n = 0;
-                        sb.AppendLine($"\t\t\t B{b} V{v} M{m} P{p} {GetJson(beat)}");
-                        foreach (var note in beat.Notes)
+                        sb.AppendLine($"\t\t\t B{b} V{v} M{m} P{p} {JsonHelper.GetString(beat, ["notes"])}");
+                        var notes = beat.GetProperty("notes");
+                        foreach (var note in notes.EnumerateArray())
                         {
-
-                            sb.AppendLine($"\t\t\t\t N{n} B{b} V{v} M{m} P{p} {GetJson(note)}");
+                            sb.AppendLine($"\t\t\t\t N{n} B{b} V{v} M{m} P{p} {JsonHelper.GetString(note, [])}");
                             n++;
                         }
 
                         b++;
                     }
-
                     v++;
                 }
+                
 
                 var measureEvents = partEvents
                     .SkipWhile(e => e.MeasureIndex < m)
@@ -392,10 +405,8 @@ public static class Dumper
                     }
                 }
 
-
                 m++;
             }
-
             p++;
         }
 
