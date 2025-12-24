@@ -14,5 +14,5 @@ public class DrumMapping
 
     public int Fret { get; set; }
     public int NoteNumber { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
 }

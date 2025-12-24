@@ -40,7 +40,7 @@ public sealed class Voice : MusicalElement<Voice, Measure>
             }
             else if (beat.BeamSpan == Spanner.Stop)
             {
-                currentBeamGroup.Add(beat);
+                currentBeamGroup!.Add(beat);
                 BeamGroups.Add(currentBeamGroup);
                 beat.BeamGroup = currentBeamGroup;
                 currentBeamGroup = null;
@@ -54,22 +54,4 @@ public sealed class Voice : MusicalElement<Voice, Measure>
     } 
 
     public override string ToString() => $"V{Index} {Measure}";
-
-    public bool Is(string name, string? filter = null)
-    {
-
-        if (string.IsNullOrEmpty(name)) return false;
-
-        var trimmed = name.Trim().ToUpperInvariant();
-        var isMatching = trimmed[0] switch
-        {
-            'V' => $"{this}".Equals(trimmed),
-            'M' => $"{Measure}".Equals(trimmed),
-            'P' => $"{Measure.Part}".Equals(trimmed),
-            _ => false
-        };
-
-        return isMatching && (string.IsNullOrEmpty(filter) || Measure.Part.FullName.Contains(filter, StringComparison.OrdinalIgnoreCase));
-    }
-
 }

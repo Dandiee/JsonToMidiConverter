@@ -7,7 +7,7 @@ using Melanchall.DryWetMidi.Common;
 
 namespace Dani.Converter.Models;
 
-[DebuggerDisplay("N{Index} B{Beat.Index} V{Beat.Voice.Index} M{Beat.Voice.Measure.Index} P{Part.Index}")]
+[DebuggerDisplay("N{Index} B{Beat.Index} V{Beat.Voice!.Index} M{Beat.Voice!.Measure.Index} P{Part.Index}")]
 public sealed class Nota : MusicalElement<Nota, Beat>
 {
     public Beat Beat => Parent;
@@ -84,7 +84,7 @@ public sealed class Nota : MusicalElement<Nota, Beat>
         var prevBeat = Beat.Previous;
         while (prevBeat != null && Previous == null && !prevBeat.Rest)
         {
-            var prevNote = prevBeat.Notes.FirstOrDefault(n => (int)n.StringNumber == stringNUmber);
+            var prevNote = prevBeat.Notes.FirstOrDefault(n => n.StringNumber == stringNUmber);
             if (prevNote != null)
             {
                 if (prevNote.Rest) return null;
@@ -236,7 +236,7 @@ public sealed class Nota : MusicalElement<Nota, Beat>
         }
 
         if (slide == SlideFlags.Shift && delta == 0) yield break;
-        if (slide == SlideFlags.Shift && delta == 0 && note.WillBeTied && note.TieDetails.Destination.Slides == SlideFlags.None)
+        if (slide == SlideFlags.Shift && delta == 0 && note.WillBeTied && note.TieDetails!.Destination.Slides == SlideFlags.None)
         {
             sign = -1;
             steps = 2;

@@ -8,7 +8,7 @@ public readonly struct Time : IEquatable<Time>
 {
     public static TempoMap Map;
 
-    public readonly MusicalTimeSpan Span => TimeConverter.ConvertTo<MusicalTimeSpan>(Tick, Map);
+    public MusicalTimeSpan Span => TimeConverter.ConvertTo<MusicalTimeSpan>(Tick, Map);
 
     public readonly long Tick;
 

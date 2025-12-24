@@ -2,7 +2,6 @@
 using Dani.Data.Models.Enums;
 using Dani.Data.Models.Parts;
 using Force.DeepCloner;
-using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 
 using DataMeasure = Dani.Data.Models.Parts.Measure;
@@ -139,16 +138,14 @@ public sealed class Part
 
         var distance = endIndex - startIndex;
         var duration = span[^1].End - span[0].Start;
-
-        //var stepDuration = duration / Math.Abs(distance);
-
+        var stepDuration = duration / Math.Abs(distance);
         var cursor = span[0].Start;
-        var firstBeat = span[0];
+
         foreach (var beat in span)
         {
             var diff = beat.Start - cursor;
-            //var step = diff.Tick / stepDuration.Tick;
-            //beat.CalculatedVelocity = Velocities[(int)(startIndex + step * Math.Sign(distance))];
+            var step = diff.Tick / stepDuration.Tick;
+            beat.CalculatedVelocity = Velocities[(int)(startIndex + step * Math.Sign(distance))];
             beat.GradualVelocityGroup = span;
         }
 
@@ -378,7 +375,6 @@ public sealed class Part
         var measures = new List<DataMeasure>();
         var repeats = new List<DataMeasure>();
 
-        var c = 0;
         foreach (var measure in part.Measures)
         {
             if (measure.RepeatStart || repeats.Count > 0)
@@ -395,16 +391,17 @@ public sealed class Part
             {
                 for (var i = 0; i < measure.Repeat; i++)
                 {
-                    var part1 = repeats
+                    var leadParts = repeats
                         .TakeWhile(e => e.AlternateEnding.Count == 0 || e.AlternateEnding.Contains((byte)(i + 1)))
                         .ToList();
-                    var part2 = repeats
-                        .Skip(part1.Count)
+
+                    var tailParts = repeats
+                        .Skip(leadParts.Count)
                         .SkipWhile(e => !e.AlternateEnding.Contains((byte)(i + 1)))
                         .TakeWhile(e => e.AlternateEnding.Count == 0 || e.AlternateEnding.Contains((byte)(i + 1)))
                         .ToList();
 
-                    var parts = part1.Concat(part2).ToList();
+                    var parts = leadParts.Concat(tailParts).ToList();
 
                     measures.AddRange(parts.Select(repeat => repeat.DeepClone()));
                 }
@@ -420,8 +417,6 @@ public sealed class Part
 
     private TempoMap GetTempo(DataPart data)
     {
-        var mid = new MidiFile { TimeDivision = Converter.Tpqn };
-
         var bpmChangeByMeasure = data.Automations.Tempo
             .GroupBy(e => e.Measure)
             .ToDictionary(kvp => kvp.Key, kvp => kvp.Last().Bpm);
@@ -445,7 +440,7 @@ public sealed class Part
             }
 
             var time = new BarBeatTicksTimeSpan(i, 0, 0);
-            tempoMapManager.SetTimeSignature(time, new TimeSignature((int)lastSignature.Nominator, (int)lastSignature.Denominator));
+            tempoMapManager.SetTimeSignature(time, new TimeSignature(lastSignature!.Nominator, lastSignature.Denominator));
             tempoMapManager.SetTempo(time, Tempo.FromBeatsPerMinute(lastBpm));
         }
 

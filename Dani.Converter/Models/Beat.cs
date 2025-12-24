@@ -6,7 +6,7 @@ using DataBeat = Dani.Data.Models.Parts.Beat;
 
 namespace Dani.Converter.Models;
 
-[DebuggerDisplay("B{Index} V{Voice.Index} M{Voice.Measure.Index} P{Voice.Measure.Part.Index} - {Duration.Span}")]
+[DebuggerDisplay("B{Index} V{Voice.Index} M{Voice.Measure!.Index} P{Voice.Measure!.Part.Index} - {Duration.Span!}")]
 public sealed class Beat : MusicalElement<Beat, Voice>
 {
     public Voice Voice => Parent;

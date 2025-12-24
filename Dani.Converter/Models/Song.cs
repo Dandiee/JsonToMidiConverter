@@ -4,7 +4,7 @@ using DataPart = Dani.Data.Models.Parts.Part;
 
 namespace Dani.Converter.Models;
 
-[DebuggerDisplay("{Record.Artist} - {Record.Title}")]
+[DebuggerDisplay("{Record.Artist!} - {Record.Title!}")]
 public sealed class Song
 {
     public Record Record { get; }

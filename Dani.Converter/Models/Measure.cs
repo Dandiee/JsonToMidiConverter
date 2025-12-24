@@ -9,7 +9,7 @@ namespace Dani.Converter.Models;
 [DebuggerDisplay("M{Index} P{Part.Index}")]
 public sealed class Measure : MusicalElement<Measure, Part>
 {
-    public List<Voice> Voices { get; } = new();
+    public List<Voice> Voices { get; }
 
     public TripletFeel TripletFeel { get; }
     public Time Signature { get; }
@@ -29,14 +29,13 @@ public sealed class Measure : MusicalElement<Measure, Part>
         AlternateEnding = data.AlternateEnding;
         Bpm = (int)Math.Round(Part.TempoMap.GetTempoAtTime(Start.Span).BeatsPerMinute);
         
-        SignatureFracture = data.Signature.IsZero() ? Previous.SignatureFracture : data.Signature;
+        SignatureFracture = data.Signature.IsZero() ? Previous!.SignatureFracture : data.Signature;
 
         Voices = new List<Voice>(data.Voices.Count);
         for (var i = 0; i < data.Voices.Count; i++)
         {
             Voices.Add(new Voice(this, data.Voices[i], i));
         }
-        
     }
 
     protected override Measure? GetPrevious(object? state = null) 
